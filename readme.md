@@ -30,3 +30,17 @@ created export.
 Example: fabrary.csv
 
 Have fun ;-)
+
+## Hints
+
+To raise Libre Office Calc performance on Windows while editing, 
+turn of "Auto Calculation".
+
+Use "Paste special" and select "All" when copy and paste rows to keep formulars 
+and conditional styles.
+
+Conditional styles only work if "Auto Calculation" is enabled.
+
+Only the blue cells are needed to export. You may add more cols if you like or delete them.
+
+ 
