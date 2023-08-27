@@ -43,7 +43,18 @@ namespace FabCollectionTool
                 return;
             }
 
-            string contentXml = GetOdsContentXml(pathToSrcOds);
+            string contentXml;
+            try
+            {
+                contentXml = GetOdsContentXml(pathToSrcOds);
+            }
+            catch (Exception)
+            {
+                Console.WriteLine(
+                    "Can't read file. Is it opened in another process? Please try again.");
+                ShowMenu();
+                return;
+            }
 
             ImportResult result = new ImportResult();
 
@@ -209,6 +220,28 @@ namespace FabCollectionTool
             }
 
             result.DataDtos.Add(dto);
+        }
+
+        private static bool IsFileLocked(FileInfo file)
+        {
+            try
+            {
+                using (FileStream stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.None))
+                {
+                    stream.Close();
+                }
+            }
+            catch (IOException)
+            {
+                //the file is unavailable because it is:
+                //still being written to
+                //or being processed by another thread
+                //or does not exist (has already been processed)
+                return true;
+            }
+
+            //file is not locked
+            return false;
         }
     }
 

@@ -29,6 +29,8 @@ Afterwards you should find a file in the FabCollectionTool.exe folder according 
 created export.  
 Example: fabrary.csv
 
+File must not be opened in another process when importing.
+
 Have fun ;-)
 
 ## Hints
