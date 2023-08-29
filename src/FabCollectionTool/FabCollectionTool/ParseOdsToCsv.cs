@@ -177,8 +177,8 @@ namespace FabCollectionTool
                     case true when j.Equals(indexMap.Sub2):
                         dto.Sub2 = cells[i].Value;
                         break;
-                    case true when j.Equals(indexMap.Peculiarity):
-                        dto.Peculiarity = cells[i].Value;
+                    case true when j.Equals(indexMap.Treatment):
+                        dto.Treatment = cells[i].Value;
                         break;
                     case true when j.Equals(indexMap.Name):
                         dto.Name = cells[i].Value;
@@ -257,7 +257,7 @@ namespace FabCollectionTool
         public int Type { get; set; }
         public int Sub1 { get; set; }
         public int Sub2 { get; set; }
-        public int Peculiarity { get; set; }
+        public int Treatment { get; set; }
         public int Name { get; set; }
         public int Pitch { get; set; }
         public int Playset { get; set; }
@@ -338,8 +338,8 @@ namespace FabCollectionTool
                         Sub2 = i;
                         break;
 
-                    case "Peculiarity":
-                        Peculiarity = i;
+                    case "Treatment":
+                        Treatment = i;
                         break;
 
                     case "Name":
@@ -391,7 +391,7 @@ namespace FabCollectionTool
         public string? Type { get; set; }
         public string? Sub1 { get; set; }
         public string? Sub2 { get; set; }
-        public string? Peculiarity { get; set; }
+        public string? Treatment { get; set; }
         public string? Name { get; set; }
         public string? Pitch { get; set; }
         public int Playset { get; set; }
@@ -442,7 +442,7 @@ namespace FabCollectionTool
             SetNumber = dataDto.Id;
             Edition = dataDto.Edition;
             Foiling = null;
-            Treatment = dataDto.Peculiarity;
+            Treatment = dataDto.Treatment;
             Have = null;
             WantInTrade = null;
             WantToBuy = null;

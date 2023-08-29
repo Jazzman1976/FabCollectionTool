@@ -43,6 +43,16 @@ and conditional styles.
 
 Conditional styles only work if "Auto Calculation" is enabled.
 
-Only the blue cells are needed to export. You may add more cols if you like or delete them.
+Only the blue cells are needed to export.  
+You may add more cols if you like or delete existing non-blue cols.
 
- 
+### Fabrary
+
+If you miss a card, check if it is set in another way than it should be.  
+Check rarity, foil, etc.  
+If you didn't find something, download the fabrary collection and compare the concerned  
+card in the CSV file.  
+
+I recognized, that "incorrect" defined cards from your ODS are still counted in Fabrary  
+but not listed in any of the input fields. Fabrary recognizes that you have a copy but  
+can't identify the right input field where it should be listed.
