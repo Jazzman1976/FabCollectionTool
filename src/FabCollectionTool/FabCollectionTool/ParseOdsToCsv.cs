@@ -31,16 +31,16 @@ namespace FabCollectionTool
             }
         }
 
-        private static void ParseToFabrary()
+        private static ImportResult? GetImportResult()
         {
             Console.Write("Path to source .ods file: ");
-            string pathToSrcOds = Console.ReadLine()??"";
+            string pathToSrcOds = Console.ReadLine() ?? "";
 
             if (!File.Exists(pathToSrcOds))
             {
                 Console.WriteLine("file not found!");
                 ShowMenu();
-                return;
+                return null;
             }
 
             string contentXml;
@@ -53,22 +53,33 @@ namespace FabCollectionTool
                 Console.WriteLine(
                     "Can't read file. Is it opened in another process? Please try again.");
                 ShowMenu();
-                return;
+                return null;
             }
-
-            ImportResult result = new ImportResult();
 
             var doc = XDocument.Parse(contentXml);
             XElement? headRow = doc.Descendants("{urn:oasis:names:tc:opendocument:xmlns:table:1.0}table-row").FirstOrDefault();
             var rows = doc.Descendants("{urn:oasis:names:tc:opendocument:xmlns:table:1.0}table-row").Skip(1);
 
-            if (headRow == null) return;
+            if (headRow == null) return null;
 
             RowIndexMap rowIndexMap = new RowIndexMap(headRow);
 
+            ImportResult result = new ImportResult();
             foreach (var row in rows)
             {
                 ImportRow(row, result, rowIndexMap);
+            }
+
+            return result;
+        }
+
+        private static void ParseToFabrary()
+        {
+            ImportResult? result = GetImportResult();
+            if (result == null) 
+            {
+                ShowMenu();
+                return;
             }
 
             FabraryList fabList = new FabraryList(result);
@@ -80,6 +91,7 @@ namespace FabCollectionTool
             }
 
             // end
+            Console.WriteLine("fabrary.csv has been generated.");
             Start.ShowMainMenu();
         }
 
@@ -118,130 +130,84 @@ namespace FabCollectionTool
 
         private static void ImportRow(XElement row, ImportResult result, RowIndexMap indexMap)
         {
+            // assure index map
             if (indexMap == null) return;
 
-            var cells = (from c in row.Descendants()
+            // get cells of row
+            List<XElement>? cells = (from c in row.Descendants()
                          where c.Name == "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}table-cell"
                          select c).ToList();
 
-            var dto = new DataDto();
+            // init cell index values dictionary
+            Dictionary<int,string> cellIndexValues = new Dictionary<int,string>();
 
-            var count = cells.Count;
-            var j = -1;
-
+            // fill cell index values dictionary
+            int count = cells.Count;
+            int j = -1;
             for (var i = 0; i < count; i++)
             {
                 j++;
                 var cell = cells[i];
                 var attr = cell.Attribute("{urn:oasis:names:tc:opendocument:xmlns:table:1.0}number-columns-repeated");
+
+                // there's a col with a "number-columns-repeated",
+                // which says how many cols are following having the same number value
                 if (attr != null)
                 {
-                    var numToSkip = 0;
-                    if (int.TryParse(attr.Value, out numToSkip))
+                    if (int.TryParse(attr.Value, out int numToSkip))
                     {
+                        // get the value which is the same value in the following X cols
+                        string repeatingCellValue = cells[i].Value;
+
+                        if (!string.IsNullOrEmpty(repeatingCellValue))
+                        {
+                            // fill all following X cols with same value
+                            int filled = 0;
+                            while (filled < numToSkip)
+                            {
+                                cellIndexValues[j + filled] = repeatingCellValue;
+                                filled++;
+                            }
+                        }
+
+                        // set reading index pointer to next col after all skipped cols
                         j += numToSkip - 1;
                     }
                 }
+                else
+                {
+                    // standard value, no number-columns-repeated: add it to the dictionary
+                    cellIndexValues[j] = cells[i].Value;
+                }
 
+                // break when nothing left to import
                 if (i > 30) break;
-
-                switch (true)
-                {
-                    case true when j.Equals(indexMap.Set):
-                        dto.Set = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Edition):
-                        dto.Edition = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.FirstIn):
-                        dto.FirstIn = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Id):
-                        dto.Id = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Rarity):
-                        dto.Rarity = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Talent):
-                        dto.Talent = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Class):
-                        dto.Class = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Type):
-                        dto.Type = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Sub1):
-                        dto.Sub1 = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Sub2):
-                        dto.Sub2 = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Treatment):
-                        dto.Treatment = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Name):
-                        dto.Name = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Pitch):
-                        dto.Pitch = cells[i].Value;
-                        break;
-                    case true when j.Equals(indexMap.Playset):
-                        dto.Playset = int.TryParse(cells[i].Value, out int playset)
-                            ? playset
-                            : 0;
-                        break;
-                    case true when j.Equals(indexMap.DS):
-                        dto.DS = int.TryParse(cells[i].Value, out int ds)
-                            ? ds
-                            : 0;
-                        break;
-                    case true when j.Equals(indexMap.ST):
-                        dto.ST = int.TryParse(cells[i].Value, out int st)
-                            ? st
-                            : 0;
-                        break;
-                    case true when j.Equals(indexMap.RF):
-                        dto.RF = int.TryParse(cells[i].Value, out int rf)
-                            ? rf
-                            : 0;
-                        break;
-                    case true when j.Equals(indexMap.CF):
-                        dto.CF = int.TryParse(cells[i].Value, out int cf)
-                            ? cf
-                            : 0;
-                        break;
-                    case true when j.Equals(indexMap.GF):
-                        dto.GF = int.TryParse(cells[i].Value, out int gf)
-                            ? gf
-                            : 0;
-                        break;
-                }
             }
 
-            result.DataDtos.Add(dto);
-        }
-
-        private static bool IsFileLocked(FileInfo file)
-        {
-            try
+            // save DTO with cell index values
+            result.DataDtos.Add(new DataDto
             {
-                using (FileStream stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.None))
-                {
-                    stream.Close();
-                }
-            }
-            catch (IOException)
-            {
-                //the file is unavailable because it is:
-                //still being written to
-                //or being processed by another thread
-                //or does not exist (has already been processed)
-                return true;
-            }
-
-            //file is not locked
-            return false;
+                Set = cellIndexValues.GetStringValue(indexMap.Set),
+                Edition = cellIndexValues.GetStringValue(indexMap.Edition),
+                FirstIn = cellIndexValues.GetStringValue(indexMap.FirstIn),
+                Id = cellIndexValues.GetStringValue(indexMap.Id),
+                Rarity = cellIndexValues.GetStringValue(indexMap.Rarity),
+                Talent1 = cellIndexValues.GetStringValue(indexMap.Talent1),
+                Talent2 = cellIndexValues.GetStringValue(indexMap.Talent2),
+                Class = cellIndexValues.GetStringValue(indexMap.Class),
+                Type = cellIndexValues.GetStringValue(indexMap.Type),
+                Sub1 = cellIndexValues.GetStringValue(indexMap.Sub1),
+                Sub2 = cellIndexValues.GetStringValue(indexMap.Sub2),
+                Treatment = cellIndexValues.GetStringValue(indexMap.Treatment),
+                Name = cellIndexValues.GetStringValue(indexMap.Name),
+                Pitch = cellIndexValues.GetStringValue(indexMap.Pitch),
+                Playset = cellIndexValues.GetIntegerValue(indexMap.Playset),
+                DS = cellIndexValues.GetIntegerValue(indexMap.DS),
+                ST = cellIndexValues.GetIntegerValue(indexMap.ST),
+                RF = cellIndexValues.GetIntegerValue(indexMap.RF),
+                CF = cellIndexValues.GetIntegerValue(indexMap.CF),
+                GF = cellIndexValues.GetIntegerValue(indexMap.GF),
+            });
         }
     }
 
@@ -252,7 +218,8 @@ namespace FabCollectionTool
         public int FirstIn { get; set; }
         public int Id { get; set; }
         public int Rarity { get; set; }
-        public int Talent { get; set; }
+        public int Talent1 { get; set; }
+        public int Talent2 { get; set; }
         public int Class { get; set; }
         public int Type { get; set; }
         public int Sub1 { get; set; }
@@ -318,8 +285,12 @@ namespace FabCollectionTool
                         Rarity = i;
                         break;
 
-                    case "Talent":
-                        Talent = i;
+                    case "Talent1":
+                        Talent1 = i;
+                        break;
+
+                    case "Talent2":
+                        Talent2 = i;
                         break;
 
                     case "Class":
@@ -386,7 +357,8 @@ namespace FabCollectionTool
         public string? FirstIn { get; set; }
         public string? Id { get; set; }
         public string? Rarity { get; set; }
-        public string? Talent { get; set; }
+        public string? Talent1 { get; set; }
+        public string? Talent2 { get; set; }
         public string? Class { get; set; }
         public string? Type { get; set; }
         public string? Sub1 { get; set; }
@@ -532,6 +504,25 @@ namespace FabCollectionTool
                 }
             }
             return sb.ToString();
+        }
+    }
+
+    public static class DictionaryExtensions
+    {
+        public static string GetStringValue(this Dictionary<int,string> dic, int i)
+        {
+            return dic.ContainsKey(i) 
+                ? dic[i] 
+                : "";
+        }
+
+        public static int GetIntegerValue(this Dictionary<int, string> dic, int i)
+        {
+            return dic.ContainsKey(i) 
+                ? int.TryParse(dic[i], out int parsed) 
+                    ? parsed 
+                    : 0 
+                : 0;
         }
     }
 }
