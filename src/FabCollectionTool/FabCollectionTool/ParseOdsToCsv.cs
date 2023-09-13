@@ -194,7 +194,8 @@ namespace FabCollectionTool
                 Rarity = cellIndexValues.GetStringValue(indexMap.Rarity),
                 Talent1 = cellIndexValues.GetStringValue(indexMap.Talent1),
                 Talent2 = cellIndexValues.GetStringValue(indexMap.Talent2),
-                Class = cellIndexValues.GetStringValue(indexMap.Class),
+                Class1 = cellIndexValues.GetStringValue(indexMap.Class1),
+                Class2 = cellIndexValues.GetStringValue(indexMap.Class2),
                 Type = cellIndexValues.GetStringValue(indexMap.Type),
                 Sub1 = cellIndexValues.GetStringValue(indexMap.Sub1),
                 Sub2 = cellIndexValues.GetStringValue(indexMap.Sub2),
@@ -220,7 +221,8 @@ namespace FabCollectionTool
         public int Rarity { get; set; }
         public int Talent1 { get; set; }
         public int Talent2 { get; set; }
-        public int Class { get; set; }
+        public int Class1 { get; set; }
+        public int Class2 { get; set; }
         public int Type { get; set; }
         public int Sub1 { get; set; }
         public int Sub2 { get; set; }
@@ -293,8 +295,12 @@ namespace FabCollectionTool
                         Talent2 = i;
                         break;
 
-                    case "Class":
-                        Class = i;
+                    case "Class1":
+                        Class1 = i;
+                        break;
+
+                    case "Class2":
+                        Class2 = i;
                         break;
 
                     case "Type":
@@ -359,7 +365,8 @@ namespace FabCollectionTool
         public string? Rarity { get; set; }
         public string? Talent1 { get; set; }
         public string? Talent2 { get; set; }
-        public string? Class { get; set; }
+        public string? Class1 { get; set; }
+        public string? Class2 { get; set; }
         public string? Type { get; set; }
         public string? Sub1 { get; set; }
         public string? Sub2 { get; set; }
@@ -403,6 +410,7 @@ namespace FabCollectionTool
 
             Identifier = identifierRaw
                 ?.Trim()
+                ?.RemoveAccents()
                 ?.RemoveDoubleWhitespaces()
                 ?.RemoveSpecialCharacters()
                 ?.Replace(' ', '-')
@@ -504,6 +512,19 @@ namespace FabCollectionTool
                 }
             }
             return sb.ToString();
+        }
+
+        public static string? RemoveAccents(this string? text)
+        {
+            if (text == null) return text;
+            StringBuilder sbReturn = new();
+            var arrayText = text.Normalize(NormalizationForm.FormD).ToCharArray();
+            foreach (char letter in arrayText)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(letter) != UnicodeCategory.NonSpacingMark)
+                    sbReturn.Append(letter);
+            }
+            return sbReturn.ToString();
         }
     }
 
