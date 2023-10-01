@@ -46,6 +46,8 @@ Conditional styles only work if "Auto Calculation" is enabled.
 Only the blue cells are needed to export.  
 You may add more cols if you like or delete existing non-blue cols.
 
+Save often, save backups (copies).
+
 ### Fabrary
 
 If you miss a card, check if it is set in another way than it should be.  
