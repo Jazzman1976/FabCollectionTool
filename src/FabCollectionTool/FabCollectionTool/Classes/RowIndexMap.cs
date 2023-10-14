@@ -9,18 +9,16 @@ namespace FabCollectionTool.Classes
         public int FirstIn { get; set; }
         public int Id { get; set; }
         public int Rarity { get; set; }
-        public int Talent1 { get; set; }
-        public int Talent2 { get; set; }
+        public int Talent { get; set; }
         public int Class1 { get; set; }
         public int Class2 { get; set; }
-        public int Type { get; set; }
+        public int Type1 { get; set; }
         public int Sub1 { get; set; }
         public int Sub2 { get; set; }
-        public int Treatment { get; set; }
+        public int ArtTreatment { get; set; }
         public int Name { get; set; }
         public int Pitch { get; set; }
         public int Playset { get; set; }
-        public int DS { get; set; }
         public int ST { get; set; }
         public int RF { get; set; }
         public int CF { get; set; }
@@ -77,12 +75,8 @@ namespace FabCollectionTool.Classes
                         Rarity = i;
                         break;
 
-                    case "Talent1":
-                        Talent1 = i;
-                        break;
-
-                    case "Talent2":
-                        Talent2 = i;
+                    case "Talent":
+                        Talent = i;
                         break;
 
                     case "Class1":
@@ -93,8 +87,8 @@ namespace FabCollectionTool.Classes
                         Class2 = i;
                         break;
 
-                    case "Type":
-                        Type = i;
+                    case "Type1":
+                        Type1 = i;
                         break;
 
                     case "Sub1":
@@ -105,8 +99,8 @@ namespace FabCollectionTool.Classes
                         Sub2 = i;
                         break;
 
-                    case "Treatment":
-                        Treatment = i;
+                    case "Art Treatment":
+                        ArtTreatment = i;
                         break;
 
                     case "Name":
@@ -119,10 +113,6 @@ namespace FabCollectionTool.Classes
 
                     case "Playset":
                         Playset = i;
-                        break;
-
-                    case "DS":
-                        DS = i;
                         break;
 
                     case "ST":

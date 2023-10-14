@@ -1,5 +1,4 @@
 ﻿using CsvHelper;
-using CsvHelper.Configuration.Attributes;
 using FabCollectionTool.Classes;
 using FabCollectionTool.Extensions;
 using ICSharpCode.SharpZipLib.Zip;
@@ -13,7 +12,8 @@ namespace FabCollectionTool
     {
         public static void ShowMenu()
         {
-            Console.Write("Select: [f]abrary csv style, [r]eturn to menu: ");
+            Console.Write(
+                "Select: [f]abrary csv style, [c]ardmarket wants txt style, [r]eturn to menu: ");
             string selection = Console.ReadKey().KeyChar.ToString().ToLower();
             Console.WriteLine();
 
@@ -21,6 +21,10 @@ namespace FabCollectionTool
             {
                 case "f":
                     ParseToFabrary();
+                    break;
+
+                case "c":
+                    ParseToCardmarketDecklist(); 
                     break;
 
                 case "r":
@@ -106,6 +110,33 @@ namespace FabCollectionTool
 
             // end
             Console.WriteLine("fabrary.csv has been generated.");
+            Start.ShowMainMenu();
+        }
+
+        private static void ParseToCardmarketDecklist()
+        {
+            ImportResult? result = GetImportResult();
+            if (result == null)
+            {
+                ShowMenu();
+                return;
+            }
+
+            Console.Write("Setname: ");
+            string setname = Console.ReadLine() ?? "";
+
+            CardmarketWantsList wantsList = new CardmarketWantsList(result, setname);
+
+            using (var writer = new StreamWriter("cm-wants.txt"))
+            {
+                foreach(CardmarketDecklistDto dto in wantsList.CardmarketDecklistDtos) 
+                {
+                    string line = $"{dto.WantToBuy} {dto.Name} {dto.Pitch}".Trim();
+                    writer.WriteLine(line);
+                }
+            }
+
+            Console.WriteLine("cm-wants.txt has been created.");
             Start.ShowMainMenu();
         }
 
@@ -206,158 +237,21 @@ namespace FabCollectionTool
                 FirstIn = cellIndexValues.GetStringValue(indexMap.FirstIn),
                 Id = cellIndexValues.GetStringValue(indexMap.Id),
                 Rarity = cellIndexValues.GetStringValue(indexMap.Rarity),
-                Talent1 = cellIndexValues.GetStringValue(indexMap.Talent1),
-                Talent2 = cellIndexValues.GetStringValue(indexMap.Talent2),
+                Talent = cellIndexValues.GetStringValue(indexMap.Talent),
                 Class1 = cellIndexValues.GetStringValue(indexMap.Class1),
                 Class2 = cellIndexValues.GetStringValue(indexMap.Class2),
-                Type = cellIndexValues.GetStringValue(indexMap.Type),
+                Type1 = cellIndexValues.GetStringValue(indexMap.Type1),
                 Sub1 = cellIndexValues.GetStringValue(indexMap.Sub1),
                 Sub2 = cellIndexValues.GetStringValue(indexMap.Sub2),
-                Treatment = cellIndexValues.GetStringValue(indexMap.Treatment),
+                ArtTreatment = cellIndexValues.GetStringValue(indexMap.ArtTreatment),
                 Name = cellIndexValues.GetStringValue(indexMap.Name),
                 Pitch = cellIndexValues.GetStringValue(indexMap.Pitch),
                 Playset = cellIndexValues.GetIntegerValue(indexMap.Playset),
-                DS = cellIndexValues.GetIntegerValue(indexMap.DS),
                 ST = cellIndexValues.GetIntegerValue(indexMap.ST),
                 RF = cellIndexValues.GetIntegerValue(indexMap.RF),
                 CF = cellIndexValues.GetIntegerValue(indexMap.CF),
                 GF = cellIndexValues.GetIntegerValue(indexMap.GF),
             });
-        }
-    }
-
-    public class DataDto
-    {
-        public string? Set { get; set; }
-        public string? Edition { get; set; }
-        public string? FirstIn { get; set; }
-        public string? Id { get; set; }
-        public string? Rarity { get; set; }
-        public string? Talent1 { get; set; }
-        public string? Talent2 { get; set; }
-        public string? Class1 { get; set; }
-        public string? Class2 { get; set; }
-        public string? Type { get; set; }
-        public string? Sub1 { get; set; }
-        public string? Sub2 { get; set; }
-        public string? Treatment { get; set; }
-        public string? Name { get; set; }
-        public string? Pitch { get; set; }
-        public int Playset { get; set; }
-        public int DS { get; set; }
-        public int ST { get; set; }
-        public int RF { get; set; }
-        public int CF { get; set; }
-        public int GF { get; set; }
-    }
-
-    public class FabraryDto
-    {
-        public string? Identifier { get; set; }
-        public string? Name { get; set; }
-        public string? Pitch { get; set; }
-        public string? Set { get; set; }
-        [Name("Set number")]
-        public string? SetNumber { get; set; }
-        public string? Edition { get; set; }
-        public string? Foiling { get; set; }
-        public string? Treatment { get; set; }
-        public int? Have { get; set; }
-        [Name("Want in trade")]
-        public int? WantInTrade { get; set; }
-        [Name("Want to buy")]
-        public int? WantToBuy { get; set; }
-        [Name("Extra for trade")]
-        public int? ExtraForTrade { get; set; }
-        [Name("Extra to sell")]
-        public int? ExtraForSell { get; set; }
-
-        public FabraryDto(DataDto dataDto)
-        {
-            string? identifierRaw = !string.IsNullOrWhiteSpace(dataDto.Pitch)
-                ? dataDto.Name + " " + dataDto.Pitch
-                : dataDto.Name;
-
-            Identifier = identifierRaw
-                ?.Trim()
-                ?.RemoveAccents()
-                ?.RemoveDoubleWhitespaces()
-                ?.RemoveSpecialCharacters()
-                ?.Replace(' ', '-')
-                ?.ToLower();
-
-            Name = dataDto.Name;
-            Pitch = dataDto.Pitch;
-            Set = dataDto.Set;
-            SetNumber = dataDto.Id;
-            Edition = dataDto.Edition;
-            Foiling = null;
-            Treatment = dataDto.Treatment;
-            Have = null;
-            WantInTrade = null;
-            WantToBuy = null;
-            ExtraForTrade = null;
-            ExtraForSell = null;
-        }
-    }
-
-    public class ImportResult
-    {
-        public List<DataDto> DataDtos { get; set; } = new List<DataDto>();
-    }
-
-    public class FabraryList
-    {
-        public List<FabraryDto> FabraryDtos { get; set; }
-
-        public FabraryList(ImportResult importResult) 
-        {
-            FabraryDtos = new List<FabraryDto>();
-            foreach(DataDto dataDto in importResult.DataDtos)
-            {
-                // skip invalid dtos
-                if (string.IsNullOrWhiteSpace(dataDto.Id) || dataDto.Id == "0")
-                {
-                    continue;
-                }
-
-                // always add DS|ST variant, even if zero (to show missing cards in Fabrary)
-                FabraryDtos.Add(new(dataDto)
-                {
-                    Foiling = null,
-                    Have = dataDto.DS + dataDto.ST
-                });   
-
-                if (dataDto.RF > 0)
-                {
-                    FabraryDto fabDto = new(dataDto)
-                    {
-                        Foiling = "Rainbow",
-                        Have = dataDto.RF
-                    };
-                    FabraryDtos.Add(fabDto);
-                }
-
-                if (dataDto.CF > 0)
-                {
-                    FabraryDto fabDto = new(dataDto)
-                    {
-                        Foiling = "Cold",
-                        Have = dataDto.CF
-                    };
-                    FabraryDtos.Add(fabDto);
-                }
-
-                if (dataDto.GF > 0)
-                {
-                    FabraryDto fabDto = new(dataDto)
-                    {
-                        Foiling = "Gold",
-                        Have = dataDto.GF
-                    };
-                    FabraryDtos.Add(fabDto);
-                }
-            }
         }
     }
 }
