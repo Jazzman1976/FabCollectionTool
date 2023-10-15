@@ -4,16 +4,17 @@ using FabCollectionTool.Extensions;
 using ICSharpCode.SharpZipLib.Zip;
 using System.Globalization;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace FabCollectionTool
 {
-    internal static class ParseOdsToCsv
+    internal static class ParseOds
     {
         public static void ShowMenu()
         {
             Console.Write(
-                "Select: [f]abrary csv style, [c]ardmarket wants txt style, [r]eturn to menu: ");
+                "Select: [f]abrary, [c]ardmarket, [r]eturn to menu: ");
             string selection = Console.ReadKey().KeyChar.ToString().ToLower();
             Console.WriteLine();
 
@@ -41,13 +42,20 @@ namespace FabCollectionTool
         {
             Console.Write("Path to source .ods file: ");
             string pathToSrcOds = Console.ReadLine() ?? "";
+            if (!pathToSrcOds.ToLower().EndsWith(".ods"))
+            {
+                pathToSrcOds += ".ods";
+            }
 
             if (!File.Exists(pathToSrcOds))
             {
-                Console.WriteLine("file not found!");
+                Console.WriteLine($"file '{pathToSrcOds}' not found!");
                 ShowMenu();
                 return null;
             }
+
+            Console.WriteLine(
+                $"File '{pathToSrcOds}' found.");
 
             string contentXml;
             try
@@ -115,6 +123,11 @@ namespace FabCollectionTool
 
         private static void ParseToCardmarketDecklist()
         {
+            // ask for set to export
+            Console.Write("Set to export (e.g. 'Welcome to Rathe' or 'WTR'): ");
+            string setname = Console.ReadLine() ?? "";
+
+            // read .ods file and get import result
             ImportResult? result = GetImportResult();
             if (result == null)
             {
@@ -122,27 +135,32 @@ namespace FabCollectionTool
                 return;
             }
 
-            Console.Write("Setname: ");
-            string setname = Console.ReadLine() ?? "";
-
+            // write cm-wants.txt file
             CardmarketWantsList wantsList = new CardmarketWantsList(result, setname);
-
             using (var writer = new StreamWriter("cm-wants.txt"))
             {
                 foreach(CardmarketDecklistDto dto in wantsList.CardmarketDecklistDtos) 
                 {
-                    string line = $"{dto.WantToBuy} {dto.Name} {dto.Pitch}".Trim();
-                    writer.WriteLine(line);
+                    string line = 
+                        $"{dto.WantToBuy} {dto.Name}" +
+                        $"{(string.IsNullOrWhiteSpace(dto.BacksideName) ? " " : " // " + dto.BacksideName)} " +
+                        $"{dto.Pitch}";
+                    writer.WriteLine(line.RemoveDoubleWhitespaces()?.Trim());
                 }
             }
 
-            Console.WriteLine("cm-wants.txt has been created.");
+            // success message and end
+            Console.WriteLine("File 'cm-wants.txt' has been created.");
             Start.ShowMainMenu();
         }
 
         private static string GetOdsContentXml(string filepath)
         {
+            // init return value
             string? contentXml = "";
+
+            // read .ods
+            Console.WriteLine("Start reading .ods file. This may take some time.");
             using (FileStream fs = new FileStream(filepath, FileMode.Open, FileAccess.Read))
             {
                 using var zipInputStream = new ZipInputStream(fs);
@@ -241,10 +259,12 @@ namespace FabCollectionTool
                 Class1 = cellIndexValues.GetStringValue(indexMap.Class1),
                 Class2 = cellIndexValues.GetStringValue(indexMap.Class2),
                 Type1 = cellIndexValues.GetStringValue(indexMap.Type1),
+                Type2 = cellIndexValues.GetStringValue(indexMap.Type2),
                 Sub1 = cellIndexValues.GetStringValue(indexMap.Sub1),
                 Sub2 = cellIndexValues.GetStringValue(indexMap.Sub2),
                 ArtTreatment = cellIndexValues.GetStringValue(indexMap.ArtTreatment),
                 Name = cellIndexValues.GetStringValue(indexMap.Name),
+                BacksideName = cellIndexValues.GetStringValue(indexMap.BacksideName),
                 Pitch = cellIndexValues.GetStringValue(indexMap.Pitch),
                 Playset = cellIndexValues.GetIntegerValue(indexMap.Playset),
                 ST = cellIndexValues.GetIntegerValue(indexMap.ST),

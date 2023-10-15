@@ -2,6 +2,9 @@
 
 namespace FabCollectionTool.Classes
 {
+    /// <summary>
+    /// Maps string column names to their integer cell index number
+    /// </summary>
     public class RowIndexMap
     {
         public int Set { get; set; }
@@ -13,10 +16,12 @@ namespace FabCollectionTool.Classes
         public int Class1 { get; set; }
         public int Class2 { get; set; }
         public int Type1 { get; set; }
+        public int Type2 { get; set; }
         public int Sub1 { get; set; }
         public int Sub2 { get; set; }
         public int ArtTreatment { get; set; }
         public int Name { get; set; }
+        public int BacksideName { get; set; }
         public int Pitch { get; set; }
         public int Playset { get; set; }
         public int ST { get; set; }
@@ -91,6 +96,10 @@ namespace FabCollectionTool.Classes
                         Type1 = i;
                         break;
 
+                    case "Type2":
+                        Type2 = i;
+                        break;
+
                     case "Sub1":
                         Sub1 = i;
                         break;
@@ -105,6 +114,10 @@ namespace FabCollectionTool.Classes
 
                     case "Name":
                         Name = i;
+                        break;
+
+                    case "Backside Name":
+                        BacksideName = i;
                         break;
 
                     case "Pitch":

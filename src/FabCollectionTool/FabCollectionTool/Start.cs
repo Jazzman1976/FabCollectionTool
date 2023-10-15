@@ -4,7 +4,7 @@
     {
         public static void ShowMainMenu()
         {
-            Console.Write("Select: [p]arse ods to csv, [e]xit: ");
+            Console.Write("Select: [p]arse .ods file, [e]xit: ");
             string selection = Console.ReadKey().KeyChar.ToString().ToLower();
             Console.WriteLine();
 
@@ -15,7 +15,7 @@
                     break;
 
                 case "p":
-                    ParseOdsToCsv.ShowMenu();
+                    ParseOds.ShowMenu();
                     break;
 
                 default:

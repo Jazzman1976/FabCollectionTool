@@ -11,10 +11,12 @@
         public string? Class1 { get; set; }
         public string? Class2 { get; set; }
         public string? Type1 { get; set; }
+        public string? Type2 { get; set; }
         public string? Sub1 { get; set; }
         public string? Sub2 { get; set; }
         public string? ArtTreatment { get; set; }
         public string? Name { get; set; }
+        public string? BacksideName { get; set; }
         public string? Pitch { get; set; }
         public int Playset { get; set; }
         public int ST { get; set; }
