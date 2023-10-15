@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v6.0": {
-      "FabCollectionTool/1.0.8": {
+      "FabCollectionTool/1.0.9": {
         "dependencies": {
           "CsvHelper": "30.0.1",
           "SharpZipLib": "1.4.2"
@@ -34,7 +34,7 @@
     }
   },
   "libraries": {
-    "FabCollectionTool/1.0.8": {
+    "FabCollectionTool/1.0.9": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

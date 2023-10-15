@@ -4,7 +4,6 @@ using FabCollectionTool.Extensions;
 using ICSharpCode.SharpZipLib.Zip;
 using System.Globalization;
 using System.Text;
-using System.Xml;
 using System.Xml.Linq;
 
 namespace FabCollectionTool
@@ -14,7 +13,7 @@ namespace FabCollectionTool
         public static void ShowMenu()
         {
             Console.Write(
-                "Select: [f]abrary, [c]ardmarket, [r]eturn to menu: ");
+                "Select: [f]abrary, [c]ardmarket, [d]ragonshield, [r]eturn to menu: ");
             string selection = Console.ReadKey().KeyChar.ToString().ToLower();
             Console.WriteLine();
 
@@ -26,6 +25,10 @@ namespace FabCollectionTool
 
                 case "c":
                     ParseToCardmarketDecklist(); 
+                    break;
+
+                case "d":
+                    ParseToDragonshield();
                     break;
 
                 case "r":
@@ -151,6 +154,33 @@ namespace FabCollectionTool
 
             // success message and end
             Console.WriteLine("File 'cm-wants.txt' has been created.");
+            Start.ShowMainMenu();
+        }
+
+        private static void ParseToDragonshield()
+        {
+            // ask for set to export
+            Console.Write("Set to export (e.g. 'Welcome to Rathe' or 'WTR'): ");
+            string setname = Console.ReadLine() ?? "";
+
+            // read .ods file and get import result
+            ImportResult? result = GetImportResult();
+            if (result == null)
+            {
+                ShowMenu();
+                return;
+            }
+
+            // write dragonshield.csv
+            DragonshieldList dragonList = new DragonshieldList(result, setname);
+            using (var writer = new StreamWriter("dragonshield.csv"))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                csv.WriteRecords(dragonList.DragonshieldDtos);
+            }
+
+            // end
+            Console.WriteLine("dragonshield.csv has been generated.");
             Start.ShowMainMenu();
         }
 
