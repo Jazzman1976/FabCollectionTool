@@ -38,6 +38,11 @@
                 string? setCode = string.IsNullOrWhiteSpace(dataDto.Edition)
                     ? dataDto.Id[..3] // substring(0,3) new operator
                     : $"{dataDto.Id[..3]}-{dataDto.Edition.First()}";
+                // exception for Everfest only
+                if (setCode == "EVR-F")
+                {
+                    setCode = "EVR";
+                }
 
                 // get set name
                 string? setName = string.IsNullOrWhiteSpace(dataDto.Edition)
@@ -99,9 +104,9 @@
                         CardName = cardName,
                         SetCode = setCode,
                         SetName = setName,
-                        CardNumber = $"{dataDto.Id}-CF",
+                        CardNumber = dataDto.Id,
                         Condition = "NearMint",
-                        //Printing = "",
+                        Printing = "Cold Foil",
                         Language = "English",
                         PriceBought = "0.0",
                         DateBought = date,
@@ -120,9 +125,9 @@
                         CardName = cardName,
                         SetCode = setCode,
                         SetName = setName,
-                        CardNumber = $"{dataDto.Id}-GF",
+                        CardNumber = dataDto.Id,
                         Condition = "NearMint",
-                        //Printing = "",
+                        Printing = "Gold Foil",
                         Language = "English",
                         PriceBought = "0.0",
                         DateBought = date,
