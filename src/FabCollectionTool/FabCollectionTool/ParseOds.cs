@@ -1,6 +1,7 @@
 ﻿using CsvHelper;
 using FabCollectionTool.Classes;
 using FabCollectionTool.Extensions;
+using FabCollectionTool.TcgPowertools;
 using ICSharpCode.SharpZipLib.Zip;
 using System.Globalization;
 using System.Text;
@@ -13,7 +14,7 @@ namespace FabCollectionTool
         public static void ShowMenu()
         {
             Console.Write(
-                "Select: [f]abrary, [c]ardmarket, [d]ragonshield, [r]eturn to menu: ");
+                "Select: [f]abrary, [c]ardmarket, [d]ragonshield, [t]cg powertools or [r]eturn to menu: ");
             string selection = Console.ReadKey().KeyChar.ToString().ToLower();
             Console.WriteLine();
 
@@ -29,6 +30,10 @@ namespace FabCollectionTool
 
                 case "d":
                     ParseToDragonshield();
+                    break;
+
+                case "t":
+                    ParseToTcgPowertools();
                     break;
 
                 case "r":
@@ -144,10 +149,11 @@ namespace FabCollectionTool
             {
                 foreach(CardmarketDecklistDto dto in wantsList.CardmarketDecklistDtos) 
                 {
-                    string line = 
+                    string line =
                         $"{dto.WantToBuy} {dto.Name}" +
                         $"{(string.IsNullOrWhiteSpace(dto.BacksideName) ? " " : " // " + dto.BacksideName)} " +
-                        $"{dto.Pitch}";
+                        $"{dto.Pitch} " +
+                        $"({dto.Setname + (!string.IsNullOrWhiteSpace(dto.SetEdition) ? $" - {dto.SetEdition}" : "")})";
                     writer.WriteLine(line.RemoveDoubleWhitespaces()?.Trim());
                 }
             }
@@ -181,6 +187,33 @@ namespace FabCollectionTool
 
             // end
             Console.WriteLine("dragonshield.csv has been generated.");
+            Start.ShowMainMenu();
+        }
+
+        private static void ParseToTcgPowertools()
+        {
+            // ask for set to export
+            Console.Write("Set to export (e.g. 'Welcome to Rathe' or 'WTR'): ");
+            string setname = Console.ReadLine() ?? "";
+
+            // read .ods file and get import result
+            ImportResult? result = GetImportResult();
+            if (result == null)
+            {
+                ShowMenu();
+                return;
+            }
+
+            // write tcgpowertools.csv
+            TcgList tcgList = new TcgList(result, setname);
+            using ( var writer = new StreamWriter("tcgpowertools.csv"))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                csv.WriteRecords(tcgList.TcgDtos);
+            }
+
+            // end
+            Console.WriteLine("tcgpowertools.csv has been generated.");
             Start.ShowMainMenu();
         }
 
@@ -296,6 +329,7 @@ namespace FabCollectionTool
                 Name = cellIndexValues.GetStringValue(indexMap.Name),
                 BacksideName = cellIndexValues.GetStringValue(indexMap.BacksideName),
                 Pitch = cellIndexValues.GetStringValue(indexMap.Pitch),
+                Peculiarity = cellIndexValues.GetStringValue(indexMap.Peculiarity),
                 Playset = cellIndexValues.GetIntegerValue(indexMap.Playset),
                 ST = cellIndexValues.GetIntegerValue(indexMap.ST),
                 RF = cellIndexValues.GetIntegerValue(indexMap.RF),

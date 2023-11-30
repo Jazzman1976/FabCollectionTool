@@ -19,10 +19,12 @@ namespace FabCollectionTool.Classes
         public int Type2 { get; set; }
         public int Sub1 { get; set; }
         public int Sub2 { get; set; }
+        public int Sub3 { get; set; }
         public int ArtTreatment { get; set; }
         public int Name { get; set; }
         public int BacksideName { get; set; }
         public int Pitch { get; set; }
+        public int Peculiarity { get; set; }
         public int Playset { get; set; }
         public int ST { get; set; }
         public int RF { get; set; }
@@ -108,6 +110,10 @@ namespace FabCollectionTool.Classes
                         Sub2 = i;
                         break;
 
+                    case "Sub3":
+                        Sub3 = i;
+                        break;
+
                     case "Art Treatment":
                         ArtTreatment = i;
                         break;
@@ -122,6 +128,10 @@ namespace FabCollectionTool.Classes
 
                     case "Pitch":
                         Pitch = i;
+                        break;
+
+                    case "Peculiarity":
+                        Peculiarity = i;
                         break;
 
                     case "Playset":

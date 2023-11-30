@@ -15,42 +15,31 @@
                     continue;
                 }
 
-                // always add ST variant, even if zero (to show missing cards in Fabrary)
+                //INFO: always add, even zero, to show missing cards in Fabrary
+
                 FabraryDtos.Add(new(dataDto)
                 {
                     Foiling = null,
                     Have = dataDto.ST
                 });
 
-                if (dataDto.RF > 0)
+                FabraryDtos.Add(new(dataDto)
                 {
-                    FabraryDto fabDto = new(dataDto)
-                    {
-                        Foiling = "Rainbow",
-                        Have = dataDto.RF
-                    };
-                    FabraryDtos.Add(fabDto);
-                }
+                    Foiling = "Rainbow",
+                    Have = dataDto.RF
+                });
 
-                if (dataDto.CF > 0)
+                FabraryDtos.Add(new(dataDto)
                 {
-                    FabraryDto fabDto = new(dataDto)
-                    {
-                        Foiling = "Cold",
-                        Have = dataDto.CF
-                    };
-                    FabraryDtos.Add(fabDto);
-                }
+                    Foiling = "Cold",
+                    Have = dataDto.CF
+                });
 
-                if (dataDto.GF > 0)
+                FabraryDtos.Add(new(dataDto)
                 {
-                    FabraryDto fabDto = new(dataDto)
-                    {
-                        Foiling = "Gold",
-                        Have = dataDto.GF
-                    };
-                    FabraryDtos.Add(fabDto);
-                }
+                    Foiling = "Gold",
+                    Have = dataDto.GF
+                });
             }
         }
     }
