@@ -5,7 +5,7 @@
         public static string GetStringValue(this Dictionary<int, string> dic, int i)
         {
             return dic.ContainsKey(i)
-                ? dic[i]
+                ? dic[i] ?? ""
                 : "";
         }
 

@@ -49,6 +49,8 @@
                     BacksideName = dataDto.BacksideName,
                     Pitch = hasPitch ? dataDto.Pitch : null,
                     WantToBuy = dataDto.Playset - haveTotal,
+                    Setname = dataDto.Set,
+                    SetEdition = dataDto.Edition,
                 };
 
                 // add if list doesn't have this, jet
