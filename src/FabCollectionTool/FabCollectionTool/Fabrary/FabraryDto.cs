@@ -1,7 +1,8 @@
 ﻿using CsvHelper.Configuration.Attributes;
+using FabCollectionTool.Classes;
 using FabCollectionTool.Extensions;
 
-namespace FabCollectionTool.Classes
+namespace FabCollectionTool.Fabrary
 {
     public class FabraryDto
     {

@@ -1,6 +1,7 @@
 ﻿using CsvHelper;
 using FabCollectionTool.Classes;
 using FabCollectionTool.Extensions;
+using FabCollectionTool.Fabrary;
 using FabCollectionTool.TcgPowertools;
 using ICSharpCode.SharpZipLib.Zip;
 using System.Globalization;
