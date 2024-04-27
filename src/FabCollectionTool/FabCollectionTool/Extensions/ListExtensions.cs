@@ -1,11 +1,16 @@
 ﻿using FabCollectionTool.Classes;
 using FabCollectionTool.Fabrary;
+using System.Collections.Generic;
 using System.Net.Http.Headers;
+using static FabCollectionTool.Fabrary.FabraryConstants;
 
 namespace FabCollectionTool.Extensions
 {
     public static class ListExtensions
-    {
+    {       
+        
+
+
         /// <summary>
         /// Adds amount of cards to existing list item or creates a new list item if not existing.
         /// </summary>
@@ -32,25 +37,11 @@ namespace FabCollectionTool.Extensions
             }
 
             // find existing item
-            string[] ignoreEdition = new[] { "DE", "FR", "ES", "IT" };
-
-            // common filter condition for all foiling variants
-            bool filterCondition(FabraryDto fDto
-)
-                // if matching 'ignoreEdition', the edition can be ignored
-                // e.g. HP1 cards in other cultures are added to 'standard' edition as if they
-                // would not have a 'special' edition
-                // need this to differentiate between 'edition' and 'culture version'
-                // it's handled in the same field 'edition' in the ODS
-                => (ignoreEdition.Contains(dto.Edition) || fDto.Edition == dto.Edition)
-                && fDto.SetNumber == dto.Id
-                && fDto.Name == dto.Name
-                && fDto.Treatment == dto.ArtTreatment;
-
-            // get only existing dto of current foiling
+            // get only (the one) existing card fDto of current foiling
             FabraryDto? existingFabraryDto = list
-                .Where(filterCondition)
-                .FirstOrDefault(fDto => fDto.Foiling == foiling);
+                .FirstOrDefault(fDto 
+                    => fDto.IsVariantOfSameCard(dto) 
+                    && fDto.Foiling == foiling);
 
             // add if not still existing, create a new one
             if (existingFabraryDto == null)
@@ -61,63 +52,91 @@ namespace FabCollectionTool.Extensions
                     Have = count
                 };
                 list.Add(existingFabraryDto);
-            }
-            else
-            {
-                // update if existing
-                existingFabraryDto.Have += count;
-            }
 
-            // count all variant haves
-            int allVariantHaveCount = list
-                .Where(filterCondition)
-                // get total amount of all haves in this set only, including all culture versions
-                .Sum(fDto => fDto.Have + fDto.ExtraForTrade)
-                ?? 0;
+                return;
+            }
+            
+            // update if existing
+            existingFabraryDto.Have += count;
+        }
+
+        public static void DeclareExtrasForTrade(this List<FabraryDto> list, DataDto dto)
+        {
+            // local function to sum extra and have to a total have
+            static int sumHave(FabraryDto fDto) => fDto.Have ?? 0 + fDto.ExtraForTrade ?? 0;
+
+            // count total haves (all variants of same card)
+            int totalHaveCount = list
+                .Where(fDto => fDto.IsVariantOfSameCard(dto))
+                .Sum(sumHave);
 
             // do not add extras for trade if no playset
-            if (allVariantHaveCount <= dto.Playset) 
+            if (totalHaveCount <= dto.Playset)
             {
                 return;
             }
 
-            // count all gold foils
+            // count all gold foils, merge different art treatments (marvels)
             int goldCount = list
-                .Where(filterCondition)
-                .Where(fDto => fDto.Foiling == FabraryConstants.Foiling.GOLD)
-                .Sum(fDto => fDto.Have + fDto.ExtraForTrade)
-                ?? 0;
-            bool haveAllinGold = goldCount >= dto.Playset;
-
-            // count all cold foils
+                .Where(fDto 
+                    => fDto.IsVariantOfSameCard(dto) 
+                    && fDto.Foiling == Foiling.GOLD)
+                .Sum(sumHave);
+            
+            // count all cold foils, merge different art treatments (marvels)
             int coldCount = list
-                .Where(filterCondition)
-                .Where(fDto => fDto.Foiling == FabraryConstants.Foiling.COLD)
-                .Sum(fDto => fDto.Have + fDto.ExtraForTrade)
-                ?? 0;
-            bool haveAllinCold = coldCount >= dto.Playset;
+                .Where(fDto
+                    => fDto.IsVariantOfSameCard(dto)
+                    && fDto.Foiling == Foiling.COLD)
+                .Sum(sumHave);
 
-            // count all rainbow foils
+            // count all rainbow foils, merge different art treatments (marvels)
             int rainbowCount = list
-                .Where(filterCondition)
-                .Where(fDto => fDto.Foiling == FabraryConstants.Foiling.RAINBOW)
-                .Sum(fDto => fDto.Have + fDto.ExtraForTrade)
-                ?? 0;
-            bool haveAllinRainbow = rainbowCount >= dto.Playset;
+                .Where(fDto
+                    => fDto.IsVariantOfSameCard(dto)
+                    && fDto.Foiling == Foiling.RAINBOW)
+                .Sum(sumHave);
 
-            // move to extraForTrade if more than playset
-            if ((foiling == FabraryConstants.Foiling.STANDARD 
-                    && goldCount + coldCount + rainbowCount >= dto.Playset) 
-                ||
-                (foiling == FabraryConstants.Foiling.RAINBOW 
-                    && goldCount + coldCount >= dto.Playset) 
-                ||
-                (foiling == FabraryConstants.Foiling.COLD 
-                    && goldCount >= dto.Playset))
+            // count all no-foils, merge different art treatments (marvels)
+            int standardCount = list
+                .Where(fDto
+                    => fDto.IsVariantOfSameCard(dto)
+                    && fDto.Foiling == Foiling.STANDARD)
+                .Sum(sumHave);
+
+            foreach (FabraryDto? fDto in list.Where(fDto => fDto.IsVariantOfSameCard(dto)))
             {
-                existingFabraryDto.ExtraForTrade = existingFabraryDto.Have;
-                existingFabraryDto.Have = 0;
+                int mustKeep
+                    = fDto.Foiling == Foiling.STANDARD
+                        ? Math.Max(dto.Playset - (goldCount + coldCount + rainbowCount), 0)
+                    : fDto.Foiling == Foiling.RAINBOW
+                        ? Math.Max(dto.Playset - (goldCount + coldCount), 0)
+                    : fDto.Foiling == Foiling.COLD
+                        ? Math.Max(dto.Playset - goldCount, 0)
+                    : dto.Playset;
+                
+                if (fDto.Have > mustKeep)
+                {
+                    // keep playset of gold foil, trade the rest
+                    fDto.ExtraForTrade = fDto.Have - mustKeep;
+                    fDto.Have -= fDto.ExtraForTrade;
+                }
             }
+
+
+            //// move to extraForTrade if more than playset
+            //if ((foiling == FabraryConstants.Foiling.STANDARD
+            //&& goldCount + coldCount + rainbowCount >= dto.Playset)
+            //    ||
+            //    (foiling == FabraryConstants.Foiling.RAINBOW
+            //&& goldCount + coldCount >= dto.Playset)
+            //    ||
+            //    (foiling == FabraryConstants.Foiling.COLD
+            //        && goldCount >= dto.Playset))
+            //{
+            //    existingFabraryDto.ExtraForTrade = existingFabraryDto.Have;
+            //    existingFabraryDto.Have = 0;
+            //}
         }
     }
 }

@@ -25,6 +25,9 @@ namespace FabCollectionTool.Fabrary
                 FabraryDtos.AddOrUpdate(dataDto, FabraryConstants.Foiling.RAINBOW);
                 FabraryDtos.AddOrUpdate(dataDto, FabraryConstants.Foiling.COLD);
                 FabraryDtos.AddOrUpdate(dataDto, FabraryConstants.Foiling.GOLD);
+
+                // rewrite list and split into haves and extras for sale
+                FabraryDtos.DeclareExtrasForTrade(dataDto);
             }
         }
     }
