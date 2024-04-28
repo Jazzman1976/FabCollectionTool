@@ -25,5 +25,9 @@
         public int RF { get; set; }
         public int CF { get; set; }
         public int GF { get; set; }
+
+        public bool IsReprint 
+            => AbbreviationSetnameMap.Map.ContainsKey(this.FirstIn)
+            && AbbreviationSetnameMap.Map[this.FirstIn] == this.Set;
     }
 }

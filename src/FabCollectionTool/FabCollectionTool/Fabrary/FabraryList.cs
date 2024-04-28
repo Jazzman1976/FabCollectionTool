@@ -19,10 +19,15 @@ namespace FabCollectionTool.Fabrary
                 }
 
                 // add or update card variants
+                // in fab every foiling has a new row
+                // add row by row depending on foiling
                 FabraryDtos.AddOrUpdate(dataDto, FabraryConstants.Foiling.STANDARD);
                 FabraryDtos.AddOrUpdate(dataDto, FabraryConstants.Foiling.RAINBOW);
                 FabraryDtos.AddOrUpdate(dataDto, FabraryConstants.Foiling.COLD);
                 FabraryDtos.AddOrUpdate(dataDto, FabraryConstants.Foiling.GOLD);
+
+                // rewrite list and split into haves and extras for sale
+                FabraryDtos.DeclareExtrasForTrade(dataDto);
             }
         }
     }
