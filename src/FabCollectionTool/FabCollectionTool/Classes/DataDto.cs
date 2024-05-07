@@ -28,6 +28,14 @@
 
         public bool IsReprint 
             => AbbreviationSetnameMap.Map.ContainsKey(this.FirstIn)
-            && AbbreviationSetnameMap.Map[this.FirstIn] == this.Set;
+            && AbbreviationSetnameMap.Map[this.FirstIn] != this.Set;
+
+        public bool IsHistory
+            => this.Set.StartsWith("History", StringComparison.OrdinalIgnoreCase);
+
+        public override string ToString()
+        {
+            return $"{this.Id} - {this.Rarity} - {this.Name} ({this.Pitch})";
+        }
     }
 }
