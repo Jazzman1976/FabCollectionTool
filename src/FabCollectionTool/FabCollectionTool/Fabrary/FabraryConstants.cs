@@ -9,6 +9,5 @@
             public const string COLD = "Cold";
             public const string GOLD = "Gold";
         }
-        
     }
 }
