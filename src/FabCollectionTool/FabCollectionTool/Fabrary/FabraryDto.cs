@@ -52,17 +52,5 @@ namespace FabCollectionTool.Fabrary
             ExtraForTrade = null;
             ExtraForSell = null;
         }
-
-        /// <summary>
-        /// Get all versions of the same card from the same set. Different Language Editions 
-        /// and Art Treatments are collected as "version of the same card" as long as they 
-        /// have the same Collectors ID.
-        /// </summary>
-        public bool IsVariantOfSameCard(DataDto dDto)
-            => (new[] { "DE", "FR", "ES", "IT" }.Contains(dDto.Edition)
-                || this.Edition == dDto.Edition)
-            && this.SetNumber == dDto.Id
-            && this.Name == dDto.Name
-            && this.Treatment == dDto.ArtTreatment;
     }
 }
