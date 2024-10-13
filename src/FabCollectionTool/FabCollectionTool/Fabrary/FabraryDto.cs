@@ -37,17 +37,14 @@ namespace FabCollectionTool.Fabrary
                 ?.RemoveDoubleWhitespaces()
                 ?.RemoveSpecialCharacters()
                 ?.Replace(' ', '-')
-                ?.Replace('|','-')
+                ?.Replace('|', '-')
                 ?.ToLower();
 
             Name = dataDto.Name.Replace("||", " // ");
             Pitch = dataDto.Pitch;
             Set = dataDto.Set;
             SetNumber = dataDto.Id;
-            if (!(new[] { "EN", "DE", "FR", "ES", "IT", "JP" }).Contains(dataDto.Edition))
-            {
-                Edition = dataDto.Edition;
-            }
+            Edition = dataDto.Edition == "EN" ? null : dataDto.Edition;
             Foiling = null;
             Treatment = dataDto.ArtTreatment;
             Have = null;
