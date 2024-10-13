@@ -27,13 +27,13 @@ namespace FabCollectionTool.Extensions
             FabraryDto? existingFabraryDto = list
                 .FirstOrDefault(fDto
                     // Language variants are merged in Fabrary.
-                    // Editions like first, alpha, unlimmited are seperated.
+                    // Editions like first, alpha, unlimmited are seperated in Fabrary.
                     // So we also merge it if it is a language variant, which we trade like an
                     // edition in our cards.ods
                     // If it is any other edition we keep it seperated.
                     // There are no mixes of both! Every "alpha, first or unlimmited" edition was 
                     // always english, every multi-language cards have no other editions!
-                    => (new[] { "DE", "FR", "ES", "IT", "JP" }.Contains(fDto.Edition)
+                    => (new[] { "EN", "DE", "FR", "ES", "IT", "JP" }.Contains(fDto.Edition)
                         || fDto.Edition == dto.Edition)
                     && fDto.SetNumber == dto.Id
                     && fDto.Foiling == foiling
