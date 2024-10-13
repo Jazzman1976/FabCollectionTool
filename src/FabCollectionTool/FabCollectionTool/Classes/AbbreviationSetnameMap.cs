@@ -23,6 +23,8 @@
             { "DTD", "Dusk till Dawn" },
             { "EVO", "Bright Lights" },
             { "HVY", "Heavy Hitters" },
+            { "MST", "Part the Mistveil" },
+            { "ROS", "Rosetta" },
         };
     }
 }

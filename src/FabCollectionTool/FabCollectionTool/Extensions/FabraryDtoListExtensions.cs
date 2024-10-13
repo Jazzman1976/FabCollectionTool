@@ -33,7 +33,8 @@ namespace FabCollectionTool.Extensions
                     // If it is any other edition we keep it seperated.
                     // There are no mixes of both! Every "alpha, first or unlimmited" edition was 
                     // always english, every multi-language cards have no other editions!
-                    => (new[] { "EN", "DE", "FR", "ES", "IT", "JP" }.Contains(fDto.Edition)
+                    => (new[] { "DE", "FR", "ES", "IT", "JP" }.Contains(fDto.Edition) 
+                        || (string.IsNullOrEmpty(fDto.Edition) && dto.Edition == "EN") 
                         || fDto.Edition == dto.Edition)
                     && fDto.SetNumber == dto.Id
                     && fDto.Foiling == foiling
