@@ -44,7 +44,7 @@ namespace FabCollectionTool.Fabrary
             Pitch = dataDto.Pitch;
             Set = dataDto.Set;
             SetNumber = dataDto.Id;
-            Edition = dataDto.Edition == "EN" ? null : dataDto.Edition;
+            Edition = new[] { "EN", "DE", "FR", "ES", "IT", "JP" }.Contains(dataDto.Edition) ? null : dataDto.Edition; // no language variants in fabrary but alpha, unlimited, etc. !
             Foiling = null;
             Treatment = dataDto.ArtTreatment;
             Have = null;

@@ -33,9 +33,8 @@ namespace FabCollectionTool.Extensions
                     // If it is any other edition we keep it seperated.
                     // There are no mixes of both! Every "alpha, first or unlimmited" edition was 
                     // always english, every multi-language cards have no other editions!
-                    => (new[] { "DE", "FR", "ES", "IT", "JP" }.Contains(fDto.Edition) 
-                        || (string.IsNullOrEmpty(fDto.Edition) && dto.Edition == "EN") 
-                        || fDto.Edition == dto.Edition)
+                    => ((string.IsNullOrEmpty(fDto.Edition) && new[] { "EN", "DE", "FR", "ES", "IT", "JP" }.Contains(dto.Edition))  // no language versions in fabrary!
+                        || fDto.Edition == dto.Edition) // or the edition is the same (unlimited, alpha, etc.)
                     && fDto.SetNumber == dto.Id
                     && fDto.Foiling == foiling
                     // create an entry for every different art treatment!
@@ -93,7 +92,7 @@ namespace FabCollectionTool.Extensions
                 return;
             }
 
-            // local function to could foil variants
+            // local function to count foil variants
             int CountVariant(string foiling)
             {
                 int count = import.DataDtos
@@ -155,6 +154,27 @@ namespace FabCollectionTool.Extensions
             if (gfDto != null)
             {
                 gfDto.ExtraForTrade = tradeGF;
+            }
+        }
+
+        /// <summary>
+        /// Check exceptions, e.g. card has 'extended art' but Fabrary declares it as 'normal'
+        /// </summary>
+        public static void FixExceptions(this List<FabraryDto> list, DataDto dto)
+        {
+            foreach (FabraryDto item in list) 
+            {
+                // set Extended Art Standard prints to be normal for following exceptions:
+                string[] extendedArtAsNormal = { 
+                    "ROS002",
+                    "ROS008"
+                };
+                if (   item.Treatment == "Extended Art" 
+                    && item.Foiling == Foiling.STANDARD
+                    && extendedArtAsNormal.Contains(item.SetNumber))
+                {
+                    item.Treatment = "";
+                }
             }
         }
     }
