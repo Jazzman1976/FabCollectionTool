@@ -3,6 +3,22 @@
 Manage your collection in an Open Document Spreadsheet (ODS).  
 Then export the ODS contents to your favorite collection manager.
 
+## Why?
+You can manage your collection independent of any website or tool in a common Excel / LibreOffice ODS file.  
+One single source of your cards for all common other tools like Fabrary, Cardmarket or Dragonshield.  
+It can be extended for other tools in the future, easily.  
+It is easy to add new cards with keyboard only. Very simple and comfortable editing.  
+You can use standard filters and search to view the data as you need it.  
+Import your collection fast to Fabrary or other collection tools.
+
+## Examples
+
+### ODS file
+![ODS file](docs/screenshot1.jpg)
+
+### Parser
+![ODS file](docs/screenshot2.jpg)
+
 ## How to
 
 You'll find an example ODS file in the docs folder.  
