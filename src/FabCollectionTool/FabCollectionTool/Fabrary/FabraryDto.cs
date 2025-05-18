@@ -46,7 +46,7 @@ namespace FabCollectionTool.Fabrary
             SetNumber = dataDto.Id;
             Edition = new[] { "EN", "DE", "FR", "ES", "IT", "JP" }.Contains(dataDto.Edition) ? null : dataDto.Edition; // no language variants in fabrary but alpha, unlimited, etc. !
             Foiling = null;
-            Treatment = dataDto.ArtTreatment;
+            Treatment = new[] { "Micro Text Box" }.Contains(dataDto.ArtTreatment) ? "Extended Art" : dataDto.ArtTreatment; // fabrary handles micro text box as extended art
             Have = null;
             WantInTrade = null;
             WantToBuy = null;
