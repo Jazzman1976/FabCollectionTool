@@ -133,8 +133,14 @@ namespace FabCollectionTool
         private static void ParseToCardmarketDecklist()
         {
             // ask for set to export
-            Console.Write("Set to export (e.g. 'Welcome to Rathe' or 'WTR'): ");
-            string setname = Console.ReadLine() ?? "";
+            Console.Write("Set to export (e.g. 'Welcome to Rathe' or 'WTR' or 'WTR, ARC, CRU' or just ENTER for all): ");
+            string[] setnames = (Console.ReadLine() ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            // ask for rarity
+            Console.Write("Rarity to export (e.g. 'Rare', 'Majestic', 'Legendary' or 'Rare, Marvel, Promo' or just ENTER for all): ");
+            string[] rarities = (Console.ReadLine() ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             // read .ods file and get import result
             ImportResult? result = GetImportResult();
@@ -145,11 +151,17 @@ namespace FabCollectionTool
             }
 
             // write cm-wants.txt file
-            CardmarketWantsList wantsList = new CardmarketWantsList(result, setname);
+            CardmarketWantsList wantsList = new CardmarketWantsList(result, setnames);
             using (var writer = new StreamWriter("cm-wants.txt"))
             {
                 foreach(CardmarketDecklistDto dto in wantsList.CardmarketDecklistDtos) 
                 {
+                    // if rarities are set, skip if not matching
+                    if (rarities.Length > 0 && !rarities.Contains(dto.Rarity, StringComparer.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     string line =
                         $"{dto.WantToBuy} {dto.Name}" +
                         $"{(string.IsNullOrWhiteSpace(dto.BacksideName) ? " " : " // " + dto.BacksideName)} " +

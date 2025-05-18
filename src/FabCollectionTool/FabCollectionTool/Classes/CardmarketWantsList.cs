@@ -7,15 +7,17 @@
         /// <summary>
         /// reads the import result and creates cardmarket import rows DTOs
         /// </summary>
-        public CardmarketWantsList(ImportResult importResult, string setname) 
+        /// <param name="setnames">an array of string, still trimmed and without empty elements</param>
+        public CardmarketWantsList(ImportResult importResult, string[] setnames) 
         {
             CardmarketDecklistDtos = new List<CardmarketDecklistDto>();
 
-            foreach (DataDto dataDto 
-                in importResult.DataDtos
-                    .Where(dto 
-                        => dto.Set == setname 
-                        || (dto.Id != null && dto.Id.StartsWith(setname.ToUpper()))))
+            foreach (DataDto dataDto in importResult.DataDtos
+                .Where(dto 
+                    => setnames.Any(setname
+                        => dto.Set == setname // for e.g. {"Welcome to Rathe", "Arcane Rising"}
+                        || (dto.Id != null && dto.Id.StartsWith(setname.ToUpper()))) // for e.g. {"WTR", "ARC"}
+                    || setnames.Length == 0)) // if no setnames are given, all sets are included
             {
                 // skip invalid dtos (e.g. category header rows)
                 if (string.IsNullOrWhiteSpace(dataDto.Id) || dataDto.Id == "0")
@@ -51,6 +53,7 @@
                     WantToBuy = dataDto.Playset - haveTotal,
                     Setname = dataDto.Set,
                     SetEdition = dataDto.Edition,
+                    Rarity = dataDto.Rarity,
                 };
 
                 // add if list doesn't have this, jet
