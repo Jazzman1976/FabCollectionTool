@@ -22,5 +22,7 @@ namespace FabCollectionTool.TcgPowertools
         public string IsSigned { get; set; } = "";
         [Name("price")]
         public string Price { get; set; } = "1000.0"; // better to high as to low
+        [Name("comment")]
+        public string Comment { get; set; } = "";
     }
 }
