@@ -196,12 +196,13 @@ namespace FabCollectionTool.TcgPowertools
             string normalized = dataDto.Rarity.Trim().ToLower();
             return normalized switch
             {
-                "token" or "common" => "0.05",
-                "rare" => "0.15",
-                "super rare" => "0.20",
-                "majestic" => "0.25",
-                "promo" => "1",
-                _ => "1000",
+                "token" or "common" => "0.1",
+                "rare" => "0.25",
+                "super rare" => "2.50",
+                "majestic" or "promo" => "5.0",
+                "legendary" or "marvel" => "20.0",
+                "fabled" => "50.0",
+                _ => "1000.0",
             };
         }
     }

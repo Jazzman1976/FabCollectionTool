@@ -12,6 +12,12 @@ namespace FabCollectionTool
 {
     internal static class ParseOds
     {
+        /// static import result, so we don't have to read the .ods file again
+        public static ImportResult? ImportResult { get; private set; } = null;
+
+        /// <summary>
+        /// Shows the menu to select the export target for the .ods file.
+        /// </summary>
         public static void ShowMenu()
         {
             Console.Write(
@@ -47,8 +53,17 @@ namespace FabCollectionTool
             }
         }
 
+        /// <summary>
+        /// Reads the .ods file and returns the import result.
+        /// </summary>
         private static ImportResult? GetImportResult()
         {
+            if (ImportResult != null)
+            {
+                // already imported, return result
+                return ImportResult;
+            }
+
             Console.Write("Path to source .ods file: ");
             string pathToSrcOds = Console.ReadLine() ?? "";
             if (!pathToSrcOds.ToLower().EndsWith(".ods"))
@@ -99,15 +114,20 @@ namespace FabCollectionTool
 
             RowIndexMap rowIndexMap = new RowIndexMap(headRow);
 
+            // import rows into ImportResult
             ImportResult result = new ImportResult();
             foreach (var row in rows)
             {
                 ImportRow(row, result, rowIndexMap);
             }
+            ImportResult = result;
 
-            return result;
+            return ImportResult;
         }
 
+        /// <summary>
+        /// Parses the .ods file to a FabraryList and writes it to a CSV file to import it into Fabrary.
+        /// </summary>
         private static void ParseToFabrary()
         {
             ImportResult? result = GetImportResult();
@@ -130,6 +150,9 @@ namespace FabCollectionTool
             Start.ShowMainMenu();
         }
 
+        /// <summary>
+        /// Parses the .ods file to a CardmarketWantsList and writes it to a cm-wants.txt file to import it into Cardmarket.
+        /// </summary>
         private static void ParseToCardmarketDecklist()
         {
             // ask for set to export
@@ -176,6 +199,9 @@ namespace FabCollectionTool
             Start.ShowMainMenu();
         }
 
+        /// <summary>
+        /// Parses the .ods file to a DragonshieldList and writes it to a dragonshield.csv file to import it into Dragonshield.
+        /// </summary>
         private static void ParseToDragonshield()
         {
             // ask for set to export
@@ -203,6 +229,9 @@ namespace FabCollectionTool
             Start.ShowMainMenu();
         }
 
+        /// <summary>
+        /// Parses the .ods file to a TcgPowertoolsList and writes it to a tcgpowertools.csv file to import it into TcgPowertools.
+        /// </summary>
         private static void ParseToTcgPowertools()
         {
             // ask for set to export
@@ -230,6 +259,9 @@ namespace FabCollectionTool
             Start.ShowMainMenu();
         }
 
+        /// <summary>
+        /// Reads the .ods file and returns the content.xml as string.
+        /// </summary>
         private static string GetOdsContentXml(string filepath)
         {
             // init return value
@@ -267,6 +299,9 @@ namespace FabCollectionTool
             return contentXml;
         }
 
+        /// <summary>
+        /// Imports a row from the .ods file into the ImportResult.
+        /// </summary>
         private static void ImportRow(XElement row, ImportResult result, RowIndexMap indexMap)
         {
             // assure index map
