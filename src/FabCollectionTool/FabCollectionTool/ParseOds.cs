@@ -165,6 +165,13 @@ namespace FabCollectionTool
             string[] rarities = (Console.ReadLine() ?? "")
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+            // ask if SetName and/or SetEdition should be included
+            Console.Write("Include only setname [s], setname and set edition [e] or none [ENTER]?: ");
+            string includeSetEditionInput = Console.ReadKey().KeyChar.ToString().ToLower();
+            Console.WriteLine();
+            bool includeSetname = includeSetEditionInput == "s" || includeSetEditionInput == "e";
+            bool includeSetEdition = includeSetEditionInput == "e";
+
             // read .ods file and get import result
             ImportResult? result = GetImportResult();
             if (result == null)
@@ -189,7 +196,7 @@ namespace FabCollectionTool
                         $"{dto.WantToBuy} {dto.Name}" +
                         $"{(string.IsNullOrWhiteSpace(dto.BacksideName) ? " " : " // " + dto.BacksideName)} " +
                         $"{dto.Pitch} " +
-                        $"({dto.Setname + (!string.IsNullOrWhiteSpace(dto.SetEdition) ? $" - {dto.SetEdition}" : "")})";
+                        (includeSetname ? $"({dto.Setname + (includeSetEdition && !string.IsNullOrWhiteSpace(dto.SetEdition) ? $" - {dto.SetEdition}" : "")})" : "");
                     writer.WriteLine(line.RemoveDoubleWhitespaces()?.Trim());
                 }
             }
