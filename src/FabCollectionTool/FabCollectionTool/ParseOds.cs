@@ -1,4 +1,5 @@
 ﻿using CsvHelper;
+using FabCollectionTool.Cardmarket;
 using FabCollectionTool.Classes;
 using FabCollectionTool.Extensions;
 using FabCollectionTool.Fabrary;
@@ -180,6 +181,16 @@ namespace FabCollectionTool
                 return;
             }
 
+            // get cardmarket-irregular-cardnames.json and parse to opject with properties: Setcode, GeneratedCardname and FixedCardname. Use class 'CardmarketIrregularCardname'
+            List<CardmarketIrregularCardname> irregularCardnames = CardmarketIrregularCardname.LoadFromFile("cardmarket-irregular-cardnames.json");
+
+            // helper function to fix irregular cardnames
+            string FixIrregularCardname(string cardname = "")
+            {
+                var found = irregularCardnames.FirstOrDefault(c => c.GeneratedCardname == cardname);
+                return found != null ? found.FixedCardname : cardname;
+            }
+
             // write cm-wants.txt file
             CardmarketWantsList wantsList = new CardmarketWantsList(result, setnames);
             using (var writer = new StreamWriter("cm-wants.txt"))
@@ -187,13 +198,13 @@ namespace FabCollectionTool
                 foreach(CardmarketDecklistDto dto in wantsList.CardmarketDecklistDtos) 
                 {
                     // if rarities are set, skip if not matching
-                    if (rarities.Length > 0 && !rarities.Contains(dto.Rarity, StringComparer.OrdinalIgnoreCase))
+                    if (dto.Name == null || rarities.Length > 0 && !rarities.Contains(dto.Rarity, StringComparer.OrdinalIgnoreCase))
                     {
                         continue;
                     }
 
                     string line =
-                        $"{dto.WantToBuy} {dto.Name}" +
+                        $"{dto.WantToBuy} {FixIrregularCardname(dto.Name)}" +
                         $"{(string.IsNullOrWhiteSpace(dto.BacksideName) ? " " : " // " + dto.BacksideName)} " +
                         $"{dto.Pitch} " +
                         (includeSetname ? $"({dto.Setname + (includeSetEdition && !string.IsNullOrWhiteSpace(dto.SetEdition) ? $" - {dto.SetEdition}" : "")})" : "");
