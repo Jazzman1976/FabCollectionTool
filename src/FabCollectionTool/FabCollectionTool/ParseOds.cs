@@ -1,4 +1,5 @@
 ﻿using CsvHelper;
+using FabCollectionTool.Cardmarket;
 using FabCollectionTool.Classes;
 using FabCollectionTool.Extensions;
 using FabCollectionTool.Fabrary;
@@ -165,12 +166,29 @@ namespace FabCollectionTool
             string[] rarities = (Console.ReadLine() ?? "")
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+            // ask if SetName and/or SetEdition should be included
+            Console.Write("Include only setname [s], setname and set edition [e] or none [ENTER]?: ");
+            string includeSetEditionInput = Console.ReadKey().KeyChar.ToString().ToLower();
+            Console.WriteLine();
+            bool includeSetname = includeSetEditionInput == "s" || includeSetEditionInput == "e";
+            bool includeSetEdition = includeSetEditionInput == "e";
+
             // read .ods file and get import result
             ImportResult? result = GetImportResult();
             if (result == null)
             {
                 ShowMenu();
                 return;
+            }
+
+            // get cardmarket-irregular-cardnames.json and parse to opject with properties: Setcode, GeneratedCardname and FixedCardname. Use class 'CardmarketIrregularCardname'
+            List<CardmarketIrregularCardname> irregularCardnames = CardmarketIrregularCardname.LoadFromFile("cardmarket-irregular-cardnames.json");
+
+            // helper function to fix irregular cardnames
+            string FixIrregularCardname(string cardname = "")
+            {
+                var found = irregularCardnames.FirstOrDefault(c => c.GeneratedCardname == cardname);
+                return found != null ? found.FixedCardname : cardname;
             }
 
             // write cm-wants.txt file
@@ -180,16 +198,16 @@ namespace FabCollectionTool
                 foreach(CardmarketDecklistDto dto in wantsList.CardmarketDecklistDtos) 
                 {
                     // if rarities are set, skip if not matching
-                    if (rarities.Length > 0 && !rarities.Contains(dto.Rarity, StringComparer.OrdinalIgnoreCase))
+                    if (dto.Name == null || rarities.Length > 0 && !rarities.Contains(dto.Rarity, StringComparer.OrdinalIgnoreCase))
                     {
                         continue;
                     }
 
                     string line =
-                        $"{dto.WantToBuy} {dto.Name}" +
+                        $"{dto.WantToBuy} {FixIrregularCardname(dto.Name)}" +
                         $"{(string.IsNullOrWhiteSpace(dto.BacksideName) ? " " : " // " + dto.BacksideName)} " +
                         $"{dto.Pitch} " +
-                        $"({dto.Setname + (!string.IsNullOrWhiteSpace(dto.SetEdition) ? $" - {dto.SetEdition}" : "")})";
+                        (includeSetname ? $"({dto.Setname + (includeSetEdition && !string.IsNullOrWhiteSpace(dto.SetEdition) ? $" - {dto.SetEdition}" : "")})" : "");
                     writer.WriteLine(line.RemoveDoubleWhitespaces()?.Trim());
                 }
             }

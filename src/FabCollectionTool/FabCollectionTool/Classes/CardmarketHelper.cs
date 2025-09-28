@@ -28,14 +28,19 @@ namespace FabCollectionTool.Classes
                 using StreamWriter sw = File.CreateText(filename);
                 sw.Write(@"[
   {
-    ""Setcode"": ""Setcode1"",
-    ""GeneratedCardname"": ""GeneratedName1"",
-    ""FixedCardname"": ""FixedName1""
+    ""Setcode"": ""Setcode"",
+    ""GeneratedCardname"": ""GeneratedName"",
+    ""FixedCardname"": ""FixedName""
   },
   {
-    ""Setcode"": ""Setcode2"",
-    ""GeneratedCardname"": ""GeneratedName2"",
-    ""FixedCardname"": ""FixedName2""
+    ""Setcode"": ""MST"",
+    ""GeneratedCardname"": ""Twelve Petal Kāṣāya"",
+    ""FixedCardname"": ""Twelve Petal Kasaya""
+  },
+  {
+    ""Setcode"": ""SUP"",
+    ""GeneratedCardname"": ""Lyath Goldmane, Vile Savant // Lyath Goldmane"",
+    ""FixedCardname"": ""Lyath Goldmane, Vile Savant""
   }
 ]");
             }
