@@ -18,8 +18,11 @@
     --edit-line: #e0b54a;
     --calc: #e9ecf1;            /* calculated values */
     --calc-fg: #475467;
-    --group1: #dfe6f3;
-    --group2: #eef2f8;
+    --group1: #c9d7f2;          /* set headers */
+    --group1-line: #2f5fd0;
+    --group2: #e6ecf7;          /* talent/class headers */
+    --group2-line: #8fa6d6;
+    --cursor: #2f5fd0;
     --missing: #d92d20;
     --missing-bg: #fde8e8;
     --surplus: #2e9e4f;
@@ -46,8 +49,11 @@
         --edit-line: #8a6a1f;
         --calc: #262a33;
         --calc-fg: #b3bccb;
-        --group1: #26314a;
-        --group2: #1f2638;
+        --group1: #2c3d66;
+        --group1-line: #7ea2ff;
+        --group2: #232c42;
+        --group2-line: #4f6390;
+        --cursor: #9dbaff;
         --missing: #ff7b72;
         --missing-bg: #3d2224;
         --surplus: #56d27a;
@@ -82,7 +88,7 @@ body {
     font: var(--font-size)/1.4 system-ui, "Segoe UI", sans-serif;
 }
 header { grid-area: header; }
-#edit-banner { grid-area: banner; }
+#banners { grid-area: banner; }
 #grid { grid-area: main; }
 footer { grid-area: footer; }
 body.msg-bottom #messages { grid-area: bottom; }
@@ -114,6 +120,26 @@ h1 {
     flex-wrap: wrap;
     align-items: center;
     gap: 4px;
+    margin: 0;
+    padding: 2px 8px 6px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--head);
+}
+.toolbar legend {
+    padding: 0 4px;
+    color: var(--muted);
+    font-size: 0.85em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.toolbar button, .toolbar select, .toolbar input[type="search"] {
+    background: var(--bg);
+}
+button.outline {
+    min-width: 2em;
+    font-weight: 600;
 }
 .toolbar .label {
     color: var(--muted);
@@ -191,10 +217,24 @@ button.toggle[aria-pressed="true"] {
     margin-top: 6px;
     white-space: nowrap;
 }
-#edit-banner {
+.banner {
     padding: 4px 12px;
+}
+#edit-banner {
     background: var(--edit);
     border-bottom: 1px solid var(--edit-line);
+}
+#restore-banner {
+    background: var(--head);
+    border-bottom: 2px solid var(--accent);
+}
+#restore-banner button {
+    margin-left: 4px;
+}
+#permission-banner {
+    background: var(--selected);
+    border-bottom: 2px solid var(--accent);
+    font-weight: 600;
 }
 
 /* Table */
@@ -206,14 +246,29 @@ button.toggle[aria-pressed="true"] {
 .grid-scroll {
     flex: 1;
     overflow: auto;
+    outline: none;
+    overflow-anchor: none;      /* the browser must not correct the scroll position itself */
+}
+.grid td.cursor {
+    outline: 2px solid var(--cursor);
+    outline-offset: -2px;
+}
+.grid-scroll:not(:focus-within) td.cursor {
+    outline-style: dashed;
+}
+.grid tr.group.cursor td {
+    outline: 2px solid var(--cursor);
+    outline-offset: -2px;
 }
 table.grid {
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
 }
+/* Every row is exactly --row-height high (border included): the virtual scrolling in grid.js
+   relies on it, otherwise the rendered rows drift away from the scroll position. */
 .grid th, .grid td {
-    height: calc(var(--row-height) - 1px);
+    height: var(--row-height);
     padding: 0 5px;
     border-right: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
@@ -301,30 +356,29 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
     cursor: text;
 }
 
-/* Quantity cells with "-" and "+"; the buttons appear on hover and in the selected row,
-   their space is always reserved so nothing moves */
+/* "-" and "+" only in the active quantity cell; they sit at the cell edges, so the value
+   does not move */
 .grid td.stepper {
-    padding: 0 1px;
-    text-align: center;
-}
-.grid td.stepper .value {
-    display: inline-block;
-    min-width: 1.6em;
+    position: relative;
     text-align: center;
 }
 .grid button.step {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
     width: 1.3em;
     height: 1.3em;
     padding: 0;
     line-height: 1;
     font-size: 0.9em;
     border-radius: 3px;
-    visibility: hidden;
-    vertical-align: middle;
     cursor: pointer;
 }
-.grid tr:hover button.step, .grid tr.selected button.step {
-    visibility: visible;
+.grid button.step.minus {
+    left: 2px;
+}
+.grid button.step.plus {
+    right: 2px;
 }
 
 /* Row states: a coloured bar at the row start and tinted calculated cells */
@@ -342,10 +396,9 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
 }
 .grid tr.ref td {
     color: var(--ref);
-    font-style: italic;
 }
 .grid tr.selected td.k-reference, .grid tr.selected td.k-identity,
-.grid tr.selected td.k-calc, .grid tr.selected td.actions {
+.grid tr.selected td.k-calc, .grid tr.selected td.actions, .grid tr.selected td.status {
     background: var(--selected);
 }
 .grid tr.selected td.k-input {
@@ -369,30 +422,75 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
     text-underline-offset: 3px;
 }
 
-/* Accordion group headers */
+/* Accordion group headers: centred titles as in the old spreadsheet, clearly set apart */
 .grid tr.group td {
     cursor: pointer;
-    font-weight: 600;
-    border-right: 0;
+    font-weight: 700;
+    text-align: center;
     user-select: none;
+    padding: 0;
+}
+.grid .group-title {
+    position: sticky;
+    left: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .grid tr.group.level1 td {
     background: var(--group1);
+    border-top: 2px solid var(--group1-line);
+    border-bottom: 2px solid var(--group1-line);
+    border-right: 0;
 }
 .grid tr.group.level2 td {
     background: var(--group2);
-    padding-left: 1.8em;
-    font-weight: 500;
+    border-bottom: 1px solid var(--group2-line);
+    border-right: 0;
+    font-weight: 600;
 }
 .grid tr.group .toggle {
-    display: inline-block;
-    width: 1.2em;
-    color: var(--accent);
+    position: absolute;
+    left: 0.6em;
+    color: var(--group1-line);
+}
+.grid tr.group.level2 .toggle {
+    left: 1.8em;
 }
 .grid tr.group .info {
     margin-left: 1em;
     color: var(--muted);
     font-weight: normal;
+}
+
+/* Status column at the left edge */
+.grid .status {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    padding: 0;
+    text-align: center;
+    background: var(--bg);
+    font-weight: 700;
+    cursor: default;
+}
+.grid thead th.status {
+    z-index: 3;
+    background: var(--head);
+}
+.grid td.status.differs {
+    color: var(--stale);
+    cursor: pointer;
+}
+.grid td.status.override {
+    color: var(--override);
+    cursor: pointer;
+}
+.grid td.status.gap {
+    color: var(--ref);
+}
+.grid td.status.unknown {
+    color: var(--unknown);
 }
 
 /* Row actions at the right edge */
@@ -437,6 +535,7 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
 }
 .cell-editor {
     width: 100%;
+    height: calc(var(--row-height) - 2px);
     box-sizing: border-box;
     font: inherit;
     border: 1px solid var(--accent);
@@ -456,7 +555,14 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
 }
 body.msg-bottom #messages {
     border-top: 1px solid var(--line);
-    max-height: 35vh;
+    height: 30vh;
+}
+body.msg-bottom #messages.collapsed {
+    height: auto;
+}
+#messages .pane {
+    flex: 1;
+    min-height: 0;
 }
 body.msg-left #messages, body.msg-right #messages {
     width: clamp(16em, 24em, 32vw);
@@ -593,8 +699,36 @@ dialog menu {
     gap: 8px;
     padding: 0;
 }
-dialog menu button:first-child {
-    margin-right: auto;
+dialog menu .left + button:not(.left) {
+    margin-left: auto;
+}
+.take-over ul.cards {
+    list-style: none;
+    padding-left: 8px;
+}
+.take-over ul.cards li {
+    padding: 2px 0;
+    border-bottom: 1px solid var(--line);
+}
+.take-over .what {
+    color: var(--muted);
+    padding-left: 1.6em;
+}
+table.row-form select {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    padding: 2px 4px;
+    border: 1px solid var(--line);
+    background: var(--input);
+    color: var(--fg);
+}
+table.row-form select.k-reference, table.row-form select.k-identity {
+    background: var(--edit);
+}
+table.row-form select.override {
+    border-color: var(--override);
+    box-shadow: inset 3px 0 0 var(--override);
 }
 .hint {
     color: var(--muted);

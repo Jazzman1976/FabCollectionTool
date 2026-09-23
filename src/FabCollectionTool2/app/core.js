@@ -7,7 +7,7 @@ var FCT = window.FCT || {};
 window.FCT = FCT;
 
 // Version of this tool; must match the VERSION file in the tool folder.
-FCT.VERSION = '2.0.1.0';
+FCT.VERSION = '2.0.2.0';
 
 // Reference data files (reference/*.js) fill this object before the app scripts run.
 FCT.DATA = FCT.DATA || {};

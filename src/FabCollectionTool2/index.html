@@ -7,42 +7,42 @@
     <link rel="stylesheet" href="app/style.css">
 </head>
 <body class="msg-bottom">
-    <!-- Title and toolbar -->
+    <!-- Title and toolbar; each group is a framed box -->
     <header>
         <h1>FabCollectionTool <span id="version"></span></h1>
         <nav class="toolbar">
-            <div class="group">
-                <span class="label">Bestand</span>
+            <fieldset class="group">
+                <legend>Bestand</legend>
                 <button id="btn-new" title="Leeren Bestand beginnen">Neu</button>
                 <button id="btn-open" title="collection.csv öffnen">Öffnen</button>
                 <button id="btn-save" title="Bestand und Änderungsprotokoll speichern (Strg+S)">
                     Speichern</button>
                 <button id="btn-backup" title="Kopie mit Zeitstempel speichern">Backup</button>
-            </div>
-            <div class="group">
-                <span class="label">Import</span>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Import</legend>
                 <button id="btn-import-ods" title="Altes Calc-File (.ods) übernehmen">ODS</button>
                 <button id="btn-import-fabrary" title="Fabrary-Export (.csv) übernehmen">
                     Fabrary</button>
-            </div>
-            <div class="group">
-                <span class="label">Export</span>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Export</legend>
                 <button id="btn-export-fabrary" title="Importdatei für Fabrary erzeugen">
                     Fabrary</button>
-            </div>
-            <div class="group">
-                <span class="label">Stammdaten</span>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Stammdaten</legend>
                 <span id="reference-status" class="badge"></span>
                 <button id="btn-reference-update" title="Stammdaten jetzt online laden">
                     Aktualisieren</button>
                 <button id="btn-reference-apply"
-                    title="Abweichungen zwischen Bestand und Stammdaten anzeigen und übernehmen">
+                    title="Abweichende Karten anzeigen und Stammdaten je Karte übernehmen">
                     Übernehmen …</button>
                 <button id="btn-reference-info" title="Herkunft und Stand der Stammdaten">
                     Info</button>
-            </div>
-            <div class="group">
-                <span class="label">Ansicht</span>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Ansicht</legend>
                 <select id="font-size" title="Schriftgröße">
                     <option value="S">Schrift klein</option>
                     <option value="M">Schrift mittel</option>
@@ -53,21 +53,25 @@
                     <option value="left">Meldungen links</option>
                     <option value="right">Meldungen rechts</option>
                 </select>
-            </div>
+                <button id="btn-edit-mode" class="toggle" aria-pressed="false"
+                    title="Auch Stammdaten- und Identitätsspalten bearbeiten">Editiermodus</button>
+            </fieldset>
         </nav>
         <nav class="toolbar">
-            <div class="group">
+            <fieldset class="group">
+                <legend>Filter</legend>
                 <input id="search" type="search" placeholder="Suche: Name, Id, Set, Notiz …">
                 <select id="mode" title="Schnellfilter">
                     <option value="all">Alle Zeilen</option>
+                    <option value="collection">Nur Bestand (ohne fehlende Drucke)</option>
                     <option value="owned">Im Besitz</option>
                     <option value="missing">Fehlt zum Playset (gesamt)</option>
                     <option value="missingSet">Fehlt zum Playset (dieses Set)</option>
                     <option value="surplus">Überzählig</option>
+                    <option value="gaps">Noch nicht im Bestand (○)</option>
+                    <option value="differs">Weicht von den Stammdaten ab (≠)</option>
                     <option value="problems">Auffällige Zeilen</option>
                 </select>
-                <label title="Karten aus den Stammdaten zeigen, die noch nicht im Bestand sind">
-                    <input id="show-reference" type="checkbox"> Alle Karten einblenden</label>
                 <details class="dropdown">
                     <summary>Spalten</summary>
                     <div class="dropdown-panel">
@@ -76,25 +80,45 @@
                     </div>
                 </details>
                 <button id="btn-reset">Filter zurücksetzen</button>
-            </div>
-            <div class="group">
+            </fieldset>
+            <fieldset class="group">
+                <legend>Gliederung</legend>
                 <select id="grouping" title="Gruppierung wie in der ODS">
-                    <option value="setClass">Gruppen: Set › Talent Class</option>
-                    <option value="set">Gruppen: Set</option>
-                    <option value="none">Keine Gruppen</option>
+                    <option value="setClass">Set › Talent Class</option>
+                    <option value="set">nur Set</option>
+                    <option value="none">keine Gruppen</option>
                 </select>
-                <button id="btn-expand" title="Alle Gruppen aufklappen">Alle auf</button>
-                <button id="btn-collapse" title="Alle Gruppen zuklappen">Alle zu</button>
-            </div>
-            <div class="group">
-                <button id="btn-edit-mode" class="toggle" aria-pressed="false"
-                    title="Auch Stammdaten- und Identitätsspalten bearbeiten">Editiermodus</button>
-            </div>
+                <select id="set-order" title="Reihenfolge der Sets">
+                    <option value="date">Sets nach Erscheinen</option>
+                    <option value="alpha">Sets alphabetisch</option>
+                </select>
+                <button id="btn-outline-1" class="outline" title="Ebene 1: nur die Sets">1</button>
+                <button id="btn-outline-2" class="outline"
+                    title="Ebene 2: Sets offen, Talent/Class-Gruppen zu">2</button>
+                <button id="btn-outline-3" class="outline" title="Ebene 3: alles offen">3</button>
+            </fieldset>
         </nav>
     </header>
-    <div id="edit-banner" hidden>
-        Editiermodus: alle Spalten sind bearbeitbar. Lokal geänderte Stammdaten sind mit einer
-        violetten Ecke markiert, Abweichungen von den Stammdaten gestrichelt unterstrichen.
+    <div id="banners">
+        <div id="restore-banner" class="banner" hidden>
+            Bestand <strong id="restore-name"></strong>: <span id="restore-text"></span>
+            <button id="btn-restore">Mit Datei verbinden</button>
+            <button id="btn-restore-forget"
+                title="Kopie im Browser löschen; beim nächsten Start startet die App leer">
+                Kopie vergessen</button>
+            <span class="hint">Der Browser verlangt für den Dateizugriff einen Klick. Erlaubt er
+                ihn dauerhaft („Bei jedem Besuch zulassen“), verbindet sich die App künftig von
+                selbst.</span>
+        </div>
+        <div id="permission-banner" class="banner" hidden>
+            Der Browser fragt gerade „Änderungen speichern?“ („Save changes?“). Das ist nur die
+            Erlaubnis für das automatische Speichern dieser Datei – es wird noch nichts
+            gespeichert. Mit „Speichern“ bzw. „Bearbeiten erlauben“ bestätigen.
+        </div>
+        <div id="edit-banner" class="banner" hidden>
+            Editiermodus: alle Spalten sind bearbeitbar, feste Werte per Auswahlliste. Lokal
+            geänderte Stammdaten sind mit einer violetten Ecke markiert.
+        </div>
     </div>
 
     <!-- Collection table -->
@@ -114,7 +138,12 @@
         <span id="status-file"></span>
         <span id="status-rows"></span>
         <span id="status-clipboard"></span>
-        <span id="save-hint"></span>
+        <span id="status-save"></span>
+        <button id="btn-autosave" class="toggle" hidden aria-pressed="true"
+            title="Automatisches Speichern ein- oder ausschalten (wird gemerkt)"></button>
+        <button id="btn-log-file" hidden
+            title="Einmal wählen, dann wird das Protokoll automatisch mitgespeichert">
+            Protokolldatei festlegen</button>
     </footer>
 
     <!-- Dialog for import previews, row editing and information -->

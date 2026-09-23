@@ -1,6 +1,7 @@
 /*
  * grid.js - the collection table: sorting, free text search, column filters, column
- * selection, accordion groups, colour marks, row actions and editing in place.
+ * selection, accordion groups, colour marks, a status column, row actions and editing in
+ * place with a cell cursor that is operated by keyboard like a spreadsheet.
  *
  * Only the visible part of the table is rendered (virtual scrolling with a fixed row height),
  * so tens of thousands of rows stay fluent without any library. Group headers of the
@@ -10,7 +11,9 @@ FCT.grid = (function () {
     var util = FCT.util;
     var el = util.el;
     var OVERSCAN = 20;
+    var STATUS_WIDTH = 2;
     var ACTIONS_WIDTH = 10;
+    var SEP = '\u0000';
 
     // Icons of the row actions (inline SVG, drawn with the text colour).
     var ICONS = {
@@ -22,10 +25,16 @@ FCT.grid = (function () {
         remove: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/>'
     };
 
+    // Icons are parsed once and then copied; parsing SVG for every row slowed down scrolling.
+    var iconCache = {};
     function icon(name) {
-        var span = el('span', { className: 'icon' });
-        span.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[name] + '</svg>';
-        return span;
+        if (!iconCache[name]) {
+            var span = el('span', { className: 'icon' });
+            span.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[name] +
+                '</svg>';
+            iconCache[name] = span;
+        }
+        return iconCache[name].cloneNode(true);
     }
 
     // Creates a grid inside the container element.
@@ -34,21 +43,26 @@ FCT.grid = (function () {
     //               kind is 'input', 'reference', 'identity' or 'calc'
     //   searchKeys  keys searched by the free text search
     //   isEditable(column, row)   whether a cell may be edited
+    //   choices(column)           value list for a drop-down editor, or null for free text
     //   rowMarks(row)             { key: { className, title } } extra marks per cell
+    //   status(row)               { symbol, className, title } for the status column
     //   actions(row)              [{ action, icon, title, disabled }] buttons at the row end
     //   groupNames(row)           [level 1 name, level 2 name] for the accordion
+    //   setInfo(name, rows)       { label, date } of a level 1 group (title and release date)
+    //   matchesMode(row, mode)    extra quick filters of the application
     //   onEdit(row, key, text), onAction(action, row), onView(count)
     function create(container, options) {
         var columns = options.columns;
         var allRows = [];
         var viewRows = [];
         var matchCount = 0;
-        var selected = null;
+        var cursor = { item: null, key: null };  // active cell: row (or group) and column
         var sort = { key: null, dir: 1 };
         var filters = {};
         var search = '';
         var mode = 'all';
         var grouping = 'setClass';
+        var setOrder = 'date';
         var groupOpen = new Map();      // explicit open/closed state of groups
         var filterOpen = new Map();     // the same while a search or filter is active
         var groupKeys = [];             // keys of all groups of the current rows
@@ -58,15 +72,16 @@ FCT.grid = (function () {
         var renderPending = false;
 
         // Static structure: scroll area with a table; the body is re-rendered on demand.
+        // The scroll area takes the keyboard focus for the cell cursor.
         var colgroup = el('colgroup');
         var headRow = el('tr');
         var filterRow = el('tr', { className: 'filters' });
         var tbody = el('tbody');
         var table = el('table', { className: 'grid' }, [colgroup, el('thead', {}, [headRow,
             filterRow]), tbody]);
-        var scroller = el('div', { className: 'grid-scroll' }, [table]);
+        var scroller = el('div', { className: 'grid-scroll', tabindex: '0' }, [table]);
         container.appendChild(scroller);
-        scroller.addEventListener('scroll', scheduleRender);
+        scroller.addEventListener('scroll', function () { scheduleScroll(); });
         window.addEventListener('resize', scheduleRender);
 
         /*
@@ -77,9 +92,14 @@ FCT.grid = (function () {
             headRow.textContent = '';
             filterRow.textContent = '';
 
+            // Status column at the left edge; stays visible when scrolling sideways.
+            colgroup.appendChild(el('col', { style: 'width:' + STATUS_WIDTH + 'em' }));
+            headRow.appendChild(el('th', { className: 'status', title: 'Status der Zeile' }));
+            filterRow.appendChild(el('th', { className: 'status' }));
+
             // The table gets the sum of all column widths. Only then does the fixed table
             // layout really hold, and columns no longer jump while scrolling.
-            var total = ACTIONS_WIDTH;
+            var total = STATUS_WIDTH + ACTIONS_WIDTH;
             visibleColumns().forEach(function (column) {
                 total += column.width;
                 colgroup.appendChild(el('col', { style: 'width:' + column.width + 'em' }));
@@ -122,6 +142,10 @@ FCT.grid = (function () {
             return columns.filter(function (c) { return !c.hidden; });
         }
 
+        function columnByKey(key) {
+            return columns.filter(function (c) { return c.key === key; })[0];
+        }
+
         // Display value of a cell.
         function cellValue(row, column) {
             return column.value ? column.value(row) : row[column.key];
@@ -162,12 +186,13 @@ FCT.grid = (function () {
         function matchesMode(row) {
             var calc = row._calc || {};
             switch (mode) {
+                case 'all': return true;
                 case 'owned': return calc.have > 0;
                 case 'missing': return calc.needTotal > 0;
                 case 'missingSet': return calc.needSet > 0;
                 case 'surplus': return calc.have > 0 && calc.leftSet > 0;
                 case 'problems': return row._problem;
-                default: return true;
+                default: return options.matchesMode ? options.matchesMode(row, mode) : true;
             }
         }
 
@@ -207,11 +232,28 @@ FCT.grid = (function () {
                 });
             });
 
-            // Sorting is stable: equal values keep the order of the file.
-            if (sort.key) {
-                var column = columns.filter(function (c) { return c.key === sort.key; })[0];
-                var positions = new Map();
-                allRows.forEach(function (row, i) { positions.set(row, i); });
+            // Sorting is stable: equal values keep the order of the file. Without a chosen
+            // column, rows are ordered by card number (set code and number, e.g. AGB001 before
+            // AGB004), so that printings not yet in the collection stand at their place.
+            var positions = new Map();
+            allRows.forEach(function (row, i) { positions.set(row, i); });
+            if (!sort.key) {
+                // A row without card number (e.g. just inserted) stays right after the row
+                // before it in the file.
+                var sortId = new Map();
+                var previous = '';
+                allRows.forEach(function (row) {
+                    if (row.Id) previous = row.Id;
+                    sortId.set(row, row.Id || previous);
+                });
+                rows.sort(function (a, b) {
+                    var ia = sortId.get(a);
+                    var ib = sortId.get(b);
+                    if (ia !== ib) return ia < ib ? -1 : 1;
+                    return positions.get(a) - positions.get(b);
+                });
+            } else {
+                var column = columnByKey(sort.key);
                 rows.sort(function (a, b) {
                     var va = cellValue(a, column);
                     var vb = cellValue(b, column);
@@ -226,30 +268,35 @@ FCT.grid = (function () {
             }
             matchCount = rows.length;
             viewRows = grouping === 'none' ? rows : groupRows(rows);
+            keepCursor();
             render();
             if (options.onView) options.onView(matchCount);
         }
 
         /*
          * Accordion: rows are grouped by set and, below that, by talent and class.
-         * Groups appear in the order of their first row in the file; sorting applies within
-         * the groups. Sets start closed, talent/class groups inside an opened set start open.
-         * While a search or filter is active, all groups with hits are open.
+         * Sets are ordered by release date (or by name); talent/class groups keep the order of
+         * their first row in the file; sorting applies within the groups. All groups start
+         * closed. While a search or filter is active, all groups with hits are open.
          */
         function groupRows(rows) {
             var levels = grouping === 'set' ? 1 : 2;
 
-            // Order of the groups: first appearance in the file.
+            // Order of the groups: first appearance in the file; all rows of each set.
             var order = new Map();
+            var setRows = new Map();
             allRows.forEach(function (row) {
                 var names = options.groupNames(row);
-                var key1 = names[0];
-                var key2 = names[0] + '\u0000' + names[1];
-                if (!order.has(key1)) order.set(key1, order.size);
+                var key2 = names[0] + SEP + names[1];
+                if (!order.has(names[0])) {
+                    order.set(names[0], order.size);
+                    setRows.set(names[0], []);
+                }
                 if (!order.has(key2)) order.set(key2, order.size);
+                setRows.get(names[0]).push(row);
             });
             groupKeys = Array.from(order.keys()).filter(function (key) {
-                return levels === 2 || key.indexOf('\u0000') < 0;
+                return levels === 2 || key.indexOf(SEP) < 0;
             });
 
             // Put the (sorted) rows into their groups.
@@ -258,13 +305,15 @@ FCT.grid = (function () {
                 var names = options.groupNames(row);
                 var set = sets.get(names[0]);
                 if (!set) {
-                    set = header(1, names[0], names[0]);
+                    var info = options.setInfo(names[0], setRows.get(names[0]));
+                    set = header(1, names[0], info.label);
+                    set.date = info.date || '';
                     set.children = new Map();
                     sets.set(names[0], set);
                 }
                 set.rows.push(row);
                 if (levels === 1) return;
-                var key2 = names[0] + '\u0000' + names[1];
+                var key2 = names[0] + SEP + names[1];
                 var sub = set.children.get(key2);
                 if (!sub) {
                     sub = header(2, key2, names[1]);
@@ -273,10 +322,19 @@ FCT.grid = (function () {
                 sub.rows.push(row);
             });
 
-            // Flatten into the list of view rows: headers, and rows of open groups.
+            // Sets by release date (sets without a date, e.g. promos, first, as in the old
+            // spreadsheet) or by name; talent/class groups in file order.
             function byOrder(a, b) { return order.get(a.key) - order.get(b.key); }
+            function bySet(a, b) {
+                var result = setOrder === 'alpha'
+                    ? util.fold(a.key).localeCompare(util.fold(b.key))
+                    : (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+                return result || byOrder(a, b);
+            }
+
+            // Flatten into the list of view rows: headers, and rows of open groups.
             var result = [];
-            Array.from(sets.values()).sort(byOrder).forEach(function (set) {
+            Array.from(sets.values()).sort(bySet).forEach(function (set) {
                 result.push(set);
                 if (!set.open) return;
                 if (levels === 1) {
@@ -294,18 +352,29 @@ FCT.grid = (function () {
         // Creates a group header row.
         function header(level, key, label) {
             return { _group: true, level: level, key: key, label: label, rows: [],
-                open: isOpen(key, level) };
+                open: isOpen(key) };
         }
 
-        function isOpen(key, level) {
+        function isOpen(key) {
             var states = filtering() ? filterOpen : groupOpen;
             if (states.has(key)) return states.get(key);
-            return filtering() || level === 2;
+            return filtering();
         }
 
-        function toggleGroup(group) {
+        function setGroupOpen(group, open) {
             var states = filtering() ? filterOpen : groupOpen;
-            states.set(group.key, !group.open);
+            states.set(group.key, open);
+            applyView();
+        }
+
+        // Outline levels as in the spreadsheet: 1 = sets only, 2 = sets with their
+        // talent/class groups, 3 = everything open.
+        function setOutline(level) {
+            var states = filtering() ? filterOpen : groupOpen;
+            groupKeys.forEach(function (key) {
+                var sub = key.indexOf(SEP) >= 0;
+                states.set(key, sub ? level >= 3 : level >= 2);
+            });
             applyView();
         }
 
@@ -329,6 +398,28 @@ FCT.grid = (function () {
             });
         }
 
+        // While scrolling, the rows are only rebuilt when the visible area comes close to the
+        // edge of the rows drawn in advance (OVERSCAN). Rebuilding the table on every scroll
+        // step made scrolling sluggish: the browser has to lay out ~1,500 cells each time.
+        var rendered = { first: 0, last: 0 };
+        var headHeight = 0;
+        var MARGIN = 5;
+
+        function scheduleScroll() {
+            if (renderPending) return;
+            renderPending = true;
+            window.requestAnimationFrame(function () {
+                renderPending = false;
+                var visibleFirst = Math.floor(scroller.scrollTop / rowHeight);
+                var visibleLast = Math.min(viewRows.length, Math.ceil((scroller.scrollTop +
+                    scroller.clientHeight - headHeight) / rowHeight));
+                var topOk = rendered.first === 0 || visibleFirst >= rendered.first + MARGIN;
+                var bottomOk = rendered.last >= viewRows.length ||
+                    visibleLast <= rendered.last - MARGIN;
+                if (!topOk || !bottomOk) render();
+            });
+        }
+
         // Row classes for colour marks.
         function rowClass(row) {
             var calc = row._calc || {};
@@ -337,27 +428,31 @@ FCT.grid = (function () {
             if (calc.needTotal > 0) classes.push('missing');
             else if (calc.have > 0 && calc.leftSet > 0) classes.push('surplus');
             if (row._problem) classes.push('problem');
-            if (row === selected) classes.push('selected');
+            if (row === cursor.item) classes.push('selected');
             return classes.join(' ');
         }
 
         function render() {
             if (editor) return;
             var cols = visibleColumns();
-            var span = cols.length + 1;
-            var headHeight = table.tHead.offsetHeight;
+            var span = cols.length + 2;
+            headHeight = table.tHead.offsetHeight;
             var viewport = scroller.clientHeight - headHeight;
             var first = Math.max(0, Math.floor(scroller.scrollTop / rowHeight) - OVERSCAN);
             var count = Math.ceil(viewport / rowHeight) + 2 * OVERSCAN;
             var last = Math.min(viewRows.length, first + count);
+            rendered = { first: first, last: last };
 
-            tbody.textContent = '';
-            tbody.appendChild(spacer(first * rowHeight, span));
+            // Build the rows off-screen and insert them in one step.
+            var rows = document.createDocumentFragment();
+            rows.appendChild(spacer(first * rowHeight, span));
             for (var i = first; i < last; i++) {
                 var item = viewRows[i];
-                tbody.appendChild(item._group ? renderGroup(item, span) : renderRow(item, cols));
+                rows.appendChild(item._group ? renderGroup(item, span) : renderRow(item, cols));
             }
-            tbody.appendChild(spacer((viewRows.length - last) * rowHeight, span));
+            rows.appendChild(spacer((viewRows.length - last) * rowHeight, span));
+            tbody.textContent = '';
+            tbody.appendChild(rows);
         }
 
         function spacer(height, span) {
@@ -365,23 +460,31 @@ FCT.grid = (function () {
                 [el('td', { colspan: span })]);
         }
 
-        // Group header: open/closed marker, name and a short summary of its rows.
+        // Group header: open/closed marker, name (centred) and a short summary of its rows.
         function renderGroup(group, span) {
             var cards = 0;
             var missing = 0;
+            var gaps = 0;
             group.rows.forEach(function (row) {
                 cards += row._have || 0;
-                if (row._calc && row._calc.needTotal > 0) missing++;
+                if (row._reference) gaps++;
+                else if (row._calc && row._calc.needTotal > 0) missing++;
             });
-            var info = group.rows.length.toLocaleString('de-DE') + ' Zeilen · ' +
+            var info = (group.rows.length - gaps).toLocaleString('de-DE') + ' Zeilen · ' +
                 cards.toLocaleString('de-DE') + ' Karten' +
-                (missing ? ' · ' + missing.toLocaleString('de-DE') + ' fehlen' : '');
-            var tr = el('tr', { className: 'group level' + group.level +
-                (group.open ? ' open' : '') }, [
+                (missing ? ' · ' + missing.toLocaleString('de-DE') + ' fehlen' : '') +
+                (gaps ? ' · ' + gaps.toLocaleString('de-DE') + ' nicht im Bestand' : '');
+            var classes = 'group level' + group.level + (group.open ? ' open' : '') +
+                (group === cursor.item ? ' cursor' : '');
+            // The title is centred in the visible part of the table, not in its full width.
+            var tr = el('tr', { className: classes }, [
                 el('td', { colspan: span }, [
-                    el('span', { className: 'toggle', text: group.open ? '▾' : '▸' }),
-                    el('span', { className: 'name', text: group.label }),
-                    el('span', { className: 'info', text: info })
+                    el('div', { className: 'group-title',
+                        style: 'width:' + scroller.clientWidth + 'px' }, [
+                        el('span', { className: 'toggle', text: group.open ? '▾' : '▸' }),
+                        el('span', { className: 'name', text: group.label }),
+                        el('span', { className: 'info', text: info })
+                    ])
                 ])
             ]);
             tr._group = group;
@@ -392,11 +495,21 @@ FCT.grid = (function () {
             var tr = el('tr', { className: rowClass(row) });
             tr._row = row;
             var marks = options.rowMarks ? options.rowMarks(row) : {};
+            tr.appendChild(renderStatus(row));
             cols.forEach(function (column) {
                 tr.appendChild(renderCell(row, column, marks[column.key]));
             });
             tr.appendChild(renderActions(row));
             return tr;
+        }
+
+        // Status symbol of a row (deviation, local change, not in collection, unknown).
+        function renderStatus(row) {
+            var status = options.status ? options.status(row) : null;
+            var td = el('td', { className: 'status' + (status ? ' ' + status.className : ''),
+                title: status ? status.title : null, text: status ? status.symbol : '' });
+            td._status = true;
+            return td;
         }
 
         // One cell. Its class tells what kind of value it holds, so that the user sees at a
@@ -405,23 +518,27 @@ FCT.grid = (function () {
             var value = cellValue(row, column);
             var text = value == null ? '' : String(value);
             var editable = options.isEditable(column, row);
+            var isCursor = row === cursor.item && column.key === cursor.key;
             var classes = ['k-' + column.kind];
             if (column.numeric) classes.push('num');
             if (editable) classes.push('edit');
+            if (isCursor) classes.push('cursor');
             if (column.numeric && editable && isNaN(util.toInt(value))) classes.push('invalid');
             if (mark && mark.className) classes.push(mark.className);
 
             var title = mark && mark.title ? text + '\n' + mark.title : text;
             var td = el('td', { className: classes.join(' '), title: title || null });
             td._column = column;
-            if (column.step && editable) {
-                // Quantities get "-" and "+" buttons; their space is always reserved.
+            if (column.step && editable && isCursor) {
+                // "-" and "+" only in the active cell (also Shift+Down / Shift+Up).
                 td.classList.add('stepper');
-                td.appendChild(el('button', { type: 'button', className: 'step',
-                    'data-step': '-1', title: 'Eins weniger', text: '−' }));
+                td.appendChild(el('button', { type: 'button', className: 'step minus',
+                    tabindex: '-1', 'data-step': '-1', title: 'Eins weniger (Shift+↓)',
+                    text: '−' }));
                 td.appendChild(el('span', { className: 'value', text: text }));
-                td.appendChild(el('button', { type: 'button', className: 'step',
-                    'data-step': '1', title: 'Eins mehr', text: '+' }));
+                td.appendChild(el('button', { type: 'button', className: 'step plus',
+                    tabindex: '-1', 'data-step': '1', title: 'Eins mehr (Shift+↑)',
+                    text: '+' }));
             } else {
                 td.textContent = text;
             }
@@ -430,7 +547,7 @@ FCT.grid = (function () {
 
         function renderActions(row) {
             var buttons = (options.actions ? options.actions(row) : []).map(function (a) {
-                return el('button', { type: 'button', className: 'row-action',
+                return el('button', { type: 'button', className: 'row-action', tabindex: '-1',
                     'data-action': a.action, title: a.title, disabled: !!a.disabled },
                 [icon(a.icon)]);
             });
@@ -438,109 +555,71 @@ FCT.grid = (function () {
         }
 
         /*
-         * Selection, row actions, quantity buttons and editing
+         * Cell cursor. It points at a row (or group header) and a column key; group headers
+         * have no column. The row under the cursor is the selected row.
          */
-        function selectRow(tr) {
-            selected = tr._row;
-            Array.prototype.forEach.call(tbody.querySelectorAll('tr.selected'), function (r) {
-                r.classList.remove('selected');
-            });
-            tr.classList.add('selected');
+        function cursorIndex() {
+            return cursor.item ? viewRows.indexOf(cursor.item) : -1;
         }
 
-        tbody.addEventListener('click', function (event) {
-            var tr = event.target.closest('tr');
-            if (!tr) return;
-            if (tr._group) { toggleGroup(tr._group); return; }
-            if (!tr._row) return;
-            selectRow(tr);
+        // After the view changed, the cursor stays on its row if it is still visible. Group
+        // headers are rebuilt with every view, so they are found again by their key.
+        function keepCursor() {
+            var item = cursor.item;
+            if (!item || viewRows.indexOf(item) >= 0) return;
+            cursor.item = item._group ? viewRows.filter(function (r) {
+                return r._group && r.key === item.key;
+            })[0] || null : null;
+        }
 
-            // Row actions at the row end.
-            var action = event.target.closest('button.row-action');
-            if (action) {
-                options.onAction(action.getAttribute('data-action'), tr._row);
+        function setCursor(item, key, scroll) {
+            cursor.item = item || null;
+            if (key) cursor.key = key;
+            if (!cursor.key) cursor.key = (visibleColumns()[0] || {}).key || null;
+            if (scroll) scrollToCursor();
+            render();
+        }
+
+        // Moves the cursor by rows and columns; columns wrap into the next or previous row.
+        function moveCursor(dRow, dCol, wrap) {
+            var cols = visibleColumns();
+            if (!viewRows.length || !cols.length) return;
+            var index = cursorIndex();
+            if (index < 0) {
+                // Without a cursor, start at the first visible row instead of jumping to the top.
+                var top = Math.min(viewRows.length - 1, Math.ceil(scroller.scrollTop / rowHeight));
+                setCursor(viewRows[Math.max(0, top)], cols[0].key, true);
                 return;
             }
-
-            // "-" and "+" next to a quantity. Quantities never go below 0.
-            var step = event.target.closest('button.step');
-            if (step) {
-                var td = step.closest('td');
-                var key = td._column.key;
-                var current = util.toInt(tr._row[key]);
-                if (isNaN(current)) current = 0;
-                var next = Math.max(0, current + parseInt(step.getAttribute('data-step'), 10));
-                if (next !== current) options.onEdit(tr._row, key, String(next));
-            }
-        });
-
-        tbody.addEventListener('dblclick', function (event) {
-            if (event.target.closest('button')) return;
-            var td = event.target.closest('td');
-            var tr = td && td.parentNode;
-            if (td && td._column && tr._row && options.isEditable(td._column, tr._row)) {
-                startEdit(td);
-            }
-        });
-
-        // Replaces a cell by an input field. Enter saves and moves down, Tab moves right,
-        // Escape cancels.
-        function startEdit(td) {
-            var row = td.parentNode._row;
-            var column = td._column;
-            var input = el('input', { type: 'text', className: 'cell-editor' });
-            input.value = row[column.key] || '';
-            td.textContent = '';
-            td.appendChild(input);
-            editor = { row: row, column: column };
-            input.focus();
-            input.select();
-
-            var done = false;
-            function finish(save, move) {
-                if (done) return;
-                done = true;
-                editor = null;
-                if (save && input.value !== (row[column.key] || '')) {
-                    options.onEdit(row, column.key, input.value);
-                }
-                render();
-                if (move) moveEditor(row, column, move);
-            }
-            input.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') { e.preventDefault(); finish(true, 'down'); }
-                else if (e.key === 'Tab') {
-                    e.preventDefault();
-                    finish(true, e.shiftKey ? 'left' : 'right');
-                } else if (e.key === 'Escape') { finish(false); }
-            });
-            input.addEventListener('blur', function () { finish(true); });
+            var col = Math.max(0, cols.map(function (c) { return c.key; })
+                .indexOf(cursor.key));
+            col += dCol;
+            if (wrap && col >= cols.length) { col = 0; dRow = 1; }
+            if (wrap && col < 0) { col = cols.length - 1; dRow = -1; }
+            col = Math.max(0, Math.min(cols.length - 1, col));
+            index = Math.max(0, Math.min(viewRows.length - 1, index + dRow));
+            setCursor(viewRows[index], cols[col].key, true);
         }
 
-        // Opens the editor in the neighbouring cell after Enter or Tab.
-        function moveEditor(row, column, direction) {
-            var index = viewRows.indexOf(row);
-            if (direction === 'down') {
-                do { index++; } while (index < viewRows.length && viewRows[index]._group);
-            }
-            if (index >= viewRows.length) return;
-            var target = viewRows[index];
-            var editable = visibleColumns().filter(function (c) {
-                return options.isEditable(c, target);
-            });
-            var col = editable.indexOf(column);
-            if (direction === 'right') col++;
-            if (direction === 'left') col--;
-            if (col < 0 || col >= editable.length) return;
+        // Scrolls so that the cursor cell is visible (vertically and sideways).
+        function scrollToCursor() {
+            var index = cursorIndex();
+            if (index < 0) return;
             scrollToRow(index);
-            var tr = Array.prototype.filter.call(tbody.children, function (r) {
-                return r._row === target;
-            })[0];
-            if (!tr) return;
-            var td = Array.prototype.filter.call(tr.children, function (c) {
-                return c._column === editable[col];
-            })[0];
-            if (td) startEdit(td);
+            if (cursor.item._group || !cursor.key) return;
+            var em = parseFloat(window.getComputedStyle(table).fontSize) || 14;
+            var left = STATUS_WIDTH * em;
+            var cols = visibleColumns();
+            for (var i = 0; i < cols.length && cols[i].key !== cursor.key; i++) {
+                left += cols[i].width * em;
+            }
+            var width = (columnByKey(cursor.key) || { width: 5 }).width * em;
+            var viewLeft = scroller.scrollLeft + STATUS_WIDTH * em;
+            var viewRight = scroller.scrollLeft + scroller.clientWidth - ACTIONS_WIDTH * em;
+            if (left < viewLeft) scroller.scrollLeft = left - STATUS_WIDTH * em;
+            else if (left + width > viewRight) {
+                scroller.scrollLeft = left + width - scroller.clientWidth + ACTIONS_WIDTH * em;
+            }
         }
 
         // Scrolls so that a row is visible and renders immediately.
@@ -552,6 +631,224 @@ FCT.grid = (function () {
             render();
         }
 
+        // Number of rows that fit into the visible area (for page up / page down).
+        function pageRows() {
+            var visible = scroller.clientHeight - table.tHead.offsetHeight;
+            return Math.max(1, Math.floor(visible / rowHeight) - 1);
+        }
+
+        // The table cell of the cursor, if it is rendered.
+        function cursorCell() {
+            var tr = Array.prototype.filter.call(tbody.children, function (r) {
+                return r._row === cursor.item;
+            })[0];
+            if (!tr) return null;
+            return Array.prototype.filter.call(tr.children, function (c) {
+                return c._column && c._column.key === cursor.key;
+            })[0] || null;
+        }
+
+        function cursorEditable() {
+            var column = columnByKey(cursor.key);
+            return cursor.item && !cursor.item._group && column &&
+                options.isEditable(column, cursor.item) ? column : null;
+        }
+
+        // Adds a step (+1 / -1) to a quantity. Quantities never go below 0.
+        function step(row, column, delta) {
+            var current = util.toInt(row[column.key]);
+            if (isNaN(current)) current = 0;
+            var next = Math.max(0, current + delta);
+            if (next !== current) options.onEdit(row, column.key, String(next));
+        }
+
+        /*
+         * Mouse: clicks set the cursor; buttons in cells and row ends act; group headers toggle
+         */
+        tbody.addEventListener('mousedown', function (event) {
+            // Keep the keyboard focus in the table (not on the clicked button). Clicks into an
+            // open cell editor keep their focus.
+            if (event.target.closest('input, select')) return;
+            event.preventDefault();
+            scroller.focus({ preventScroll: true });
+        });
+
+        tbody.addEventListener('click', function (event) {
+            var tr = event.target.closest('tr');
+            if (!tr) return;
+            if (tr._group) {
+                cursor.item = tr._group;
+                setGroupOpen(tr._group, !tr._group.open);
+                return;
+            }
+            if (!tr._row) return;
+            var td = event.target.closest('td');
+
+            // Row actions at the row end, and the status symbol at the row start.
+            var action = event.target.closest('button.row-action');
+            if (action) {
+                setCursor(tr._row, null, false);
+                options.onAction(action.getAttribute('data-action'), tr._row);
+                return;
+            }
+            if (td && td._status) {
+                setCursor(tr._row, null, false);
+                options.onAction('status', tr._row);
+                return;
+            }
+
+            // "-" and "+" in the active quantity cell.
+            var button = event.target.closest('button.step');
+            if (button) {
+                step(tr._row, td._column, parseInt(button.getAttribute('data-step'), 10));
+                return;
+            }
+            if (td && td._column) setCursor(tr._row, td._column.key, false);
+        });
+
+        tbody.addEventListener('dblclick', function (event) {
+            if (event.target.closest('button')) return;
+            var td = event.target.closest('td');
+            if (td && td._column && cursorEditable()) startEdit(null);
+        });
+
+        /*
+         * Keyboard, as in a spreadsheet:
+         *   arrows, Tab / Shift+Tab, Home / End, Ctrl+Home / Ctrl+End, Page Up / Page Down
+         *   typing starts editing (replacing the value), F2 edits the value, Delete clears it
+         *   Enter moves down; Shift+Up / Shift+Down add or remove one of a quantity
+         *   on a group header: Enter / Space toggles, Right opens, Left closes
+         */
+        scroller.addEventListener('keydown', function (e) {
+            if (e.target !== scroller || editor) return;
+            var item = cursor.item;
+            var column = cursorEditable();
+            var key = e.key;
+            var handled = true;
+
+            if (item && item._group && (key === 'Enter' || key === ' ')) {
+                setGroupOpen(item, !item.open);
+            } else if (item && item._group && key === 'ArrowRight') {
+                setGroupOpen(item, true);
+            } else if (item && item._group && key === 'ArrowLeft') {
+                setGroupOpen(item, false);
+            } else if (e.shiftKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
+                if (column && column.step) step(item, column, key === 'ArrowUp' ? 1 : -1);
+            } else if (key === 'ArrowUp') {
+                moveCursor(-1, 0);
+            } else if (key === 'ArrowDown' || key === 'Enter') {
+                moveCursor(1, 0);
+            } else if (key === 'ArrowLeft') {
+                moveCursor(0, -1);
+            } else if (key === 'ArrowRight') {
+                moveCursor(0, 1);
+            } else if (key === 'Tab') {
+                moveCursor(0, e.shiftKey ? -1 : 1, true);
+            } else if (key === 'Home' && e.ctrlKey) {
+                if (viewRows.length) setCursor(viewRows[0], visibleColumns()[0].key, true);
+            } else if (key === 'End' && e.ctrlKey) {
+                var cols = visibleColumns();
+                if (viewRows.length) {
+                    setCursor(viewRows[viewRows.length - 1], cols[cols.length - 1].key, true);
+                }
+            } else if (key === 'Home') {
+                moveCursor(0, -visibleColumns().length);
+            } else if (key === 'End') {
+                moveCursor(0, visibleColumns().length);
+            } else if (key === 'PageDown') {
+                moveCursor(pageRows(), 0);
+            } else if (key === 'PageUp') {
+                moveCursor(-pageRows(), 0);
+            } else if (key === 'F2') {
+                if (column) startEdit(null);
+            } else if (key === 'Delete' || key === 'Backspace') {
+                if (column && (item[column.key] || '') !== '') {
+                    options.onEdit(item, column.key, '');
+                }
+            } else if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                if (column) startEdit(key);
+                else handled = false;
+            } else {
+                handled = false;
+            }
+            if (handled) e.preventDefault();
+        });
+
+        /*
+         * Editing in place. Columns with a value list get a drop-down, all others a text
+         * field. Enter saves and moves down, Tab moves right, Up/Down in a text field save
+         * and move, Escape cancels; leaving the cell saves.
+         */
+        function startEdit(typed) {
+            var column = cursorEditable();
+            if (!column) return;
+            scrollToCursor();
+            var td = cursorCell();
+            if (!td) return;
+            var row = cursor.item;
+            var current = row[column.key] || '';
+            var list = options.choices ? options.choices(column) : null;
+            var input;
+
+            if (list) {
+                // Drop-down: an empty entry, the known values, and the current value if it is
+                // not among them, so that nothing is lost.
+                var values = [''].concat(list);
+                if (values.indexOf(current) < 0) values.push(current);
+                input = el('select', { className: 'cell-editor' }, values.map(function (v) {
+                    return el('option', { value: v, text: v || '–' });
+                }));
+                input.value = current;
+                if (typed) {
+                    // Typing a letter jumps to the first value starting with it.
+                    var hit = list.filter(function (v) {
+                        return v.toLowerCase().indexOf(typed.toLowerCase()) === 0;
+                    })[0];
+                    if (hit) input.value = hit;
+                }
+            } else {
+                input = el('input', { type: 'text', className: 'cell-editor' });
+                input.value = typed != null ? typed : current;
+            }
+            td.textContent = '';
+            td.classList.remove('stepper');
+            td.appendChild(input);
+            editor = { row: row, column: column };
+            input.focus();
+            if (!list && typed == null) input.select();
+
+            var done = false;
+            function finish(save, move) {
+                if (done) return;
+                done = true;
+                editor = null;
+                if (save && input.value !== current) options.onEdit(row, column.key, input.value);
+                render();
+                if (move !== undefined) {
+                    scroller.focus({ preventScroll: true });
+                    if (move === 'down') moveCursor(1, 0);
+                    else if (move === 'up') moveCursor(-1, 0);
+                    else if (move === 'right') moveCursor(0, 1, true);
+                    else if (move === 'left') moveCursor(0, -1, true);
+                }
+            }
+            input.addEventListener('keydown', function (e) {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); finish(true, 'down'); }
+                else if (e.key === 'Tab') {
+                    e.preventDefault();
+                    finish(true, e.shiftKey ? 'left' : 'right');
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    finish(false, null);
+                } else if (!list && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                    e.preventDefault();
+                    finish(true, e.key === 'ArrowUp' ? 'up' : 'down');
+                }
+            });
+            input.addEventListener('blur', function () { finish(true); });
+        }
+
         /*
          * Public interface
          */
@@ -560,7 +857,6 @@ FCT.grid = (function () {
             // Replaces all rows and re-applies search, filters, grouping and sort.
             setRows: function (rows) {
                 allRows = rows;
-                if (selected && rows.indexOf(selected) < 0) selected = null;
                 applyView();
             },
             // Redraws without filtering again, so an edited row does not vanish from view.
@@ -592,29 +888,30 @@ FCT.grid = (function () {
                 grouping = value;
                 applyView();
             },
-            // Opens or closes all groups.
-            setAllGroups: function (open) {
-                var states = filtering() ? filterOpen : groupOpen;
-                groupKeys.forEach(function (key) { states.set(key, open); });
+            // Order of the sets: 'date' (release date) or 'alpha'.
+            setSetOrder: function (value) {
+                setOrder = value;
                 applyView();
             },
+            setOutline: setOutline,
             columns: function () { return columns; },
-            selected: function () { return selected; },
+            selected: function () {
+                return cursor.item && !cursor.item._group ? cursor.item : null;
+            },
+            focus: function () { scroller.focus({ preventScroll: true }); },
             // Selects a row and scrolls to it. A row hidden by filters or closed groups (e.g. one
             // just inserted) is shown anyway until the filters change.
             select: function (row) {
-                selected = row;
                 var index = viewRows.indexOf(row);
                 if (index < 0 && allRows.indexOf(row) >= 0) {
                     pinned.add(row);
                     var names = options.groupNames(row);
                     var states = filtering() ? filterOpen : groupOpen;
                     states.set(names[0], true);
-                    states.set(names[0] + '\u0000' + names[1], true);
+                    states.set(names[0] + SEP + names[1], true);
                     applyView();
-                    index = viewRows.indexOf(row);
                 }
-                if (index >= 0) scrollToRow(index); else render();
+                setCursor(row, null, true);
             },
             // Number of rows matching search and filters, including those in closed groups.
             viewCount: function () { return matchCount; }

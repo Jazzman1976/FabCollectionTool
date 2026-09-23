@@ -13,10 +13,15 @@ FCT.referenceTransform = (function () {
     var SOURCE_BASE = 'https://raw.githubusercontent.com/' + SOURCE_REPO + '/' +
         SOURCE_BRANCH + '/csvs/english/';
     var REQUIRED = {
-        set: ['Identifier', 'Name'],
+        set: ['Unique ID', 'Identifier', 'Name'],
+        setPrinting: ['Set Unique ID', 'Initial Release Date'],
         card: ['Unique ID', 'Name', 'Pitch', 'Types'],
         printing: ['Card Unique ID', 'Card ID', 'Set ID', 'Edition', 'Rarity', 'Foiling',
             'Art Variations']
+    };
+    var FILES = {
+        set: 'set.csv', setPrinting: 'set-printing.csv', card: 'card.csv',
+        printing: 'card-printing.csv'
     };
     var FOILING_ORDER = 'SRCG';
 
@@ -27,7 +32,7 @@ FCT.referenceTransform = (function () {
             return table.header.indexOf(column) < 0;
         });
         if (missing.length) {
-            throw new Error(name + '.csv: Spalten fehlen (' + missing.join(', ') +
+            throw new Error(FILES[name] + ': Spalten fehlen (' + missing.join(', ') +
                 ') - Format des Datensatzes hat sich geändert');
         }
         return table.rows;
@@ -48,13 +53,23 @@ FCT.referenceTransform = (function () {
             .join(', ');
     }
 
-    // Main entry: texts of set.csv, card.csv and card-printing.csv -> reference tables.
+    // Main entry: texts of the source files (see FILES) -> reference tables.
     function transform(texts) {
         var vocab = FCT.DATA.vocab;
 
-        // Sets: code -> name.
+        // Release date of a set: the earliest date of its printings (languages, editions).
+        var released = {};
+        readTable('setPrinting', texts.setPrinting).forEach(function (row) {
+            var date = String(row['Initial Release Date'] || '').slice(0, 10);
+            var id = row['Set Unique ID'];
+            if (date && (!released[id] || date < released[id])) released[id] = date;
+        });
+
+        // Sets: code -> name and release date (YYYY-MM-DD, empty if unknown).
         var sets = readTable('set', texts.set)
-            .map(function (row) { return [row.Identifier.trim(), row.Name.trim()]; })
+            .map(function (row) {
+                return [row.Identifier.trim(), row.Name.trim(), released[row['Unique ID']] || ''];
+            })
             .filter(function (set) { return set[0]; })
             .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
 
@@ -115,7 +130,7 @@ FCT.referenceTransform = (function () {
         SOURCE_REPO: SOURCE_REPO,
         SOURCE_BRANCH: SOURCE_BRANCH,
         SOURCE_BASE: SOURCE_BASE,
-        FILES: { set: 'set.csv', card: 'card.csv', printing: 'card-printing.csv' },
+        FILES: FILES,
         transform: transform
     };
 })();

@@ -170,6 +170,90 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         records[2][6] === 'ST=2 "x"' && log.pending().length === 0);
 }
 
+// Release dates: every set of the ODS import should have one (sets without are listed).
+{
+    const codes = new Set(ods.collection.rows.map((row) => FCT.model.setCode(row.Id)));
+    const without = [...codes].filter((code) => code && !FCT.reference.setDate(code));
+    const known = [...codes].filter((code) => FCT.reference.setDate(code));
+    check('Set release dates', known.length > 0 && FCT.reference.setDate('WTR') === '2019-10-11',
+        `${known.length} sets with date, without: ${without.join(' ')}`);
+}
+
+// Gap filling: no gap for a variant the collection has, "Micro Text Box" counts as
+// "Extended Art", only sets of the collection, gaps stand in card number order.
+{
+    const collection = FCT.model.create();
+    collection.rows.push(FCT.model.newRow({ Id: 'WTR001', Edition: 'Unlimited', Set: 'Mein WTR' }));
+    collection.rows.push(FCT.model.newRow({ Id: 'WTR010', Edition: 'Unlimited', Set: 'Mein WTR' }));
+    const mtb = ods.collection.rows.find((row) => row['Art Treatment'] === 'Micro Text Box');
+    if (mtb) collection.rows.push(FCT.model.newRow(mtb));
+    const all = FCT.model.withGaps(collection);
+    const gaps = all.filter((row) => row._reference);
+    const codes = new Set(collection.rows.map((row) => FCT.model.setCode(row.Id)));
+    const foreign = gaps.filter((row) => !codes.has(FCT.model.setCode(row.Id)));
+    const duplicate = gaps.filter((row) => row.Id === 'WTR001' && row.Edition === 'Unlimited');
+    const mtbGap = mtb ? gaps.filter((row) => row.Id === mtb.Id &&
+        row['Art Treatment'] === 'Extended Art' && !row.Edition) : [];
+    const wtr = all.filter((row) => FCT.model.setCode(row.Id) === 'WTR').map((row) => row.Id);
+    const sorted = wtr.every((id, i) => i === 0 || wtr[i - 1] <= id);
+    const named = gaps.filter((row) => row.Id.startsWith('WTR')).every((row) =>
+        row.Set === 'Mein WTR');
+    check('Gap filling', gaps.length > 0 && !foreign.length && !duplicate.length &&
+        !mtbGap.length && sorted && named,
+        `${gaps.length} gaps, foreign ${foreign.length}, duplicate ${duplicate.length}, ` +
+        `micro text box ${mtbGap.length}, sorted ${sorted}, set name kept ${named}`);
+}
+
+// Taking over reference data never changes the collection itself; the Fabrary export stays
+// identical. A change of a protected column is rolled back.
+{
+    const collection = FCT.model.fromCsv(FCT.model.toCsv(ods.collection)).collection;
+    const exportBefore = FCT.exportFabrary.exportFabrary(collection).text;
+    const fingerprint = FCT.model.fingerprint(collection);
+    const items = collection.rows.map((row) => ({ row, diffs: FCT.model.differences(row) }))
+        .filter((item) => item.diffs.length);
+    const count = FCT.model.takeOver(collection, items, (row, column, value) => {
+        row[column] = value;
+        return true;
+    });
+    const unchanged = FCT.model.fingerprint(collection) === fingerprint &&
+        FCT.exportFabrary.exportFabrary(collection).text === exportBefore;
+
+    // A faulty change that also touches a quantity is detected: an error is thrown and the
+    // reference values are rolled back.
+    const row = collection.rows.find((r) => FCT.model.differences(r).length === 0 &&
+        FCT.reference.expected(r));
+    const quantity = row.ST;
+    row.Rarity = 'Test';
+    let rolledBack = false;
+    try {
+        FCT.model.takeOver(collection, [{ row, diffs: FCT.model.differences(row) }],
+            (r, column, value) => { r[column] = value; r.ST = '99'; return true; });
+    } catch (error) {
+        rolledBack = row.Rarity === 'Test';
+    }
+    row.ST = quantity;
+    check('Take over keeps the collection', count > 0 && unchanged && rolledBack,
+        `${count} values taken over, collection and export unchanged: ${unchanged}, ` +
+        `faulty change detected and rolled back: ${rolledBack}`);
+}
+
+// Value lists of the edit mode contain every value found in the ODS import.
+{
+    const columns = ['Set', 'Edition', 'Rarity', 'Pitch', 'Art Treatment', 'Talent', 'Class1',
+        'Type1', 'Sub1'];
+    const missing = [];
+    columns.forEach((column) => {
+        const list = FCT.model.choices(column, ods.collection.rows);
+        ods.collection.rows.forEach((row) => {
+            if (row[column] && !list.includes(row[column])) {
+                missing.push(`${column}:${row[column]}`);
+            }
+        });
+    });
+    check('Value lists complete', missing.length === 0, [...new Set(missing)].join(', '));
+}
+
 // Line length of hand-written source files (generated data files are exempt). Only source
 // files count; a collection the user saved into the app folder is not checked.
 {
@@ -192,8 +276,8 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
 if (sourceDir) {
     const t = FCT.referenceTransform;
     const read = (file) => fs.readFileSync(path.join(sourceDir, file), 'utf8');
-    const data = t.transform({ set: read(t.FILES.set), card: read(t.FILES.card),
-        printing: read(t.FILES.printing) });
+    const data = t.transform({ set: read(t.FILES.set), setPrinting: read(t.FILES.setPrinting),
+        card: read(t.FILES.card), printing: read(t.FILES.printing) });
     check('Reference transform = shipped data',
         JSON.stringify(data.printings) === JSON.stringify(FCT.DATA.printings) &&
         JSON.stringify(data.cards) === JSON.stringify(FCT.DATA.cards) &&

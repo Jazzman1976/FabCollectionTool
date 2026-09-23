@@ -34,7 +34,21 @@ FCT.storage = (function () {
         return asBuffer ? file.arrayBuffer() : file.text();
     }
 
+    // Asks for permission to write into a file without further questions (needed for
+    // automatic saving). Must run right after a click; resolves true or false.
+    function requestWrite(handle) {
+        if (!handle || typeof handle.requestPermission !== 'function') {
+            return Promise.resolve(false);
+        }
+        return handle.requestPermission({ mode: 'readwrite' }).then(function (result) {
+            return result === 'granted';
+        }, function () {
+            return false;
+        });
+    }
+
     // Opens a collection file. Resolves with { name, text, handle } or null if cancelled.
+    // Write permission for automatic saving is asked for separately (see app.js).
     function openCollection() {
         if (canWriteBack) {
             return window.showOpenFilePicker({ types: CSV_TYPES }).then(function (handles) {
@@ -139,9 +153,110 @@ FCT.storage = (function () {
         return Promise.resolve({ name: name, handle: null, method: 'download' });
     }
 
+    /*
+     * Last collection, kept in IndexedDB (decided 23.09.2026): a copy of the collection text,
+     * so that it is shown at once at the next start, plus - in Chrome/Edge - the handle of
+     * its file (a reference; only IndexedDB can keep it) and the autosave decision.
+     * Record: { name, text, fileText, updated, handle, autosave }. The file stays the
+     * original: fileText is its content when last read or written, to notice changes made
+     * elsewhere. Any failure (e.g. storage blocked) means "nothing remembered".
+     */
+    var DB_NAME = 'fct2';
+    var DB_STORE = 'files';
+    var LAST = 'lastCollection';
+
+    function database() {
+        return new Promise(function (resolve, reject) {
+            var request = window.indexedDB.open(DB_NAME, 1);
+            request.onupgradeneeded = function () {
+                request.result.createObjectStore(DB_STORE);
+            };
+            request.onsuccess = function () { resolve(request.result); };
+            request.onerror = function () { reject(request.error); };
+        });
+    }
+
+    // Runs one request on the store; resolves with its result.
+    function withStore(mode, action) {
+        return database().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var request = action(db.transaction(DB_STORE, mode).objectStore(DB_STORE));
+                request.onsuccess = function () { resolve(request.result); };
+                request.onerror = function () { reject(request.error); };
+            });
+        });
+    }
+
+    // Remembers the last collection (see above). Resolves true if it was stored.
+    function rememberFile(record) {
+        if (!window.indexedDB) return Promise.resolve(false);
+        return withStore('readwrite', function (store) {
+            return store.put(record, LAST);
+        }).then(function () { return true; }, function () { return false; });
+    }
+
+    // Resolves with the remembered record, or null.
+    function recallFile() {
+        if (!window.indexedDB) return Promise.resolve(null);
+        return withStore('readonly', function (store) {
+            return store.get(LAST);
+        }).then(function (record) {
+            return record && (record.text || record.handle) ? record : null;
+        }, function () { return null; });
+    }
+
+    function forgetFile() {
+        if (!window.indexedDB) return Promise.resolve();
+        return withStore('readwrite', function (store) {
+            return store.delete(LAST);
+        }).then(function () {}, function () {});
+    }
+
+    // True if two handles point to the same file.
+    function sameFile(a, b) {
+        if (!a || !b || typeof a.isSameEntry !== 'function') return Promise.resolve(false);
+        return a.isSameEntry(b).catch(function () { return false; });
+    }
+
+    // Current permission of a handle without asking: 'granted', 'prompt' or 'denied'.
+    function queryAccess(handle, mode) {
+        if (!handle || typeof handle.queryPermission !== 'function') {
+            return Promise.resolve('prompt');
+        }
+        return handle.queryPermission({ mode: mode }).catch(function () { return 'prompt'; });
+    }
+
+    // Asks for read (or read and write) permission; must run right after a click.
+    function requestAccess(handle, mode) {
+        if (!handle || typeof handle.requestPermission !== 'function') {
+            return Promise.resolve(false);
+        }
+        return handle.requestPermission({ mode: mode }).then(function (result) {
+            return result === 'granted';
+        }, function () { return false; });
+    }
+
+    // Reads a remembered file. Resolves with { name, text, handle }.
+    function readHandle(handle) {
+        return handle.getFile().then(function (file) {
+            return file.text().then(function (text) {
+                return { name: file.name, text: text, handle: handle };
+            });
+        });
+    }
+
     return {
         canWriteBack: canWriteBack,
+        rememberFile: rememberFile,
+        recallFile: recallFile,
+        forgetFile: forgetFile,
+        sameFile: sameFile,
+        queryAccess: queryAccess,
+        requestAccess: requestAccess,
+        readHandle: readHandle,
         appendLog: appendLog,
+        writeFile: writeHandle,
+        requestWrite: requestWrite,
         pickFile: pickFile,
         readFile: readFile,
         openCollection: openCollection,

@@ -39,12 +39,14 @@ FCT.referenceUpdate = (function () {
 
         return Promise.all([
             fetchText(transform.SOURCE_BASE + files.set, controller.signal),
+            fetchText(transform.SOURCE_BASE + files.setPrinting, controller.signal),
             fetchText(transform.SOURCE_BASE + files.card, controller.signal),
             fetchText(transform.SOURCE_BASE + files.printing, controller.signal),
             fetchCommit(controller.signal)
         ]).then(function (results) {
             var data = transform.transform({
-                set: results[0], card: results[1], printing: results[2]
+                set: results[0], setPrinting: results[1], card: results[2],
+                printing: results[3]
             });
 
             // Plausibility check: a broken download must not replace good data.
@@ -56,8 +58,8 @@ FCT.referenceUpdate = (function () {
             var info = {
                 source: transform.SOURCE_REPO,
                 branch: transform.SOURCE_BRANCH,
-                commit: results[3].commit || '',
-                commitDate: (results[3].commitDate || '').slice(0, 10),
+                commit: results[4].commit || '',
+                commitDate: (results[4].commitDate || '').slice(0, 10),
                 online: true,
                 loadedAt: new Date()
             };

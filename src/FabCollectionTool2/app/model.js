@@ -16,9 +16,16 @@ FCT.reference = (function () {
 
     // Builds the lookup tables from reference tables { sets, cards, printings }.
     function install(data, info) {
+        // Set names and release dates. A code can appear several times (e.g. "Black
+        // Label" variants); the first name and the earliest date count.
         var setNames = new Map();
+        var setDates = new Map();
         data.sets.forEach(function (set) {
             if (!setNames.has(set[0])) setNames.set(set[0], set[1]);
+            var date = set[2] || '';
+            if (date && (!setDates.get(set[0]) || date < setDates.get(set[0]))) {
+                setDates.set(set[0], date);
+            }
         });
 
         var cards = new Map();
@@ -38,7 +45,7 @@ FCT.reference = (function () {
         });
 
         state = {
-            data: data, info: info, setNames: setNames, cards: cards,
+            data: data, info: info, setNames: setNames, setDates: setDates, cards: cards,
             printingsById: printingsById
         };
     }
@@ -51,6 +58,11 @@ FCT.reference = (function () {
     // Readable set name for a set code; falls back to the code itself.
     function setName(code) {
         return (state && state.setNames.get(code)) || code;
+    }
+
+    // Release date of a set (YYYY-MM-DD), or '' if the reference data knows none.
+    function setDate(code) {
+        return (state && state.setDates.get(code)) || '';
     }
 
     // Type line of a card number, e.g. "Guardian, Weapon, Hammer, 1H".
@@ -132,6 +144,7 @@ FCT.reference = (function () {
         install: install,
         printings: printings,
         setName: setName,
+        setDate: setDate,
         types: types,
         splitTypes: splitTypes,
         expected: expected,
@@ -228,9 +241,11 @@ FCT.model = (function () {
         return vocab.languageEditions.indexOf(edition) >= 0 ? '' : edition;
     }
 
-    // Key that identifies a printing variant for coverage checks (language variants merged).
+    // Key that identifies a printing variant for coverage checks. Language variants are
+    // merged, and "Micro Text Box" counts as "Extended Art" (as in the reference data).
     function variantKey(id, edition, art) {
-        return [id, fabraryEdition(edition), art].join('|');
+        var treatments = FCT.DATA.vocab.fabraryTreatments;
+        return [id, fabraryEdition(edition), treatments[art] || art].join('|');
     }
 
     // Key used to find rows that are exact duplicates of each other.
@@ -361,8 +376,8 @@ FCT.model = (function () {
     }
 
     /*
-     * Rows from the reference data that are not yet part of the collection.
-     * They are shown on demand, so that new cards can be entered without typing their data.
+     * Rows from the reference data that are not yet part of the collection (every printing
+     * variant that no row covers).
      */
     function referenceRows(collection) {
         var covered = new Set();
@@ -410,6 +425,188 @@ FCT.model = (function () {
             rows.push(row);
         });
         return rows;
+    }
+
+    // Set code of a card number, e.g. "MON" for "MON062".
+    function setCode(id) {
+        var match = /^[A-Z0-9]{3}/.exec(String(id || ''));
+        return match ? match[0] : '';
+    }
+
+    /*
+     * The collection with its gaps filled: printing variants missing from a set that occurs in
+     * the collection are placed where they belong (after the last row of the same set with a
+     * card number up to theirs). Sets that do not occur in the collection are left out.
+     * Gap rows carry _reference = true and become real rows as soon as they are edited.
+     */
+    function withGaps(collection) {
+        var rows = collection.rows;
+
+        // Rows per set code (in file order) and the usual set name of each code.
+        var byCode = new Map();
+        var names = new Map();
+        rows.forEach(function (row, index) {
+            var code = setCode(row.Id);
+            if (!code) return;
+            if (!byCode.has(code)) {
+                byCode.set(code, []);
+                names.set(code, new Map());
+            }
+            byCode.get(code).push(index);
+            var counts = names.get(code);
+            counts.set(row.Set, (counts.get(row.Set) || 0) + 1);
+        });
+        function usualName(code) {
+            var best = '';
+            var most = 0;
+            names.get(code).forEach(function (count, name) {
+                if (name && count > most) { best = name; most = count; }
+            });
+            return best;
+        }
+
+        // Where each gap goes: after a row index, or before the first row of its set.
+        var after = new Map();
+        var before = new Map();
+        referenceRows(collection).forEach(function (gap) {
+            var code = setCode(gap.Id);
+            var indexes = byCode.get(code);
+            if (!indexes) return;
+            gap.Set = usualName(code) || gap.Set;
+            var at = -1;
+            indexes.forEach(function (i) { if (rows[i].Id <= gap.Id) at = i; });
+            var target = at >= 0 ? after : before;
+            var key = at >= 0 ? at : indexes[0];
+            if (!target.has(key)) target.set(key, []);
+            target.get(key).push(gap);
+        });
+
+        // Gaps at the same place are ordered by card number, edition and art treatment.
+        function byVariant(a, b) {
+            var ka = [a.Id, a.Edition, a['Art Treatment']].join('|');
+            var kb = [b.Id, b.Edition, b['Art Treatment']].join('|');
+            return ka < kb ? -1 : ka > kb ? 1 : 0;
+        }
+        var result = [];
+        rows.forEach(function (row, index) {
+            if (before.has(index)) {
+                Array.prototype.push.apply(result, before.get(index).sort(byVariant));
+            }
+            result.push(row);
+            if (after.has(index)) {
+                Array.prototype.push.apply(result, after.get(index).sort(byVariant));
+            }
+        });
+        return result;
+    }
+
+    // Reference values that differ from a row and are not overridden on purpose:
+    // [{ column, value, want }]. Empty for rows without reference data.
+    function differences(row) {
+        var expected = FCT.reference.expected(row);
+        if (!expected) return [];
+        var overridden = overrides(row);
+        return REFERENCE_COLUMNS.filter(function (column) {
+            return overridden.indexOf(column) < 0 && deviates(row, column, expected);
+        }).map(function (column) {
+            return { column: column, value: row[column] || '', want: expected[column] };
+        });
+    }
+
+    /*
+     * Fingerprint of everything that makes up the collection itself: every column except the
+     * reference columns (quantities, playset, note, card number, edition, treatment, ...)
+     * and the number of rows. Taking over reference data must never change it.
+     */
+    function fingerprint(collection) {
+        var columns = COLUMNS.filter(function (c) {
+            return REFERENCE_COLUMNS.indexOf(c) < 0 && c !== OVERRIDES;
+        }).concat(collection.extraColumns);
+        return collection.rows.length + '\n' + collection.rows.map(function (row) {
+            return columns.map(function (c) { return row[c] == null ? '' : row[c]; })
+                .join('\u0001');
+        }).join('\n');
+    }
+
+    /*
+     * Takes over reference values: items are [{ row, diffs }] as from differences(); change
+     * (row, column, value) performs one change and returns true if something changed.
+     * Only reference columns are ever written. The collection itself must stay exactly as it
+     * is - this is checked with the fingerprint before and after; on any difference every
+     * change is rolled back and an error is thrown. Returns the number of changed values.
+     */
+    function takeOver(collection, items, change) {
+        var before = fingerprint(collection);
+        var undo = [];
+        var count = 0;
+        items.forEach(function (item) {
+            item.diffs.forEach(function (d) {
+                if (REFERENCE_COLUMNS.indexOf(d.column) < 0) return;
+                undo.push({ row: item.row, column: d.column, value: item.row[d.column],
+                    overrides: item.row[OVERRIDES] });
+                if (change(item.row, d.column, d.want)) count++;
+            });
+        });
+        if (fingerprint(collection) !== before) {
+            undo.reverse().forEach(function (u) {
+                u.row[u.column] = u.value;
+                u.row[OVERRIDES] = u.overrides;
+            });
+            throw new Error('Das Übernehmen hätte den Bestand verändert und wurde vollständig ' +
+                'zurückgenommen (' + count + ' Werte).');
+        }
+        return count;
+    }
+
+    /*
+     * Value lists for the drop-downs of the edit mode: the fixed vocabulary first (in its
+     * order), then all other values known from the reference data and the given rows, sorted.
+     * Returns null for columns without a value list (free text).
+     */
+    var CHOICE_VOCAB = {
+        Set: null, Edition: 'editions', Rarity: 'rarities', Pitch: 'pitches',
+        Peculiarity: 'peculiarities', 'Art Treatment': 'artTreatments', Talent: 'talents',
+        Class1: 'classes', Class2: 'classes', Type1: 'cardTypes', Type2: 'cardTypes',
+        Sub1: null, Sub2: null, Sub3: null
+    };
+    var choiceCache = { data: null, values: {} };
+
+    // Values of a column as found in the reference data (cached per reference data).
+    function referenceChoices(column) {
+        var data = FCT.reference.data();
+        if (choiceCache.data !== data) choiceCache = { data: data, values: {} };
+        if (choiceCache.values[column]) return choiceCache.values[column];
+        var found = new Set();
+        if (data) {
+            if (column === 'Set') {
+                data.sets.forEach(function (s) { found.add(s[1]); });
+            } else if (column === 'Edition' || column === 'Art Treatment' ||
+                column === 'Rarity') {
+                var at = { Edition: 2, 'Art Treatment': 3, Rarity: 4 }[column];
+                data.printings.forEach(function (p) { found.add(p[at]); });
+            } else if (column === 'Pitch') {
+                data.cards.forEach(function (c) { found.add(c[2]); });
+            } else {
+                data.cards.forEach(function (c) {
+                    found.add(FCT.reference.splitTypes(c[3])[column]);
+                });
+            }
+        }
+        choiceCache.values[column] = found;
+        return found;
+    }
+
+    function choices(column, rows) {
+        if (!Object.prototype.hasOwnProperty.call(CHOICE_VOCAB, column)) return null;
+        var vocab = CHOICE_VOCAB[column] ? FCT.DATA.vocab[CHOICE_VOCAB[column]] : [];
+        var others = new Set(referenceChoices(column));
+        (rows || []).forEach(function (row) { others.add(row[column]); });
+        vocab.forEach(function (v) { others.delete(v); });
+        others.delete('');
+        others.delete(undefined);
+        return vocab.concat(Array.from(others).sort(function (a, b) {
+            return String(a).localeCompare(String(b));
+        }));
     }
 
     /*
@@ -485,6 +682,12 @@ FCT.model = (function () {
         toCsv: toCsv,
         validate: validate,
         referenceRows: referenceRows,
+        withGaps: withGaps,
+        setCode: setCode,
+        differences: differences,
+        fingerprint: fingerprint,
+        takeOver: takeOver,
+        choices: choices,
         calculate: calculate,
         totals: totals,
         fabraryEdition: fabraryEdition,

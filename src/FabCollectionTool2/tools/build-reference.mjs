@@ -5,7 +5,8 @@
  *   - a Fabrary collection export, used only as a skeleton WITHOUT any quantities
  *
  * Usage:
- *   node tools/build-reference.mjs <folder with set.csv, card.csv, card-printing.csv>
+ *   node tools/build-reference.mjs
+ *       <folder with set.csv, set-printing.csv, card.csv, card-printing.csv>
  *       <fabrary-export.csv> [commit-sha] [commit-date]
  */
 import fs from 'node:fs';
@@ -32,6 +33,7 @@ const transform = FCT.referenceTransform;
 const read = (file) => fs.readFileSync(path.join(sourceDir, file), 'utf8');
 const data = transform.transform({
     set: read(transform.FILES.set),
+    setPrinting: read(transform.FILES.setPrinting),
     card: read(transform.FILES.card),
     printing: read(transform.FILES.printing)
 });
@@ -63,7 +65,7 @@ function writeData(file, comment, variable, records) {
     console.log(`${file}: ${records.length} records`);
 }
 
-writeData('sets.js', 'Sets: [code, name]', 'sets', data.sets);
+writeData('sets.js', 'Sets: [code, name, release date]', 'sets', data.sets);
 writeData('cards.js', 'Cards: [unique id, name, pitch, types]', 'cards', data.cards);
 writeData('printings.js',
     'Printings: [card number, set code, edition, art treatment, rarity, foilings, card id]',
