@@ -1,0 +1,295 @@
+/* style.css - layout and colours of the app. */
+
+/* Colours; dark mode follows the operating system. */
+:root {
+    --bg: #ffffff;
+    --fg: #1d2330;
+    --muted: #667085;
+    --line: #d8dde6;
+    --head: #f2f4f8;
+    --accent: #2f5fd0;
+    --missing: #fde8e8;
+    --surplus: #e3f5e6;
+    --ref: #8a93a3;
+    --selected: #dbe6ff;
+    --invalid: #d92d20;
+    --unknown: #b54708;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #16181d;
+        --fg: #e6e9ef;
+        --muted: #98a2b3;
+        --line: #333946;
+        --head: #20242c;
+        --accent: #7ea2ff;
+        --missing: #3d2224;
+        --surplus: #1f3525;
+        --ref: #7c8494;
+        --selected: #27365c;
+        --invalid: #ff7b72;
+        --unknown: #f0a44b;
+    }
+}
+
+/* Page layout: header, table filling the remaining height, messages, status line. */
+html, body {
+    height: 100%;
+    margin: 0;
+}
+body {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.4 system-ui, "Segoe UI", sans-serif;
+}
+header {
+    padding: 8px 12px 4px;
+    border-bottom: 1px solid var(--line);
+}
+h1 {
+    margin: 0 0 6px;
+    font-size: 17px;
+}
+#version {
+    color: var(--muted);
+    font-weight: normal;
+}
+
+/* Toolbar */
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-bottom: 4px;
+}
+.toolbar .group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+.toolbar .label {
+    color: var(--muted);
+    margin-right: 2px;
+}
+button, select, input[type="search"] {
+    font: inherit;
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--head);
+    color: var(--fg);
+}
+button:hover {
+    border-color: var(--accent);
+}
+#search {
+    width: 260px;
+}
+.dropdown {
+    position: relative;
+}
+.dropdown summary {
+    cursor: pointer;
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--head);
+    list-style: none;
+}
+.dropdown-panel {
+    position: absolute;
+    z-index: 10;
+    max-height: 60vh;
+    overflow: auto;
+    padding: 6px 10px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+.dropdown-panel label {
+    display: block;
+    white-space: nowrap;
+}
+
+/* Table */
+#grid {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+.grid-scroll {
+    flex: 1;
+    overflow: auto;
+}
+table.grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+}
+.grid th, .grid td {
+    height: 23px;
+    padding: 0 5px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+}
+.grid thead th {
+    position: sticky;
+    background: var(--head);
+    z-index: 2;
+}
+.grid thead tr:first-child th {
+    top: 0;
+    cursor: pointer;
+    user-select: none;
+}
+.grid thead tr.filters th {
+    top: 24px;
+    padding: 1px 2px;
+}
+.grid thead input {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    padding: 1px 3px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--fg);
+}
+.grid .num {
+    text-align: right;
+}
+.grid tr.spacer td {
+    height: 0;
+    padding: 0;
+    border: 0;
+}
+.grid td.edit {
+    cursor: text;
+}
+.grid tr.missing td {
+    background: var(--missing);
+}
+.grid tr.surplus td {
+    background: var(--surplus);
+}
+.grid tr.ref td {
+    color: var(--ref);
+    font-style: italic;
+}
+.grid tr.selected td {
+    background: var(--selected);
+}
+.grid td.invalid {
+    color: var(--invalid);
+    font-weight: bold;
+}
+.grid td.unknown {
+    color: var(--unknown);
+    text-decoration: underline dotted;
+}
+.cell-editor {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    border: 1px solid var(--accent);
+    padding: 0 2px;
+    background: var(--bg);
+    color: var(--fg);
+}
+
+/* Messages */
+#messages {
+    border-top: 1px solid var(--line);
+    max-height: 35vh;
+    overflow: auto;
+    padding: 2px 12px;
+}
+#messages > summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+.report h3 {
+    margin: 8px 0 2px;
+    font-size: 13px;
+}
+.report ul {
+    margin: 2px 0;
+    padding-left: 20px;
+}
+.report .group summary {
+    cursor: pointer;
+}
+.level {
+    display: inline-block;
+    min-width: 48px;
+    font-size: 11px;
+    text-align: center;
+    border-radius: 3px;
+    padding: 0 4px;
+    color: #fff;
+}
+.level.error { background: #d92d20; }
+.level.warn { background: #b54708; }
+.level.info { background: #667085; }
+.more {
+    color: var(--muted);
+}
+
+/* Status line */
+footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+    padding: 4px 12px;
+    border-top: 1px solid var(--line);
+    background: var(--head);
+    color: var(--muted);
+}
+footer .dirty {
+    color: var(--invalid);
+    font-weight: 600;
+}
+
+/* Import preview and busy indicator */
+dialog {
+    max-width: 800px;
+    width: 90vw;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+dialog h2 {
+    margin: 0 0 6px;
+    font-size: 16px;
+}
+#preview-body {
+    max-height: 60vh;
+    overflow: auto;
+}
+dialog menu {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0;
+}
+.hint {
+    color: var(--muted);
+}
+#busy {
+    position: fixed;
+    inset: 40% auto auto 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    background: var(--head);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}

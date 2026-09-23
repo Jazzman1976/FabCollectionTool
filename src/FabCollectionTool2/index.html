@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FabCollectionTool</title>
+    <link rel="stylesheet" href="app/style.css">
+</head>
+<body>
+    <!-- Title and toolbar -->
+    <header>
+        <h1>FabCollectionTool <span id="version"></span></h1>
+        <nav class="toolbar">
+            <div class="group">
+                <span class="label">Bestand</span>
+                <button id="btn-new" title="Leeren Bestand beginnen">Neu</button>
+                <button id="btn-open" title="collection.csv öffnen">Öffnen</button>
+                <button id="btn-save" title="Speichern (Strg+S)">Speichern</button>
+                <button id="btn-backup" title="Kopie mit Zeitstempel speichern">Backup</button>
+            </div>
+            <div class="group">
+                <span class="label">Import</span>
+                <button id="btn-import-ods" title="Altes Calc-File (.ods) übernehmen">ODS</button>
+                <button id="btn-import-fabrary" title="Fabrary-Export (.csv) übernehmen">
+                    Fabrary</button>
+            </div>
+            <div class="group">
+                <span class="label">Export</span>
+                <button id="btn-export-fabrary" title="Importdatei für Fabrary erzeugen">
+                    Fabrary</button>
+            </div>
+            <div class="group">
+                <span class="label">Zeile</span>
+                <button id="btn-add" title="Leere Zeile unter der markierten einfügen">Neu</button>
+                <button id="btn-duplicate" title="Markierte Zeile ohne Mengen kopieren">
+                    Duplizieren</button>
+                <button id="btn-delete" title="Markierte Zeile löschen">Löschen</button>
+            </div>
+        </nav>
+        <nav class="toolbar">
+            <div class="group">
+                <input id="search" type="search" placeholder="Suche: Name, Id, Set, Notiz …">
+                <select id="mode" title="Schnellfilter">
+                    <option value="all">Alle Zeilen</option>
+                    <option value="owned">Im Besitz</option>
+                    <option value="missing">Fehlt zum Playset (gesamt)</option>
+                    <option value="missingSet">Fehlt zum Playset (dieses Set)</option>
+                    <option value="surplus">Überzählig</option>
+                    <option value="problems">Auffällige Zeilen</option>
+                </select>
+                <label title="Karten aus den Stammdaten zeigen, die noch nicht im Bestand sind">
+                    <input id="show-reference" type="checkbox"> Alle Karten einblenden</label>
+                <details class="dropdown">
+                    <summary>Spalten</summary>
+                    <div id="columns-list" class="dropdown-panel"></div>
+                </details>
+                <button id="btn-reset">Filter zurücksetzen</button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Collection table -->
+    <main id="grid"></main>
+
+    <!-- Messages and status -->
+    <details id="messages">
+        <summary>Meldungen</summary>
+        <div id="messages-list"></div>
+    </details>
+    <footer>
+        <span id="status-file"></span>
+        <span id="status-rows"></span>
+        <span id="status-reference"></span>
+        <span id="save-hint"></span>
+    </footer>
+
+    <!-- Import preview -->
+    <dialog id="preview">
+        <form method="dialog">
+            <h2>Vorschau</h2>
+            <div id="preview-body"></div>
+            <p class="hint">Mit „Übernehmen“ ersetzt der Import den geöffneten Bestand.</p>
+            <menu>
+                <button id="preview-cancel" value="cancel">Abbrechen</button>
+                <button id="preview-accept" value="accept">Übernehmen</button>
+            </menu>
+        </form>
+    </dialog>
+    <div id="busy" hidden>Datei wird gelesen …</div>
+
+    <noscript>Diese Anwendung benötigt JavaScript.</noscript>
+
+    <!-- Scripts in fixed order: namespace, reference data, logic, user interface -->
+    <script src="app/core.js"></script>
+    <script src="reference/vocab.js"></script>
+    <script src="reference/info.js"></script>
+    <script src="reference/sets.js"></script>
+    <script src="reference/cards.js"></script>
+    <script src="reference/printings.js"></script>
+    <script src="reference/fabrary-skeleton.js"></script>
+    <script src="app/csv.js"></script>
+    <script src="app/reference-transform.js"></script>
+    <script src="app/model.js"></script>
+    <script src="app/storage.js"></script>
+    <script src="app/grid.js"></script>
+    <script src="app/import-ods.js"></script>
+    <script src="app/import-fabrary.js"></script>
+    <script src="app/export-fabrary.js"></script>
+    <script src="app/reference-update.js"></script>
+    <script src="app/app.js"></script>
+</body>
+</html>
