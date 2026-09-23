@@ -32,6 +32,25 @@ FCT.DATA.vocab = {
     },
     pitchCodes: { 1: 'Red', 2: 'Yellow', 3: 'Blue' },
 
+    // Splitting the type line of card.csv ("Light, Illusionist, Action, Attack") into the
+    // spreadsheet columns Talent, Class1/2, Type1/2 and Sub1-3. Several talents are joined
+    // with a space ("Ice Earth"); everything not listed here is a subtype. Hand sizes are
+    // written as in the spreadsheet: "1H" -> "(1H)".
+    talents: [
+        'Light', 'Shadow', 'Elemental', 'Earth', 'Ice', 'Lightning', 'Draconic', 'Mystic',
+        'Royal', 'Chaos', 'Revered', 'Reviled', 'Rosetta'
+    ],
+    classes: [
+        'Generic', 'Adjudicator', 'Assassin', 'Bard', 'Brute', 'Guardian', 'Illusionist',
+        'Mechanologist', 'Merchant', 'Necromancer', 'Ninja', 'Pirate', 'Pit-Fighter', 'Ranger',
+        'Runeblade', 'Shapeshifter', 'Thief', 'Warrior', 'Wizard'
+    ],
+    cardTypes: [
+        'Action', 'Attack Reaction', 'Block', 'Defense Reaction', 'Demi-Hero', 'Equipment',
+        'Event', 'Hero', 'Instant', 'Macro', 'Mentor', 'Resource', 'Token', 'Weapon'
+    ],
+    handSubtypes: { '1H': '(1H)', '2H': '(2H)' },
+
     // Fabrary: one row per foiling; the quantity columns ST/RF/CF/GF map to these values.
     fabraryFoilings: { ST: '', RF: 'Rainbow', CF: 'Cold', GF: 'Gold' },
 

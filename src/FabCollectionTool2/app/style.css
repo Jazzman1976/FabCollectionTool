@@ -1,15 +1,31 @@
 /* style.css - layout and colours of the app. */
 
-/* Colours; dark mode follows the operating system. */
+/* Colours; dark mode follows the operating system. Font size and row height are set by
+   app.js (view setting "Schrift"). */
 :root {
+    --font-size: 14px;
+    --row-height: 25px;
     --bg: #ffffff;
     --fg: #1d2330;
     --muted: #667085;
     --line: #d8dde6;
     --head: #f2f4f8;
     --accent: #2f5fd0;
-    --missing: #fde8e8;
-    --surplus: #e3f5e6;
+    --locked: #f6f7f9;          /* values from the reference data, not editable */
+    --input: #ffffff;           /* the user's input: quantities, playset, note */
+    --input-line: #9db4ea;
+    --edit: #fff7e0;            /* columns editable only in edit mode */
+    --edit-line: #e0b54a;
+    --calc: #e9ecf1;            /* calculated values */
+    --calc-fg: #475467;
+    --group1: #dfe6f3;
+    --group2: #eef2f8;
+    --missing: #d92d20;
+    --missing-bg: #fde8e8;
+    --surplus: #2e9e4f;
+    --surplus-bg: #e3f5e6;
+    --override: #8e44d9;
+    --stale: #c77700;
     --ref: #8a93a3;
     --selected: #dbe6ff;
     --invalid: #d92d20;
@@ -23,8 +39,21 @@
         --line: #333946;
         --head: #20242c;
         --accent: #7ea2ff;
-        --missing: #3d2224;
-        --surplus: #1f3525;
+        --locked: #1b1e24;
+        --input: #0c0e12;
+        --input-line: #3d5a9e;
+        --edit: #2b2414;
+        --edit-line: #8a6a1f;
+        --calc: #262a33;
+        --calc-fg: #b3bccb;
+        --group1: #26314a;
+        --group2: #1f2638;
+        --missing: #ff7b72;
+        --missing-bg: #3d2224;
+        --surplus: #56d27a;
+        --surplus-bg: #1f3525;
+        --override: #c08cff;
+        --stale: #f0a44b;
         --ref: #7c8494;
         --selected: #27365c;
         --invalid: #ff7b72;
@@ -32,25 +61,41 @@
     }
 }
 
-/* Page layout: header, table filling the remaining height, messages, status line. */
+/* Page layout: header, table filling the remaining space, messages (bottom, left or right),
+   status line. */
 html, body {
     height: 100%;
     margin: 0;
 }
 body {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "header header header"
+        "banner banner banner"
+        "left main right"
+        "bottom bottom bottom"
+        "footer footer footer";
     background: var(--bg);
     color: var(--fg);
-    font: 13px/1.4 system-ui, "Segoe UI", sans-serif;
+    font: var(--font-size)/1.4 system-ui, "Segoe UI", sans-serif;
 }
+header { grid-area: header; }
+#edit-banner { grid-area: banner; }
+#grid { grid-area: main; }
+footer { grid-area: footer; }
+body.msg-bottom #messages { grid-area: bottom; }
+body.msg-left #messages { grid-area: left; }
+body.msg-right #messages { grid-area: right; }
+
 header {
     padding: 8px 12px 4px;
     border-bottom: 1px solid var(--line);
 }
 h1 {
     margin: 0 0 6px;
-    font-size: 17px;
+    font-size: 1.3em;
 }
 #version {
     color: var(--muted);
@@ -61,7 +106,7 @@ h1 {
 .toolbar {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 16px;
+    gap: 6px 18px;
     margin-bottom: 4px;
 }
 .toolbar .group {
@@ -82,11 +127,39 @@ button, select, input[type="search"] {
     background: var(--head);
     color: var(--fg);
 }
-button:hover {
+button:hover:not(:disabled) {
     border-color: var(--accent);
 }
+button:disabled {
+    opacity: 0.45;
+}
+button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+button.toggle[aria-pressed="true"] {
+    background: var(--edit);
+    border-color: var(--edit-line);
+    font-weight: 600;
+}
 #search {
-    width: 260px;
+    width: 18em;
+}
+.badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--head);
+    border: 1px solid var(--line);
+    color: var(--muted);
+}
+.badge.ok {
+    color: var(--surplus);
+    border-color: var(--surplus);
+}
+.badge.warn {
+    color: var(--stale);
+    border-color: var(--stale);
 }
 .dropdown {
     position: relative;
@@ -114,11 +187,20 @@ button:hover {
     display: block;
     white-space: nowrap;
 }
+.dropdown-panel button {
+    margin-top: 6px;
+    white-space: nowrap;
+}
+#edit-banner {
+    padding: 4px 12px;
+    background: var(--edit);
+    border-bottom: 1px solid var(--edit-line);
+}
 
 /* Table */
 #grid {
-    flex: 1;
     min-height: 0;
+    min-width: 0;
     display: flex;
 }
 .grid-scroll {
@@ -131,7 +213,7 @@ table.grid {
     table-layout: fixed;
 }
 .grid th, .grid td {
-    height: 23px;
+    height: calc(var(--row-height) - 1px);
     padding: 0 5px;
     border-right: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
@@ -139,6 +221,7 @@ table.grid {
     overflow: hidden;
     text-overflow: ellipsis;
     text-align: left;
+    box-sizing: border-box;
 }
 .grid thead th {
     position: sticky;
@@ -147,11 +230,10 @@ table.grid {
 }
 .grid thead tr:first-child th {
     top: 0;
-    cursor: pointer;
     user-select: none;
 }
 .grid thead tr.filters th {
-    top: 24px;
+    top: var(--row-height);
     padding: 1px 2px;
 }
 .grid thead input {
@@ -166,26 +248,108 @@ table.grid {
 .grid .num {
     text-align: right;
 }
+
+/* Sortable headers: a quiet marker shows that sorting is possible, the active one stands out */
+.grid th.sortable {
+    cursor: pointer;
+    padding-right: 1.3em;
+}
+.grid th.sortable:hover {
+    background: var(--selected);
+}
+.grid th .label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.grid th .sort {
+    position: absolute;
+    right: 4px;
+    color: var(--muted);
+    opacity: 0.55;
+    font-size: 0.85em;
+}
+.grid th .sort.active {
+    color: var(--accent);
+    opacity: 1;
+    font-weight: bold;
+}
+.grid th:hover .sort {
+    opacity: 1;
+}
 .grid tr.spacer td {
     height: 0;
     padding: 0;
     border: 0;
 }
-.grid td.edit {
+
+/* Kinds of cells: reference values (locked), input, edit mode, calculated */
+.grid td.k-reference, .grid td.k-identity {
+    background: var(--locked);
+}
+.grid td.k-input {
+    background: var(--input);
+    box-shadow: inset 0 0 0 1px var(--input-line);
     cursor: text;
 }
-.grid tr.missing td {
-    background: var(--missing);
+.grid td.k-calc {
+    background: var(--calc);
+    color: var(--calc-fg);
 }
-.grid tr.surplus td {
-    background: var(--surplus);
+body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
+    background: var(--edit);
+    box-shadow: inset 0 0 0 1px var(--edit-line);
+    cursor: text;
+}
+
+/* Quantity cells with "-" and "+"; the buttons appear on hover and in the selected row,
+   their space is always reserved so nothing moves */
+.grid td.stepper {
+    padding: 0 1px;
+    text-align: center;
+}
+.grid td.stepper .value {
+    display: inline-block;
+    min-width: 1.6em;
+    text-align: center;
+}
+.grid button.step {
+    width: 1.3em;
+    height: 1.3em;
+    padding: 0;
+    line-height: 1;
+    font-size: 0.9em;
+    border-radius: 3px;
+    visibility: hidden;
+    vertical-align: middle;
+    cursor: pointer;
+}
+.grid tr:hover button.step, .grid tr.selected button.step {
+    visibility: visible;
+}
+
+/* Row states: a coloured bar at the row start and tinted calculated cells */
+.grid tr.missing td:first-child {
+    box-shadow: inset 4px 0 0 var(--missing);
+}
+.grid tr.surplus td:first-child {
+    box-shadow: inset 4px 0 0 var(--surplus);
+}
+.grid tr.missing td.k-calc {
+    background: var(--missing-bg);
+}
+.grid tr.surplus td.k-calc {
+    background: var(--surplus-bg);
 }
 .grid tr.ref td {
     color: var(--ref);
     font-style: italic;
 }
-.grid tr.selected td {
+.grid tr.selected td.k-reference, .grid tr.selected td.k-identity,
+.grid tr.selected td.k-calc, .grid tr.selected td.actions {
     background: var(--selected);
+}
+.grid tr.selected td.k-input {
+    box-shadow: inset 0 0 0 2px var(--accent);
 }
 .grid td.invalid {
     color: var(--invalid);
@@ -194,6 +358,82 @@ table.grid {
 .grid td.unknown {
     color: var(--unknown);
     text-decoration: underline dotted;
+}
+
+/* Reference values changed on purpose (violet corner) and deviations (edit mode only) */
+.grid td.override {
+    background-image: linear-gradient(135deg, var(--override) 7px, transparent 7px);
+}
+.grid td.stale {
+    text-decoration: underline dashed var(--stale);
+    text-underline-offset: 3px;
+}
+
+/* Accordion group headers */
+.grid tr.group td {
+    cursor: pointer;
+    font-weight: 600;
+    border-right: 0;
+    user-select: none;
+}
+.grid tr.group.level1 td {
+    background: var(--group1);
+}
+.grid tr.group.level2 td {
+    background: var(--group2);
+    padding-left: 1.8em;
+    font-weight: 500;
+}
+.grid tr.group .toggle {
+    display: inline-block;
+    width: 1.2em;
+    color: var(--accent);
+}
+.grid tr.group .info {
+    margin-left: 1em;
+    color: var(--muted);
+    font-weight: normal;
+}
+
+/* Row actions at the right edge */
+.grid .actions {
+    position: sticky;
+    right: 0;
+    background: var(--bg);
+    border-left: 1px solid var(--line);
+    text-align: center;
+    padding: 0 2px;
+    z-index: 1;
+}
+.grid thead th.actions {
+    z-index: 3;
+    background: var(--head);
+}
+.grid button.row-action {
+    padding: 0 2px;
+    margin: 0 1px;
+    border: 1px solid transparent;
+    background: transparent;
+    line-height: 1;
+    vertical-align: middle;
+    cursor: pointer;
+}
+.grid button.row-action:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--head);
+}
+.icon svg {
+    width: 1.1em;
+    height: 1.1em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vertical-align: middle;
+}
+.grid button.row-action[data-action="remove"]:hover:not(:disabled) {
+    color: var(--invalid);
 }
 .cell-editor {
     width: 100%;
@@ -205,20 +445,71 @@ table.grid {
     color: var(--fg);
 }
 
-/* Messages */
+/* Messages and change log. At the side the area is not too wide, but at least as wide as
+   its longest word, so that no word has to be broken. */
 #messages {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--bg);
+}
+body.msg-bottom #messages {
     border-top: 1px solid var(--line);
     max-height: 35vh;
-    overflow: auto;
-    padding: 2px 12px;
 }
-#messages > summary {
-    cursor: pointer;
+body.msg-left #messages, body.msg-right #messages {
+    width: clamp(16em, 24em, 32vw);
+    min-width: min-content;
+}
+body.msg-left #messages {
+    border-right: 1px solid var(--line);
+}
+body.msg-right #messages {
+    border-left: 1px solid var(--line);
+}
+body.msg-left #messages.collapsed, body.msg-right #messages.collapsed {
+    width: auto;
+    min-width: 0;
+}
+body.msg-left #messages.collapsed .tabs, body.msg-right #messages.collapsed .tabs {
+    flex-direction: column;
+}
+#messages.collapsed .pane {
+    display: none;
+}
+#messages .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 3px 12px;
+    border-bottom: 1px solid var(--line);
+}
+#messages .tab {
+    white-space: nowrap;
+    border-color: transparent;
+    background: transparent;
     font-weight: 600;
+    color: var(--muted);
+}
+#messages .tab.active {
+    color: var(--fg);
+    border-color: var(--line);
+    background: var(--head);
+}
+#messages .collapse {
+    margin-left: auto;
+}
+#messages .pane {
+    overflow: auto;
+    padding: 2px 12px 6px;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
 }
 .report h3 {
     margin: 8px 0 2px;
-    font-size: 13px;
+    font-size: 1em;
 }
 .report ul {
     margin: 2px 0;
@@ -229,8 +520,8 @@ table.grid {
 }
 .level {
     display: inline-block;
-    min-width: 48px;
-    font-size: 11px;
+    min-width: 4em;
+    font-size: 0.85em;
     text-align: center;
     border-radius: 3px;
     padding: 0 4px;
@@ -241,6 +532,23 @@ table.grid {
 .level.info { background: #667085; }
 .more {
     color: var(--muted);
+}
+ul.log {
+    list-style: none;
+    margin: 4px 0;
+    padding: 0;
+}
+ul.log li {
+    padding: 2px 0;
+    border-bottom: 1px solid var(--line);
+}
+ul.log .time {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+ul.log .what {
+    color: var(--muted);
+    padding-left: 1em;
 }
 
 /* Status line */
@@ -258,7 +566,7 @@ footer .dirty {
     font-weight: 600;
 }
 
-/* Import preview and busy indicator */
+/* Dialog (import preview, row editing, information) and busy indicator */
 dialog {
     max-width: 800px;
     width: 90vw;
@@ -267,22 +575,64 @@ dialog {
     border: 1px solid var(--line);
     border-radius: 6px;
 }
+dialog.wide {
+    max-width: 1000px;
+}
 dialog h2 {
     margin: 0 0 6px;
-    font-size: 16px;
+    font-size: 1.15em;
 }
-#preview-body {
-    max-height: 60vh;
+#dialog-body {
+    max-height: 65vh;
     overflow: auto;
 }
 dialog menu {
     display: flex;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 0;
 }
+dialog menu button:first-child {
+    margin-right: auto;
+}
 .hint {
     color: var(--muted);
+}
+table.row-form, table.info {
+    border-collapse: collapse;
+    width: 100%;
+}
+table.row-form th, table.row-form td, table.info th, table.info td {
+    padding: 2px 6px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+}
+table.row-form th {
+    white-space: nowrap;
+    font-weight: 600;
+}
+table.row-form input {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    padding: 2px 4px;
+    border: 1px solid var(--line);
+    background: var(--input);
+    color: var(--fg);
+}
+table.row-form input.k-reference, table.row-form input.k-identity {
+    background: var(--edit);
+}
+table.row-form input.override {
+    border-color: var(--override);
+    box-shadow: inset 3px 0 0 var(--override);
+}
+table.row-form td.reference {
+    color: var(--muted);
+}
+table.row-form button.reset {
+    padding: 0 6px;
 }
 #busy {
     position: fixed;

@@ -6,7 +6,7 @@
     <title>FabCollectionTool</title>
     <link rel="stylesheet" href="app/style.css">
 </head>
-<body>
+<body class="msg-bottom">
     <!-- Title and toolbar -->
     <header>
         <h1>FabCollectionTool <span id="version"></span></h1>
@@ -15,7 +15,8 @@
                 <span class="label">Bestand</span>
                 <button id="btn-new" title="Leeren Bestand beginnen">Neu</button>
                 <button id="btn-open" title="collection.csv öffnen">Öffnen</button>
-                <button id="btn-save" title="Speichern (Strg+S)">Speichern</button>
+                <button id="btn-save" title="Bestand und Änderungsprotokoll speichern (Strg+S)">
+                    Speichern</button>
                 <button id="btn-backup" title="Kopie mit Zeitstempel speichern">Backup</button>
             </div>
             <div class="group">
@@ -30,11 +31,28 @@
                     Fabrary</button>
             </div>
             <div class="group">
-                <span class="label">Zeile</span>
-                <button id="btn-add" title="Leere Zeile unter der markierten einfügen">Neu</button>
-                <button id="btn-duplicate" title="Markierte Zeile ohne Mengen kopieren">
-                    Duplizieren</button>
-                <button id="btn-delete" title="Markierte Zeile löschen">Löschen</button>
+                <span class="label">Stammdaten</span>
+                <span id="reference-status" class="badge"></span>
+                <button id="btn-reference-update" title="Stammdaten jetzt online laden">
+                    Aktualisieren</button>
+                <button id="btn-reference-apply"
+                    title="Abweichungen zwischen Bestand und Stammdaten anzeigen und übernehmen">
+                    Übernehmen …</button>
+                <button id="btn-reference-info" title="Herkunft und Stand der Stammdaten">
+                    Info</button>
+            </div>
+            <div class="group">
+                <span class="label">Ansicht</span>
+                <select id="font-size" title="Schriftgröße">
+                    <option value="S">Schrift klein</option>
+                    <option value="M">Schrift mittel</option>
+                    <option value="L">Schrift groß</option>
+                </select>
+                <select id="messages-position" title="Wo die Meldungen stehen">
+                    <option value="bottom">Meldungen unten</option>
+                    <option value="left">Meldungen links</option>
+                    <option value="right">Meldungen rechts</option>
+                </select>
             </div>
         </nav>
         <nav class="toolbar">
@@ -52,38 +70,60 @@
                     <input id="show-reference" type="checkbox"> Alle Karten einblenden</label>
                 <details class="dropdown">
                     <summary>Spalten</summary>
-                    <div id="columns-list" class="dropdown-panel"></div>
+                    <div class="dropdown-panel">
+                        <div id="columns-list"></div>
+                        <button id="btn-columns-default">Standard wiederherstellen</button>
+                    </div>
                 </details>
                 <button id="btn-reset">Filter zurücksetzen</button>
             </div>
+            <div class="group">
+                <select id="grouping" title="Gruppierung wie in der ODS">
+                    <option value="setClass">Gruppen: Set › Talent Class</option>
+                    <option value="set">Gruppen: Set</option>
+                    <option value="none">Keine Gruppen</option>
+                </select>
+                <button id="btn-expand" title="Alle Gruppen aufklappen">Alle auf</button>
+                <button id="btn-collapse" title="Alle Gruppen zuklappen">Alle zu</button>
+            </div>
+            <div class="group">
+                <button id="btn-edit-mode" class="toggle" aria-pressed="false"
+                    title="Auch Stammdaten- und Identitätsspalten bearbeiten">Editiermodus</button>
+            </div>
         </nav>
     </header>
+    <div id="edit-banner" hidden>
+        Editiermodus: alle Spalten sind bearbeitbar. Lokal geänderte Stammdaten sind mit einer
+        violetten Ecke markiert, Abweichungen von den Stammdaten gestrichelt unterstrichen.
+    </div>
 
     <!-- Collection table -->
     <main id="grid"></main>
 
-    <!-- Messages and status -->
-    <details id="messages">
-        <summary>Meldungen</summary>
-        <div id="messages-list"></div>
-    </details>
+    <!-- Messages and change log -->
+    <section id="messages" class="collapsed">
+        <div class="tabs">
+            <button id="tab-messages" class="tab active">Meldungen</button>
+            <button id="tab-log" class="tab">Protokoll</button>
+            <button id="messages-toggle" class="collapse" title="Ein-/ausklappen">▴</button>
+        </div>
+        <div id="messages-list" class="pane"></div>
+        <div id="log-list" class="pane" hidden></div>
+    </section>
     <footer>
         <span id="status-file"></span>
         <span id="status-rows"></span>
-        <span id="status-reference"></span>
+        <span id="status-clipboard"></span>
         <span id="save-hint"></span>
     </footer>
 
-    <!-- Import preview -->
-    <dialog id="preview">
+    <!-- Dialog for import previews, row editing and information -->
+    <dialog id="dialog">
         <form method="dialog">
-            <h2>Vorschau</h2>
-            <div id="preview-body"></div>
-            <p class="hint">Mit „Übernehmen“ ersetzt der Import den geöffneten Bestand.</p>
-            <menu>
-                <button id="preview-cancel" value="cancel">Abbrechen</button>
-                <button id="preview-accept" value="accept">Übernehmen</button>
-            </menu>
+            <h2 id="dialog-title"></h2>
+            <div id="dialog-body"></div>
+            <p id="dialog-hint" class="hint"></p>
+            <menu id="dialog-buttons"></menu>
         </form>
     </dialog>
     <div id="busy" hidden>Datei wird gelesen …</div>
@@ -92,6 +132,7 @@
 
     <!-- Scripts in fixed order: namespace, reference data, logic, user interface -->
     <script src="app/core.js"></script>
+    <script src="app/settings.js"></script>
     <script src="reference/vocab.js"></script>
     <script src="reference/info.js"></script>
     <script src="reference/sets.js"></script>
@@ -101,6 +142,7 @@
     <script src="app/csv.js"></script>
     <script src="app/reference-transform.js"></script>
     <script src="app/model.js"></script>
+    <script src="app/changelog.js"></script>
     <script src="app/storage.js"></script>
     <script src="app/grid.js"></script>
     <script src="app/import-ods.js"></script>

@@ -236,7 +236,7 @@ FCT.importOds = (function () {
         });
         model.COLUMNS.forEach(function (name) {
             var present = columns.some(function (c) { return c && c.name === name; });
-            if (!present && name !== 'Note') {
+            if (!present && name !== 'Note' && name !== model.OVERRIDES) {
                 report.add(name === 'Id' ? 'error' : 'warn', 'Spalte fehlt in der Tabelle', name);
             }
         });

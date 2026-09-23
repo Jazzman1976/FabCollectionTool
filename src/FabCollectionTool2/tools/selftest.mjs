@@ -22,7 +22,7 @@ if (!odsFile || !fabraryFile) {
 // DecompressionStream, so the ODS reader gets a zlib based replacement here.
 const FCT = loadApp({
     withReference: true,
-    extra: ['app/model.js', 'app/import-ods.js', 'app/import-fabrary.js',
+    extra: ['app/model.js', 'app/changelog.js', 'app/import-ods.js', 'app/import-fabrary.js',
         'app/export-fabrary.js']
 });
 FCT.importOds.inflateRaw = async (bytes) => new Uint8Array(zlib.inflateRawSync(bytes));
@@ -90,14 +90,95 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         `${FCT.DATA.fabrarySkeleton.length} rows, ${bad.length} with extra columns`);
 }
 
-// Line length of hand-written source files (generated data files are exempt).
+// Type line split into the spreadsheet columns (2.0.1.0).
+{
+    const split = FCT.reference.splitTypes;
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify({ Talent: '', Class1: '',
+        Class2: '', Type1: '', Type2: '', Sub1: '', Sub2: '', Sub3: '', ...b });
+    check('Type line split',
+        same(split('Light, Illusionist, Action, Attack'),
+            { Talent: 'Light', Class1: 'Illusionist', Type1: 'Action', Sub1: 'Attack' }) &&
+        same(split('Generic, Equipment, Chest'),
+            { Class1: 'Generic', Type1: 'Equipment', Sub1: 'Chest' }) &&
+        same(split('Ice, Earth, Guardian, Weapon, Hammer, 2H'), { Talent: 'Ice Earth',
+            Class1: 'Guardian', Type1: 'Weapon', Sub1: 'Hammer', Sub2: '(2H)' }));
+}
+
+// Overrides: kept in collection.csv; files of 2.0.0.0 without the column still load.
+{
+    const collection = FCT.model.create();
+    const row = FCT.model.newRow({ Id: 'WTR001', Name: 'Rhinar, Reckless Rampage' });
+    FCT.model.setOverride(row, 'Rarity', true);
+    FCT.model.setOverride(row, 'Name', true);
+    FCT.model.setOverride(row, 'Rarity', false);
+    collection.rows.push(row);
+    const back = FCT.model.fromCsv(FCT.model.toCsv(collection));
+    check('Overrides round trip', back.collection.rows[0].Overrides === 'Name');
+
+    const old = FCT.model.fromCsv('"Id","Name","ST"\r\n"WTR001","Rhinar","1"\r\n');
+    const warned = old.report.groups.some((g) => g.examples.includes('Overrides'));
+    check('2.0.0.0 file without Overrides', old.collection.rows[0].Overrides === '' && !warned);
+}
+
+// Expected reference values against the ODS rows: most rows must match. The deviations per
+// column are printed for information.
+{
+    let known = 0;
+    let cells = 0;
+    const byColumn = {};
+    ods.collection.rows.forEach((row) => {
+        const expected = FCT.reference.expected(row);
+        if (!expected) return;
+        known++;
+        FCT.model.REFERENCE_COLUMNS.forEach((c) => {
+            cells++;
+            if (FCT.model.deviates(row, c, expected)) byColumn[c] = (byColumn[c] || 0) + 1;
+        });
+    });
+    const deviations = Object.values(byColumn).reduce((a, b) => a + b, 0);
+    check('Reference values match ODS', known > 0 && deviations / cells < 0.01,
+        `${known} rows, ${deviations} of ${cells} cells differ: ` +
+        Object.entries(byColumn).map(([c, n]) => `${c} ${n}`).join(', '));
+}
+
+// Accordion groups: every row belongs to exactly one set and one talent/class group.
+{
+    const sets = new Set();
+    const groups = new Set();
+    let complete = true;
+    ods.collection.rows.forEach((row) => {
+        const names = FCT.model.groupNames(row);
+        if (names.length !== 2 || !names[0] || !names[1]) complete = false;
+        sets.add(names[0]);
+        groups.add(names.join('|'));
+    });
+    check('Accordion groups', complete && sets.size > 1 && groups.size > sets.size,
+        `${sets.size} sets, ${groups.size} talent/class groups`);
+}
+
+// Change log: entries survive the way into the log file and back.
+{
+    const log = FCT.changelog;
+    const row = FCT.model.newRow({ Id: 'WTR001', Name: 'Rhinar, Reckless Rampage',
+        Edition: 'Alpha' });
+    log.add('Geändert', row, 'ST', '1', '2');
+    log.add('Gelöscht', row, '', 'ST=2 "x"', '');
+    const text = FCT.csv.stringify([log.HEADER].concat(log.toRecords(log.pending())));
+    const records = FCT.csv.parse(text);
+    log.markWritten();
+    check('Change log round trip', records.length === 3 && records[1][4] === 'Alpha' &&
+        records[2][6] === 'ST=2 "x"' && log.pending().length === 0);
+}
+
+// Line length of hand-written source files (generated data files are exempt). Only source
+// files count; a collection the user saved into the app folder is not checked.
 {
     const files = ['index.html', 'app', 'tools', 'reference/vocab.js'].flatMap((entry) => {
         const full = path.join(appRoot, entry);
         return fs.statSync(full).isDirectory()
             ? fs.readdirSync(full).map((f) => path.join(full, f))
             : [full];
-    });
+    }).filter((file) => /\.(js|mjs|html|css)$/.test(file));
     const long = [];
     files.forEach((file) => {
         fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach((line, i) => {

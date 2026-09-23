@@ -112,8 +112,36 @@ FCT.storage = (function () {
         return saveAs(base + '-backup-' + FCT.util.timestamp() + '.csv', text);
     }
 
+    // Appends lines to the log file next to the collection.
+    // Chrome/Edge: the first call asks where the log file is (or should be); the handle is
+    // kept, the existing content is read and the new lines are appended. Other browsers get
+    // a download with only the new lines. Resolves with { name, handle, method } or null if
+    // the user cancelled. makeText(existingText) returns the complete new file content.
+    function appendLog(suggestedName, handle, makeText, newOnlyText) {
+        if (canWriteBack && typeof window.showSaveFilePicker === 'function') {
+            var ready = handle ? Promise.resolve(handle) : window.showSaveFilePicker({
+                suggestedName: suggestedName, types: CSV_TYPES
+            });
+            return ready.then(function (h) {
+                return h.getFile().then(function (file) {
+                    return file.text();
+                }, function () {
+                    return '';
+                }).then(function (existing) {
+                    return writeHandle(h, makeText(existing)).then(function () {
+                        return { name: h.name, handle: h, method: 'file' };
+                    });
+                });
+            }, cancelled);
+        }
+        var name = suggestedName.replace(/\.csv$/i, '') + '-' + FCT.util.timestamp() + '.csv';
+        download(name, newOnlyText);
+        return Promise.resolve({ name: name, handle: null, method: 'download' });
+    }
+
     return {
         canWriteBack: canWriteBack,
+        appendLog: appendLog,
         pickFile: pickFile,
         readFile: readFile,
         openCollection: openCollection,

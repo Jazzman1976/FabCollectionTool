@@ -59,11 +59,82 @@ FCT.reference = (function () {
         return list.length ? list[0].card.types : '';
     }
 
+    // Splits a type line into the spreadsheet columns Talent, Class1/2, Type1/2, Sub1-3.
+    // Example: "Light, Illusionist, Action, Attack" -> Talent "Light", Class1 "Illusionist",
+    // Type1 "Action", Sub1 "Attack".
+    function splitTypes(typeLine) {
+        var vocab = FCT.DATA.vocab;
+        var talents = [];
+        var classes = [];
+        var cardTypes = [];
+        var subtypes = [];
+        String(typeLine || '').split(',').forEach(function (part) {
+            var t = part.trim();
+            if (!t) return;
+            if (vocab.talents.indexOf(t) >= 0) talents.push(t);
+            else if (vocab.classes.indexOf(t) >= 0) classes.push(t);
+            else if (vocab.cardTypes.indexOf(t) >= 0) cardTypes.push(t);
+            else subtypes.push(vocab.handSubtypes[t] || t);
+        });
+        return {
+            Talent: talents.join(' '),
+            Class1: classes[0] || '', Class2: classes[1] || '',
+            Type1: cardTypes[0] || '', Type2: cardTypes[1] || '',
+            Sub1: subtypes[0] || '', Sub2: subtypes[1] || '', Sub3: subtypes[2] || ''
+        };
+    }
+
+    // Values the reference data expects for a collection row, or null if its card number is
+    // unknown. The printing is found by card number, edition and art treatment; for cards with
+    // two faces the face is chosen by the row's name.
+    function expected(row) {
+        var list = printings(row.Id);
+        if (!list.length) return null;
+        var vocab = FCT.DATA.vocab;
+        var edition = vocab.languageEditions.indexOf(row.Edition) >= 0 ? '' : row.Edition;
+        var art = row['Art Treatment'];
+
+        // Narrow down to the printing variant; fall back step by step if nothing matches.
+        var matches = list.filter(function (p) { return p.edition === edition && p.art === art; });
+        if (!matches.length) matches = list.filter(function (p) { return p.art === art; });
+        if (!matches.length) matches = list;
+
+        // Card faces of the variant, in the same order as the reference rows use.
+        var faces = [];
+        matches.forEach(function (p) {
+            var known = faces.some(function (f) { return f.card === p.card; });
+            if (!known) faces.push(p);
+        });
+        faces.sort(function (a, b) { return a.card.name < b.card.name ? -1 : 1; });
+        var name = FCT.util.fold(row.Name);
+        var front = faces.filter(function (p) {
+            return FCT.util.fold(p.card.name) === name;
+        })[0] || faces[0];
+        var back = faces.filter(function (p) {
+            return p !== front && p.card.name !== front.card.name;
+        })[0];
+
+        // The split of the type line is cached on the card, it is needed for every row.
+        var card = front.card;
+        if (!card.split) card.split = splitTypes(card.types);
+        var result = {
+            Set: setName(front.setCode),
+            Rarity: front.rarity,
+            Name: card.name,
+            'Backside Name': back ? back.card.name : '',
+            Pitch: card.pitch
+        };
+        Object.keys(card.split).forEach(function (key) { result[key] = card.split[key]; });
+        return result;
+    }
+
     return {
         install: install,
         printings: printings,
         setName: setName,
         types: types,
+        splitTypes: splitTypes,
+        expected: expected,
         info: function () { return state ? state.info : null; },
         data: function () { return state ? state.data : null; },
         allPrintings: function () { return state ? state.data.printings : []; }
@@ -81,10 +152,61 @@ FCT.model = (function () {
         'Set', 'Edition', 'Id', 'First In', 'Rarity', 'Talent', 'Class1', 'Class2', 'Type1',
         'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Translated Name', 'Backside Name',
         'Translated Backside Name', 'Pitch', 'Peculiarity', 'Art Treatment', 'Playset', 'ST',
-        'RF', 'CF', 'GF', 'Note'
+        'RF', 'CF', 'GF', 'Note', 'Overrides'
     ];
     var QUANTITIES = ['ST', 'RF', 'CF', 'GF'];
     var NUMBER_COLUMNS = ['Playset'].concat(QUANTITIES);
+
+    // Kinds of columns: the user's own input is always editable; reference columns come from
+    // the reference data and identity columns describe the printing - both only in edit mode.
+    // "Overrides" lists the reference columns the user changed on purpose (";" separated).
+    var INPUT_COLUMNS = NUMBER_COLUMNS.concat(['Note']);
+    var REFERENCE_COLUMNS = ['Set', 'Rarity', 'Talent', 'Class1', 'Class2', 'Type1', 'Type2',
+        'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name', 'Pitch'];
+    var OVERRIDES = 'Overrides';
+
+    // Kind of a column: 'input', 'reference', 'identity' or 'internal'.
+    function columnKind(column) {
+        if (column === OVERRIDES) return 'internal';
+        if (INPUT_COLUMNS.indexOf(column) >= 0) return 'input';
+        if (REFERENCE_COLUMNS.indexOf(column) >= 0) return 'reference';
+        return 'identity';
+    }
+
+    // Reference columns of a row that were changed on purpose.
+    function overrides(row) {
+        return String(row[OVERRIDES] || '').split(';').map(function (c) {
+            return c.trim();
+        }).filter(Boolean);
+    }
+
+    // Marks or unmarks a reference column of a row as changed on purpose.
+    function setOverride(row, column, on) {
+        var list = overrides(row).filter(function (c) { return c !== column; });
+        if (on) list.push(column);
+        list.sort(function (a, b) {
+            return REFERENCE_COLUMNS.indexOf(a) - REFERENCE_COLUMNS.indexOf(b);
+        });
+        row[OVERRIDES] = list.join(';');
+    }
+
+    // True if a reference column of a row differs from the value the reference data expects.
+    // The reference data often knows no back side (e.g. double sided tokens); an empty
+    // expected back side is therefore no information and never a difference.
+    function deviates(row, column, expectedValues) {
+        if (!expectedValues) return false;
+        var want = expectedValues[column];
+        if (column === 'Backside Name' && !want) return false;
+        return String(row[column] || '') !== want;
+    }
+
+    // Accordion groups of a row: level 1 is the set, level 2 talent and classes.
+    function groupNames(row) {
+        var talentClass = [row.Talent, row.Class1, row.Class2].map(function (v) {
+            return String(v || '').trim();
+        }).filter(Boolean).join(' ');
+        return [String(row.Set || '').trim() || '(ohne Set)', talentClass || 'Generic'];
+    }
 
     // Creates an empty collection.
     function create() {
@@ -150,7 +272,8 @@ FCT.model = (function () {
             report.add('info', 'Zusätzliche Spalte wird unverändert mitgeführt', name);
         });
         COLUMNS.forEach(function (name) {
-            if (table.header.indexOf(name) < 0) {
+            // Files of version 2.0.0.0 have no "Overrides" column yet; that is expected.
+            if (table.header.indexOf(name) < 0 && name !== OVERRIDES) {
                 report.add('warn', 'Spalte fehlt in der Datei und wird leer ergänzt', name);
             }
         });
@@ -276,6 +399,13 @@ FCT.model = (function () {
                 'Art Treatment': first[3],
                 Playset: String(defaultPlayset(front.types))
             });
+
+            // Talent, classes, types and subtypes as the reference data expects them.
+            var values = FCT.reference.expected(row);
+            if (values) {
+                ['Talent', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3']
+                    .forEach(function (c) { row[c] = values[c]; });
+            }
             row._reference = true;
             rows.push(row);
         });
@@ -341,6 +471,14 @@ FCT.model = (function () {
         COLUMNS: COLUMNS,
         QUANTITIES: QUANTITIES,
         NUMBER_COLUMNS: NUMBER_COLUMNS,
+        INPUT_COLUMNS: INPUT_COLUMNS,
+        REFERENCE_COLUMNS: REFERENCE_COLUMNS,
+        OVERRIDES: OVERRIDES,
+        columnKind: columnKind,
+        overrides: overrides,
+        setOverride: setOverride,
+        deviates: deviates,
+        groupNames: groupNames,
         create: create,
         newRow: newRow,
         fromCsv: fromCsv,
