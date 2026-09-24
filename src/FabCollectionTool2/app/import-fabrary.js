@@ -109,7 +109,7 @@ FCT.importFabrary = (function () {
             Name: source.Name,
             Pitch: source.Pitch,
             'Art Treatment': source.Treatment,
-            Playset: String(model.defaultPlayset(match ? match.card.types : ''))
+            Playset: String(model.defaultPlayset(match ? match.card : ''))
         });
     }
 

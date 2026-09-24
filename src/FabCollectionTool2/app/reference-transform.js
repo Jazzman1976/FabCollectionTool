@@ -15,7 +15,7 @@ FCT.referenceTransform = (function () {
     var REQUIRED = {
         set: ['Unique ID', 'Identifier', 'Name'],
         setPrinting: ['Set Unique ID', 'Initial Release Date'],
-        card: ['Unique ID', 'Name', 'Pitch', 'Types'],
+        card: ['Unique ID', 'Name', 'Pitch', 'Types', 'Card Keywords'],
         printing: ['Card Unique ID', 'Card ID', 'Set ID', 'Edition', 'Rarity', 'Foiling',
             'Art Variations']
     };
@@ -73,11 +73,15 @@ FCT.referenceTransform = (function () {
             .filter(function (set) { return set[0]; })
             .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
 
-        // Cards: unique id -> name, pitch and type line.
+        // Cards: unique id -> name, pitch, type line and 'L' for legendary cards (only one
+        // copy allowed in a deck, so their playset is 1).
         var cards = readTable('card', texts.card)
             .map(function (row) {
+                var keywords = String(row['Card Keywords'] || '').split(',').map(function (k) {
+                    return k.trim();
+                });
                 return [row['Unique ID'], row.Name, label(vocab.pitchCodes, row.Pitch),
-                    row.Types];
+                    row.Types, keywords.indexOf('Legendary') >= 0 ? 'L' : ''];
             })
             .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
 

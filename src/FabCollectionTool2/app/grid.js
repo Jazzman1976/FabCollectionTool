@@ -14,6 +14,7 @@ FCT.grid = (function () {
     var STATUS_WIDTH = 2;
     var ACTIONS_WIDTH = 10;
     var SEP = '\u0000';
+    var STATUS_KEY = '_status';
 
     // Icons of the row actions (inline SVG, drawn with the text colour).
     var ICONS = {
@@ -39,13 +40,17 @@ FCT.grid = (function () {
 
     // Creates a grid inside the container element.
     // options:
-    //   columns     [{ key, label, width (em), numeric, kind, hidden, step, value(row) }]
-    //               kind is 'input', 'reference', 'identity' or 'calc'
+    //   columns     [{ key, label, width (em), numeric, kind, hidden, step, list, value(row) }]
+    //               kind is 'input', 'reference', 'identity' or 'calc'; list = check box
+    //               filter (fixed values) instead of a text filter
     //   searchKeys  keys searched by the free text search
     //   isEditable(column, row)   whether a cell may be edited
     //   choices(column)           value list for a drop-down editor, or null for free text
+    //   referenceValue(column, row)  value of the reference data, offered first in drop-downs
     //   rowMarks(row)             { key: { className, title } } extra marks per cell
     //   status(row)               { symbol, className, title } for the status column
+    //   statusValues              [{ value, label }] of the status filter (value = className,
+    //                             'none' for rows without a status)
     //   actions(row)              [{ action, icon, title, disabled }] buttons at the row end
     //   groupNames(row)           [level 1 name, level 2 name] for the accordion
     //   setInfo(name, rows)       { label, date } of a level 1 group (title and release date)
@@ -58,8 +63,10 @@ FCT.grid = (function () {
         var matchCount = 0;
         var cursor = { item: null, key: null };  // active cell: row (or group) and column
         var sort = { key: null, dir: 1 };
-        var filters = {};
+        var filters = {};              // text filters per column key
+        var checks = {};               // check box filters: column key -> Set of values
         var search = '';
+        var wordsOf = { search: null, words: [] };  // search split into words (cached)
         var mode = 'all';
         var grouping = 'setClass';
         var setOrder = 'date';
@@ -81,7 +88,29 @@ FCT.grid = (function () {
             filterRow]), tbody]);
         var scroller = el('div', { className: 'grid-scroll', tabindex: '0' }, [table]);
         container.appendChild(scroller);
-        scroller.addEventListener('scroll', function () { scheduleScroll(); });
+        scroller.addEventListener('scroll', function () {
+            watchScroll();
+            scheduleScroll();
+        });
+
+        // Diagnosis of the scroll jump reported on 2.0.2.0: a jump of more than one screen
+        // without mouse, wheel or key shortly before, and not caused by the grid itself, is
+        // written to the diagnosis log.
+        var scrollWatch = { input: 0, own: 0, top: 0 };
+        ['wheel', 'keydown', 'mousedown', 'touchstart'].forEach(function (type) {
+            scroller.addEventListener(type, function () { scrollWatch.input = Date.now(); },
+                { passive: true });
+        });
+        function watchScroll() {
+            var top = scroller.scrollTop;
+            var now = Date.now();
+            if (Math.abs(top - scrollWatch.top) > scroller.clientHeight &&
+                now - scrollWatch.input > 1000 && now - scrollWatch.own > 300) {
+                FCT.log.warn('grid', 'Scroll-Sprung ohne Nutzeraktion', { from: scrollWatch.top,
+                    to: top, rows: viewRows.length, height: scroller.scrollHeight });
+            }
+            scrollWatch.top = top;
+        }
         window.addEventListener('resize', scheduleRender);
 
         /*
@@ -92,10 +121,12 @@ FCT.grid = (function () {
             headRow.textContent = '';
             filterRow.textContent = '';
 
-            // Status column at the left edge; stays visible when scrolling sideways.
+            // Status column at the left edge; stays visible when scrolling sideways. Its filter
+            // is a check box list of the status symbols.
             colgroup.appendChild(el('col', { style: 'width:' + STATUS_WIDTH + 'em' }));
             headRow.appendChild(el('th', { className: 'status', title: 'Status der Zeile' }));
-            filterRow.appendChild(el('th', { className: 'status' }));
+            filterRow.appendChild(el('th', { className: 'status' + (checks[STATUS_KEY]
+                ? ' filtered' : '') }, [listButton({ key: STATUS_KEY, label: 'Status' }, true)]));
 
             // The table gets the sum of all column widths. Only then does the fixed table
             // layout really hold, and columns no longer jump while scrolling.
@@ -115,20 +146,30 @@ FCT.grid = (function () {
                     onclick: function () { toggleSort(column.key); }
                 }, [el('span', { className: 'label', text: column.label }), marker]));
 
+                if (column.list) {
+                    filterRow.appendChild(el('th', { className: checks[column.key]
+                        ? 'filtered' : '' }, [listButton(column, false)]));
+                    return;
+                }
                 var input = el('input', {
                     type: 'text',
                     value: filters[column.key] || '',
                     placeholder: column.numeric ? '>0' : 'Filter',
                     title: column.numeric
                         ? 'Zahl oder Vergleich: 3, >0, <3, >=2, !=0'
-                        : 'Enthält den Text; =Text genau; = leer; !Text enthält nicht',
+                        : 'Enthält den Text; * = beliebiger Text, ? = ein Zeichen ' +
+                            '(Gravy* beginnt mit Gravy); =Text genau; = leer; !Text nicht',
                     oninput: function () {
                         filters[column.key] = input.value;
                         filterChanged();
                         applyView();
                     }
                 });
-                filterRow.appendChild(el('th', {}, [input]));
+                filterRow.appendChild(el('th', { className: filters[column.key] &&
+                    filters[column.key].trim() ? 'filtered' : '' }, [input]));
+                input.addEventListener('change', function () {
+                    input.parentNode.classList.toggle('filtered', !!input.value.trim());
+                });
             });
 
             // Row actions stay visible at the right edge, also when scrolling sideways.
@@ -136,6 +177,79 @@ FCT.grid = (function () {
             headRow.appendChild(el('th', { className: 'actions', text: 'Aktionen' }));
             filterRow.appendChild(el('th', { className: 'actions' }));
             table.style.width = total + 'em';
+        }
+
+        /*
+         * Check box filters (see grid-filter.js). The list shows the values of the rows that
+         * pass all other filters, with their number of rows.
+         */
+        function listButton(column, compact) {
+            var active = checks[column.key];
+            var button = el('button', { type: 'button', className: 'list-filter',
+                title: 'Werte zum Anzeigen auswählen (wie der Autofilter der ODS)',
+                text: compact ? '▾' : (active ? active.size + ' gewählt ▾' : 'Alle ▾') });
+            button.addEventListener('click', function () {
+                FCT.gridFilter.open({
+                    anchor: button,
+                    title: column.label,
+                    values: listValues(column),
+                    selected: checks[column.key] || null,
+                    onChange: function (selected) {
+                        if (selected) checks[column.key] = selected;
+                        else delete checks[column.key];
+                        if (!compact) {
+                            button.textContent = selected
+                                ? selected.size + ' gewählt ▾' : 'Alle ▾';
+                        }
+                        button.parentNode.classList.toggle('filtered', !!selected);
+                        filterChanged();
+                        applyView();
+                    }
+                });
+            });
+            return button;
+        }
+
+        // Value of a row for a check box filter.
+        function listValue(row, key) {
+            if (key === STATUS_KEY) {
+                var status = options.status ? options.status(row) : null;
+                return status ? status.className : 'none';
+            }
+            var value = cellValue(row, columnByKey(key));
+            return value == null ? '' : String(value);
+        }
+
+        // Values of a column with their number of rows, in the order of the value list.
+        function listValues(column) {
+            var counts = new Map();
+            allRows.forEach(function (row) {
+                if (!passes(row, column.key)) return;
+                var value = listValue(row, column.key);
+                counts.set(value, (counts.get(value) || 0) + 1);
+            });
+            if (column.key === STATUS_KEY) {
+                return (options.statusValues || []).map(function (s) {
+                    return { value: s.value, label: s.label, count: counts.get(s.value) || 0 };
+                });
+            }
+            // Values ticked earlier stay in the list, even if no row has them now.
+            (checks[column.key] || new Set()).forEach(function (v) {
+                if (!counts.has(v)) counts.set(v, 0);
+            });
+            var order = new Map();
+            ((options.choices && options.choices(column)) || []).forEach(function (v, i) {
+                order.set(v, i);
+            });
+            return Array.from(counts.keys()).sort(function (a, b) {
+                if (a === '' || b === '') return a === '' ? -1 : 1;
+                var ia = order.has(a) ? order.get(a) : Infinity;
+                var ib = order.has(b) ? order.get(b) : Infinity;
+                if (ia !== ib) return ia < ib ? -1 : 1;
+                return util.fold(a).localeCompare(util.fold(b));
+            }).map(function (v) {
+                return { value: v, label: v === '' ? '(leer)' : v, count: counts.get(v) };
+            });
         }
 
         function visibleColumns() {
@@ -178,8 +292,14 @@ FCT.grid = (function () {
             var folded = util.fold(value);
             if (text === '=') return folded === '';
             if (text[0] === '=') return folded === util.fold(text.slice(1));
-            if (text[0] === '!') return folded.indexOf(util.fold(text.slice(1))) < 0;
-            return folded.indexOf(util.fold(text)) >= 0;
+            if (text[0] === '!') return !matchesText(folded, text.slice(1));
+            return matchesText(folded, text);
+        }
+
+        // "Contains", or with wildcards (* and ?) the whole value must match the pattern.
+        function matchesText(folded, pattern) {
+            var test = util.wildcard(pattern);
+            return test ? test(folded) : folded.indexOf(util.fold(pattern)) >= 0;
         }
 
         // Quick filters for the most common questions.
@@ -204,32 +324,50 @@ FCT.grid = (function () {
 
         // True while a search, column filter or quick filter narrows the rows.
         function filtering() {
-            return !!search.trim() || mode !== 'all' || Object.keys(filters).some(function (k) {
-                return filters[k] && filters[k].trim();
+            return !!search.trim() || mode !== 'all' || Object.keys(checks).length > 0 ||
+                Object.keys(filters).some(function (k) {
+                    return filters[k] && filters[k].trim();
+                });
+        }
+
+        /*
+         * Whether a row passes the quick filter, the search and all column filters. except
+         * leaves out the filter of one column (for the value list of its check box filter).
+         * Search words may contain wildcards; such a word must match one whole field.
+         */
+        function passes(row, except) {
+            if (!matchesMode(row)) return false;
+            if (wordsOf.search !== search) {
+                wordsOf = { search: search, words: util.fold(search).split(/\s+/)
+                    .filter(Boolean) };
+            }
+            var words = wordsOf.words;
+            if (words.length) {
+                var fields = options.searchKeys.map(function (key) {
+                    return util.fold(row[key]);
+                });
+                var haystack = fields.join(' ');
+                for (var w = 0; w < words.length; w++) {
+                    var test = util.wildcard(words[w]);
+                    if (test ? !fields.some(test) : haystack.indexOf(words[w]) < 0) return false;
+                }
+            }
+            var keys = Object.keys(checks);
+            for (var k = 0; k < keys.length; k++) {
+                if (keys[k] !== except && !checks[keys[k]].has(listValue(row, keys[k]))) {
+                    return false;
+                }
+            }
+            return columns.every(function (c) {
+                if (c.key === except || !filters[c.key] || !filters[c.key].trim()) return true;
+                return matchesFilter(cellValue(row, c), filters[c.key], c.numeric);
             });
         }
 
         // Recomputes the list of visible rows from search, filters, quick filter and sort.
         function applyView() {
-            var words = util.fold(search).split(/\s+/).filter(Boolean);
-            var active = columns.filter(function (c) {
-                return filters[c.key] && filters[c.key].trim();
-            });
-
             var rows = allRows.filter(function (row) {
-                if (pinned.has(row)) return true;
-                if (!matchesMode(row)) return false;
-                if (words.length) {
-                    var haystack = options.searchKeys.map(function (key) {
-                        return util.fold(row[key]);
-                    }).join(' ');
-                    for (var w = 0; w < words.length; w++) {
-                        if (haystack.indexOf(words[w]) < 0) return false;
-                    }
-                }
-                return active.every(function (c) {
-                    return matchesFilter(cellValue(row, c), filters[c.key], c.numeric);
-                });
+                return pinned.has(row) || passes(row, null);
             });
 
             // Sorting is stable: equal values keep the order of the file. Without a chosen
@@ -626,6 +764,7 @@ FCT.grid = (function () {
         function scrollToRow(index) {
             var top = index * rowHeight;
             var visible = scroller.clientHeight - table.tHead.offsetHeight - rowHeight;
+            scrollWatch.own = Date.now();
             if (top < scroller.scrollTop) scroller.scrollTop = top;
             else if (top > scroller.scrollTop + visible) scroller.scrollTop = top - visible;
             render();
@@ -671,9 +810,22 @@ FCT.grid = (function () {
             if (event.target.closest('input, select')) return;
             event.preventDefault();
             scroller.focus({ preventScroll: true });
+
+            // Double click: detected here and not with "dblclick". The first click redraws the
+            // rows, so the cell of the second click is a new element and "dblclick" would go
+            // to an element that is no longer in the page (the bug of 2.0.2.0).
+            var td = event.target.closest('td');
+            var tr = event.target.closest('tr');
+            if (event.detail >= 2 && td && td._column && tr && tr._row &&
+                !event.target.closest('button')) {
+                cursor.item = tr._row;
+                cursor.key = td._column.key;
+                if (cursorEditable()) startEdit(null, true);
+            }
         });
 
         tbody.addEventListener('click', function (event) {
+            if (editor || event.target.closest('input, select')) return;
             var tr = event.target.closest('tr');
             if (!tr) return;
             if (tr._group) {
@@ -703,13 +855,16 @@ FCT.grid = (function () {
                 step(tr._row, td._column, parseInt(button.getAttribute('data-step'), 10));
                 return;
             }
-            if (td && td._column) setCursor(tr._row, td._column.key, false);
-        });
+            if (!td || !td._column) return;
 
-        tbody.addEventListener('dblclick', function (event) {
-            if (event.target.closest('button')) return;
-            var td = event.target.closest('td');
-            if (td && td._column && cursorEditable()) startEdit(null);
+            // A click on the active cell edits it (as in the spreadsheet); a click on another
+            // cell moves the cursor there.
+            if (event.detail === 1 && tr._row === cursor.item && td._column.key === cursor.key &&
+                cursorEditable()) {
+                startEdit(null, true);
+                return;
+            }
+            setCursor(tr._row, td._column.key, false);
         });
 
         /*
@@ -779,9 +934,9 @@ FCT.grid = (function () {
          * field. Enter saves and moves down, Tab moves right, Up/Down in a text field save
          * and move, Escape cancels; leaving the cell saves.
          */
-        function startEdit(typed) {
+        function startEdit(typed, byMouse) {
             var column = cursorEditable();
-            if (!column) return;
+            if (!column || editor) return;
             scrollToCursor();
             var td = cursorCell();
             if (!td) return;
@@ -791,13 +946,21 @@ FCT.grid = (function () {
             var input;
 
             if (list) {
-                // Drop-down: an empty entry, the known values, and the current value if it is
-                // not among them, so that nothing is lost.
+                // Drop-down: the value of the reference data first, an empty entry, the known
+                // values, and the current value if it is not among them, so that nothing is
+                // lost. Only valid values can be chosen, but any of them - also one that
+                // differs from the reference data.
                 var values = [''].concat(list);
                 if (values.indexOf(current) < 0) values.push(current);
-                input = el('select', { className: 'cell-editor' }, values.map(function (v) {
+                var want = options.referenceValue ? options.referenceValue(column, row) : null;
+                var items = values.map(function (v) {
                     return el('option', { value: v, text: v || '–' });
-                }));
+                });
+                if (want != null) {
+                    items.unshift(el('option', { value: want, className: 'reference',
+                        text: 'Stammdaten: ' + (want || '–') }));
+                }
+                input = el('select', { className: 'cell-editor' }, items);
                 input.value = current;
                 if (typed) {
                     // Typing a letter jumps to the first value starting with it.
@@ -816,6 +979,11 @@ FCT.grid = (function () {
             editor = { row: row, column: column };
             input.focus();
             if (!list && typed == null) input.select();
+
+            // A drop-down started with the mouse opens its list at once.
+            if (list && byMouse && typeof input.showPicker === 'function') {
+                try { input.showPicker(); } catch (e) { /* not allowed here: stays closed */ }
+            }
 
             var done = false;
             function finish(save, move) {
@@ -847,6 +1015,12 @@ FCT.grid = (function () {
                 }
             });
             input.addEventListener('blur', function () { finish(true); });
+
+            // Choosing a value with the mouse in the opened list saves it at once. With the
+            // keyboard, the arrow keys only move through the list; Enter saves.
+            if (list && byMouse) {
+                input.addEventListener('change', function () { finish(true, null); });
+            }
         }
 
         /*
@@ -865,7 +1039,9 @@ FCT.grid = (function () {
             setSearch: function (text) { search = text; filterChanged(); applyView(); },
             setMode: function (value) { mode = value; filterChanged(); applyView(); },
             clearFilters: function () {
+                FCT.gridFilter.close();
                 filters = {};
+                checks = {};
                 search = '';
                 mode = 'all';
                 sort = { key: null, dir: 1 };

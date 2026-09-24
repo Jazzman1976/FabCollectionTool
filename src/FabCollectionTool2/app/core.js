@@ -7,7 +7,7 @@ var FCT = window.FCT || {};
 window.FCT = FCT;
 
 // Version of this tool; must match the VERSION file in the tool folder.
-FCT.VERSION = '2.0.2.0';
+FCT.VERSION = '2.0.3.0';
 
 // Reference data files (reference/*.js) fill this object before the app scripts run.
 FCT.DATA = FCT.DATA || {};
@@ -28,6 +28,24 @@ FCT.util = (function () {
             .replace(/[̀-ͯ]/g, '')
             .toLowerCase()
             .trim();
+    }
+
+    /*
+     * Wildcards as in the old spreadsheet: "*" stands for any text, "?" for one character.
+     * Returns a test function for folded texts, or null if the pattern has no wildcard (then
+     * the usual "contains" applies). With wildcards the whole value must match, so "Gravy*"
+     * means "starts with Gravy" and "*Gravy*" "contains Gravy".
+     */
+    function wildcard(pattern) {
+        var text = fold(pattern);
+        if (!/[*?]/.test(text)) return null;
+        var source = text.split('').map(function (c) {
+            if (c === '*') return '.*';
+            if (c === '?') return '.';
+            return c.replace(/[\\^$.|+()[\]{}\/-]/g, '\\$&');
+        }).join('');
+        var re = new RegExp('^' + source + '$');
+        return function (value) { return re.test(value); };
     }
 
     // Timestamp for file names, e.g. 20260923-161502.
@@ -56,7 +74,7 @@ FCT.util = (function () {
         return node;
     }
 
-    return { toInt: toInt, fold: fold, timestamp: timestamp, el: el };
+    return { toInt: toInt, fold: fold, wildcard: wildcard, timestamp: timestamp, el: el };
 })();
 
 /*

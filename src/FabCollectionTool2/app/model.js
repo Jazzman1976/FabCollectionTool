@@ -30,7 +30,8 @@ FCT.reference = (function () {
 
         var cards = new Map();
         data.cards.forEach(function (card) {
-            cards.set(card[0], { name: card[1], pitch: card[2], types: card[3] });
+            cards.set(card[0], { name: card[1], pitch: card[2], types: card[3],
+                legendary: card[4] === 'L' });
         });
 
         var printingsById = new Map();
@@ -69,6 +70,24 @@ FCT.reference = (function () {
     function types(id) {
         var list = printings(id);
         return list.length ? list[0].card.types : '';
+    }
+
+    /*
+     * Playset of a card: how many copies make a complete set for a deck. Legendary cards 1;
+     * Evo equipment 3 (it is played from the deck); heroes, equipment, tokens and the like 1;
+     * one-handed weapons 2, other weapons 1; Chi resources 1; everything else 3.
+     * card: { types, legendary } or just a type line.
+     */
+    function playset(card) {
+        var info = typeof card === 'object' && card ? card : { types: card, legendary: false };
+        var types = String(info.types || '').split(',').map(function (t) { return t.trim(); });
+        var single = ['Hero', 'Demi-Hero', 'Equipment', 'Token', 'Macro', 'Mentor', 'Landmark',
+            'Chi'];
+        if (info.legendary) return 1;
+        if (types.indexOf('Evo') >= 0) return 3;
+        if (types.some(function (t) { return single.indexOf(t) >= 0; })) return 1;
+        if (types.indexOf('Weapon') >= 0) return types.indexOf('1H') >= 0 ? 2 : 1;
+        return 3;
     }
 
     // Splits a type line into the spreadsheet columns Talent, Class1/2, Type1/2, Sub1-3.
@@ -134,7 +153,8 @@ FCT.reference = (function () {
             Rarity: front.rarity,
             Name: card.name,
             'Backside Name': back ? back.card.name : '',
-            Pitch: card.pitch
+            Pitch: card.pitch,
+            Playset: String(playset(card))
         };
         Object.keys(card.split).forEach(function (key) { result[key] = card.split[key]; });
         return result;
@@ -147,6 +167,7 @@ FCT.reference = (function () {
         setDate: setDate,
         types: types,
         splitTypes: splitTypes,
+        playset: playset,
         expected: expected,
         info: function () { return state ? state.info : null; },
         data: function () { return state ? state.data : null; },
@@ -173,9 +194,10 @@ FCT.model = (function () {
     // Kinds of columns: the user's own input is always editable; reference columns come from
     // the reference data and identity columns describe the printing - both only in edit mode.
     // "Overrides" lists the reference columns the user changed on purpose (";" separated).
-    var INPUT_COLUMNS = NUMBER_COLUMNS.concat(['Note']);
+    // Playset is a reference column since 2.0.3.0: it follows from the card and never changes.
+    var INPUT_COLUMNS = QUANTITIES.concat(['Note']);
     var REFERENCE_COLUMNS = ['Set', 'Rarity', 'Talent', 'Class1', 'Class2', 'Type1', 'Type2',
-        'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name', 'Pitch'];
+        'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name', 'Pitch', 'Playset'];
     var OVERRIDES = 'Overrides';
 
     // Kind of a column: 'input', 'reference', 'identity' or 'internal'.
@@ -211,6 +233,21 @@ FCT.model = (function () {
         var want = expectedValues[column];
         if (column === 'Backside Name' && !want) return false;
         return String(row[column] || '') !== want;
+    }
+
+    /*
+     * Whether a cell may be edited: the user's input always; reference and identity columns
+     * in edit mode. Outside edit mode a reference value that differs from the reference data
+     * or was changed on purpose can be corrected right where it is marked.
+     */
+    function isEditable(row, column, editMode) {
+        var kind = columnKind(column);
+        if (kind === 'input') return true;
+        if (kind === 'internal') return false;
+        if (editMode) return true;
+        if (kind !== 'reference' || row._reference) return false;
+        return overrides(row).indexOf(column) >= 0 ||
+            deviates(row, column, FCT.reference.expected(row));
     }
 
     // Accordion groups of a row: level 1 is the set, level 2 talent and classes.
@@ -254,13 +291,44 @@ FCT.model = (function () {
             'Backside Name'].map(function (c) { return row[c]; }).join('|');
     }
 
-    // Default playset for a card, derived from its type line.
-    function defaultPlayset(typeLine) {
-        var types = String(typeLine || '').split(',').map(function (t) { return t.trim(); });
-        var single = ['Hero', 'Demi-Hero', 'Equipment', 'Token', 'Macro', 'Mentor', 'Landmark'];
-        if (types.some(function (t) { return single.indexOf(t) >= 0; })) return 1;
-        if (types.indexOf('Weapon') >= 0) return types.indexOf('1H') >= 0 ? 2 : 1;
-        return 3;
+    // Default playset for a card (see FCT.reference.playset).
+    function defaultPlayset(card) {
+        return FCT.reference.playset(card);
+    }
+
+    /*
+     * Playsets of earlier versions were typed in by hand. Where such a value differs from the
+     * reference data, it is kept as a change on purpose (override), so that nothing changes
+     * silently. An empty playset carries no information and is filled in from the reference
+     * data. Runs on every load; returns { kept, filled } (card numbers of the rows).
+     */
+    function keepPlaysets(rows) {
+        var result = { kept: [], filled: [] };
+        rows.forEach(function (row) {
+            if (overrides(row).indexOf('Playset') >= 0) return;
+            var expected = FCT.reference.expected(row);
+            if (!deviates(row, 'Playset', expected)) return;
+            if (String(row.Playset || '').trim() === '') {
+                row.Playset = expected.Playset;
+                result.filled.push(row.Id);
+            } else {
+                setOverride(row, 'Playset', true);
+                result.kept.push(row.Id + ' ' + row.Name + ': ' + row.Playset + ' (Stammdaten ' +
+                    expected.Playset + ')');
+            }
+        });
+        return result;
+    }
+
+    // Adds the result of keepPlaysets to a report.
+    function reportPlaysets(report, result) {
+        result.kept.forEach(function (text) {
+            report.add('info', 'Playset weicht von den Stammdaten ab und bleibt als lokale ' +
+                'Änderung (✱) erhalten', text);
+        });
+        result.filled.forEach(function (id) {
+            report.add('info', 'Playset war leer und wurde aus den Stammdaten ergänzt', id);
+        });
     }
 
     /*
@@ -301,6 +369,7 @@ FCT.model = (function () {
         });
 
         report.summary.push(collection.rows.length + ' Zeilen gelesen');
+        reportPlaysets(report, keepPlaysets(collection.rows));
         return { collection: collection, report: report };
     }
 
@@ -412,7 +481,7 @@ FCT.model = (function () {
                 'Backside Name': back && back.name !== front.name ? back.name : '',
                 Pitch: front.pitch,
                 'Art Treatment': first[3],
-                Playset: String(defaultPlayset(front.types))
+                Playset: String(defaultPlayset(front))
             });
 
             // Talent, classes, types and subtypes as the reference data expects them.
@@ -498,6 +567,47 @@ FCT.model = (function () {
             }
         });
         return result;
+    }
+
+    /*
+     * Sets of the reference data that do not occur in the collection yet (by set code of the
+     * card numbers): [{ code, name, date, printings }], newest first, sets without a date
+     * last; printings is the number of rows the set would get.
+     */
+    function missingSets(collection) {
+        var present = new Set(collection.rows.map(function (row) { return setCode(row.Id); }));
+        var variants = new Map();   // set code -> Set of printing variants (rows it would get)
+        FCT.reference.allPrintings().forEach(function (p) {
+            var code = setCode(p[0]);
+            if (present.has(code)) return;
+            if (!variants.has(code)) variants.set(code, new Set());
+            variants.get(code).add(variantKey(p[0], p[2], p[3]));
+        });
+        return Array.from(variants.keys()).map(function (code) {
+            return { code: code, name: FCT.reference.setName(code),
+                date: FCT.reference.setDate(code), printings: variants.get(code).size };
+        }).sort(function (a, b) {
+            if (a.date !== b.date) return !a.date ? 1 : !b.date ? -1 : a.date < b.date ? 1 : -1;
+            return a.code < b.code ? -1 : 1;
+        });
+    }
+
+    /*
+     * Rows for taking whole sets into the collection (as in the old spreadsheet): every
+     * printing variant of the given set codes that no row covers yet, with empty quantities,
+     * ordered by card number. The caller adds them to the collection.
+     */
+    function setRows(collection, codes) {
+        var wanted = new Set(codes);
+        var rows = referenceRows(collection).filter(function (row) {
+            return wanted.has(setCode(row.Id));
+        });
+        rows.forEach(function (row) { delete row._reference; });
+        return rows.sort(function (a, b) {
+            var ka = [a.Id, a.Edition, a['Art Treatment']].join('|');
+            var kb = [b.Id, b.Edition, b['Art Treatment']].join('|');
+            return ka < kb ? -1 : ka > kb ? 1 : 0;
+        });
     }
 
     // Reference values that differ from a row and are not overridden on purpose:
@@ -675,6 +785,7 @@ FCT.model = (function () {
         overrides: overrides,
         setOverride: setOverride,
         deviates: deviates,
+        isEditable: isEditable,
         groupNames: groupNames,
         create: create,
         newRow: newRow,
@@ -684,12 +795,16 @@ FCT.model = (function () {
         referenceRows: referenceRows,
         withGaps: withGaps,
         setCode: setCode,
+        missingSets: missingSets,
+        setRows: setRows,
         differences: differences,
         fingerprint: fingerprint,
         takeOver: takeOver,
         choices: choices,
         calculate: calculate,
         totals: totals,
+        keepPlaysets: keepPlaysets,
+        reportPlaysets: reportPlaysets,
         fabraryEdition: fabraryEdition,
         variantKey: variantKey,
         identityKey: identityKey,

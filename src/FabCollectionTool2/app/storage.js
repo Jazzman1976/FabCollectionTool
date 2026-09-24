@@ -1,9 +1,11 @@
 /*
- * storage.js - opening and saving files. The app keeps nothing in the browser; the collection
- * lives in a file chosen by the user (e.g. in a OneDrive folder for a cloud backup).
+ * storage.js - opening and saving files. The collection lives in a file chosen by the user
+ * (e.g. in a OneDrive folder for a cloud backup); the browser keeps only a copy (see below).
  *
- * Where the browser supports it (Chrome, Edge), the opened file is written back in place.
- * Otherwise (e.g. Firefox) saving works as a download.
+ * Where the browser supports it (Chrome, Edge), the opened file is written back in place, and
+ * a working folder can be chosen once: collection, change log and diagnosis log then lie
+ * together in it, and one permission of the browser covers all of them. Otherwise (e.g.
+ * Firefox) saving works as a download.
  */
 FCT.storage = (function () {
 
@@ -12,6 +14,12 @@ FCT.storage = (function () {
         typeof window.showOpenFilePicker === 'function';
 
     var CSV_TYPES = [{ description: 'CSV-Datei', accept: { 'text/csv': ['.csv'] } }];
+
+    // True if a working folder can be used (directory access, Chrome and Edge).
+    var canUseFolder = canWriteBack && typeof window.showDirectoryPicker === 'function';
+
+    // Dialogs start in the working folder, if there is one.
+    var startFolder = null;
 
     // Lets the user pick a file via a hidden input element. Resolves with a File or null.
     function pickFile(accept) {
@@ -51,14 +59,15 @@ FCT.storage = (function () {
     // Write permission for automatic saving is asked for separately (see app.js).
     function openCollection() {
         if (canWriteBack) {
-            return window.showOpenFilePicker({ types: CSV_TYPES }).then(function (handles) {
-                var handle = handles[0];
-                return handle.getFile().then(function (file) {
-                    return file.text().then(function (text) {
-                        return { name: file.name, text: text, handle: handle };
+            return window.showOpenFilePicker(withStart({ types: CSV_TYPES }))
+                .then(function (handles) {
+                    var handle = handles[0];
+                    return handle.getFile().then(function (file) {
+                        return file.text().then(function (text) {
+                            return { name: file.name, text: text, handle: handle };
+                        });
                     });
-                });
-            }, cancelled);
+                }, cancelled);
         }
         return pickFile('.csv,text/csv').then(function (file) {
             if (!file) return null;
@@ -66,6 +75,12 @@ FCT.storage = (function () {
                 return { name: file.name, text: text, handle: null };
             });
         });
+    }
+
+    // Adds the working folder as start of a file dialog.
+    function withStart(options) {
+        if (startFolder) options.startIn = startFolder;
+        return options;
     }
 
     // A cancelled file dialog is not an error.
@@ -109,8 +124,8 @@ FCT.storage = (function () {
     // Asks for a file name and location (or downloads, if the browser cannot do that).
     function saveAs(suggestedName, text) {
         if (canWriteBack && typeof window.showSaveFilePicker === 'function') {
-            return window.showSaveFilePicker({ suggestedName: suggestedName, types: CSV_TYPES })
-                .then(function (handle) {
+            return window.showSaveFilePicker(withStart({ suggestedName: suggestedName,
+                types: CSV_TYPES })).then(function (handle) {
                     return writeHandle(handle, text).then(function () {
                         return { name: handle.name, handle: handle, method: 'file' };
                     });
@@ -133,9 +148,9 @@ FCT.storage = (function () {
     // the user cancelled. makeText(existingText) returns the complete new file content.
     function appendLog(suggestedName, handle, makeText, newOnlyText) {
         if (canWriteBack && typeof window.showSaveFilePicker === 'function') {
-            var ready = handle ? Promise.resolve(handle) : window.showSaveFilePicker({
+            var ready = handle ? Promise.resolve(handle) : window.showSaveFilePicker(withStart({
                 suggestedName: suggestedName, types: CSV_TYPES
-            });
+            }));
             return ready.then(function (h) {
                 return h.getFile().then(function (file) {
                     return file.text();
@@ -212,6 +227,22 @@ FCT.storage = (function () {
         }).then(function () {}, function () {});
     }
 
+    // Any other value kept in the browser (e.g. the diagnosis log); failures are ignored.
+    function rememberValue(key, value) {
+        if (!window.indexedDB) return Promise.resolve(false);
+        return withStore('readwrite', function (store) {
+            return store.put(value, key);
+        }).then(function () { return true; }, function () { return false; });
+    }
+
+    function recallValue(key) {
+        if (!window.indexedDB) return Promise.resolve(null);
+        return withStore('readonly', function (store) {
+            return store.get(key);
+        }).then(function (value) { return value == null ? null : value; },
+            function () { return null; });
+    }
+
     // True if two handles point to the same file.
     function sameFile(a, b) {
         if (!a || !b || typeof a.isSameEntry !== 'function') return Promise.resolve(false);
@@ -236,6 +267,105 @@ FCT.storage = (function () {
         }, function () { return false; });
     }
 
+    /*
+     * Working folder (Chrome/Edge). Its handle is remembered in IndexedDB. Handles of files
+     * inside it are always taken from the folder, so that the folder's permission covers them.
+     */
+    var FOLDER = 'folder';
+
+    // Lets the user choose the working folder; resolves with its handle or null if cancelled.
+    function chooseFolder() {
+        var options = { id: 'fct-folder', mode: 'readwrite' };
+        if (startFolder) options.startIn = startFolder;
+        return window.showDirectoryPicker(options).then(function (handle) {
+            startFolder = handle;
+            return handle;
+        }, cancelled);
+    }
+
+    function rememberFolder(handle) {
+        startFolder = handle || null;
+        if (!window.indexedDB) return Promise.resolve(false);
+        return withStore('readwrite', function (store) {
+            return handle ? store.put(handle, FOLDER) : store.delete(FOLDER);
+        }).then(function () { return true; }, function () { return false; });
+    }
+
+    function recallFolder() {
+        if (!window.indexedDB || !canUseFolder) return Promise.resolve(null);
+        return withStore('readonly', function (store) {
+            return store.get(FOLDER);
+        }).then(function (handle) {
+            startFolder = handle || null;
+            return handle || null;
+        }, function () { return null; });
+    }
+
+    // Handle of a file directly in the folder; create makes it if missing.
+    function folderFile(folder, name, create) {
+        return folder.getFileHandle(name, { create: !!create });
+    }
+
+    // True if a file lies directly in the folder (not in a subfolder).
+    function inFolder(folder, handle) {
+        if (!folder || !handle || typeof folder.resolve !== 'function') {
+            return Promise.resolve(false);
+        }
+        return folder.resolve(handle).then(function (path) {
+            return !!path && path.length === 1;
+        }, function () { return false; });
+    }
+
+    // Text and size of a file in the folder ('' and 0 if it does not exist yet).
+    function readFolderFile(folder, name) {
+        return folder.getFileHandle(name).then(function (handle) {
+            return handle.getFile().then(function (file) {
+                return file.text().then(function (text) {
+                    return { text: text, size: file.size };
+                });
+            });
+        }, function () { return { text: '', size: 0 }; });
+    }
+
+    // Writes a file into the folder (created if missing).
+    function writeFolderFile(folder, name, text) {
+        return folderFile(folder, name, true).then(function (handle) {
+            return writeHandle(handle, text).then(function () { return handle; });
+        });
+    }
+
+    // Appends text to a file in the folder, keeping the old content.
+    function appendFolderFile(folder, name, text) {
+        return folderFile(folder, name, true).then(function (handle) {
+            return handle.createWritable({ keepExistingData: true }).then(function (w) {
+                return handle.getFile().then(function (file) {
+                    return w.seek(file.size);
+                }).then(function () {
+                    return w.write(text);
+                }).then(function () { return w.close(); });
+            });
+        });
+    }
+
+    // Names of the files directly in the folder, sorted.
+    function listFolder(folder) {
+        var names = [];
+        var entries = folder.values();
+        function next() {
+            return entries.next().then(function (step) {
+                if (step.done) return names.sort();
+                if (step.value.kind === 'file') names.push(step.value.name);
+                return next();
+            });
+        }
+        return next();
+    }
+
+    // Removes a file from the folder if it exists.
+    function removeFolderFile(folder, name) {
+        return folder.removeEntry(name).catch(function () {});
+    }
+
     // Reads a remembered file. Resolves with { name, text, handle }.
     function readHandle(handle) {
         return handle.getFile().then(function (file) {
@@ -247,6 +377,19 @@ FCT.storage = (function () {
 
     return {
         canWriteBack: canWriteBack,
+        canUseFolder: canUseFolder,
+        rememberValue: rememberValue,
+        recallValue: recallValue,
+        chooseFolder: chooseFolder,
+        rememberFolder: rememberFolder,
+        recallFolder: recallFolder,
+        folderFile: folderFile,
+        inFolder: inFolder,
+        readFolderFile: readFolderFile,
+        writeFolderFile: writeFolderFile,
+        appendFolderFile: appendFolderFile,
+        removeFolderFile: removeFolderFile,
+        listFolder: listFolder,
         rememberFile: rememberFile,
         recallFile: recallFile,
         forgetFile: forgetFile,

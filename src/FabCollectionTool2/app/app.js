@@ -9,10 +9,12 @@ FCT.app = (function () {
     var settings = FCT.settings;
     var changelog = FCT.changelog;
 
-    // Application state. The collection lives only here and in files, never in the browser.
+    // Application state. The collection lives in its file; the browser keeps only a copy.
     var state = {
         collection: model.create(),
-        file: null,            // { name, handle } of the opened or last saved file
+        file: null,            // { name, handle, inFolder } of the opened or last saved file
+        folder: null,          // handle of the working folder (Chrome/Edge), see ensureFolder
+        folderAccess: false,   // the browser allows writing into the working folder
         logHandle: null,       // file handle of the change log (Chrome/Edge), access checked
         logCandidate: null,    // remembered log file handle, access not yet checked
         dirty: false,
@@ -60,7 +62,8 @@ FCT.app = (function () {
             var numeric = model.NUMBER_COLUMNS.indexOf(key) >= 0;
             return {
                 key: key, label: key, numeric: numeric, kind: model.columnKind(key),
-                step: numeric, width: numeric ? STEP_WIDTH : WIDTHS[key] || 7
+                step: numeric, width: numeric ? STEP_WIDTH : WIDTHS[key] || 7,
+                list: model.choices(key) !== null
             };
         });
 
@@ -239,9 +242,11 @@ FCT.app = (function () {
     }
 
     /*
-     * Change log pane: newest entries first; only the latest ones are drawn.
+     * Change log pane: newest entries first, by day; also the entries of earlier sessions
+     * (see loadLog). Each entry can jump to its row, and a changed cell can be undone.
      */
-    var LOG_SHOWN = 500;
+    var LOG_SHOWN = 1000;
+    var UNDOABLE = ['Geändert', 'Zurückgesetzt', 'Stammdaten übernommen', 'Rückgängig'];
     var logPending = false;
 
     function renderLog() {
@@ -259,23 +264,92 @@ FCT.app = (function () {
                 'Protokolldatei festgehalten.' }));
             return;
         }
-        var items = entries.slice(-LOG_SHOWN).reverse().map(function (e) {
-            var what = e.column
-                ? e.column + ': „' + e.old + '“ → „' + e.new + '“'
-                : (e.new || e.old);
-            return el('li', {}, [
-                el('span', { className: 'time', text: e.time.slice(11) }),
-                ' ',
-                el('strong', { text: e.action }),
-                ' ' + [e.id, e.name, e.variant].filter(Boolean).join(' · '),
-                what ? el('div', { className: 'what', text: what }) : null
-            ]);
+        // Rows by card number, to find the row of an entry quickly.
+        var byId = new Map();
+        state.collection.rows.forEach(function (row) {
+            if (!byId.has(row.Id)) byId.set(row.Id, []);
+            byId.get(row.Id).push(row);
         });
-        box.appendChild(el('ul', { className: 'log' }, items));
+        var list = el('ul', { className: 'log' });
+        var day = null;
+        entries.slice(-LOG_SHOWN).reverse().forEach(function (e) {
+            var date = e.time.slice(0, 10);
+            if (date !== day) {
+                day = date;
+                list.appendChild(el('li', { className: 'day', text: dayLabel(date) }));
+            }
+            list.appendChild(logItem(e, byId));
+        });
+        box.appendChild(list);
         if (entries.length > LOG_SHOWN) {
             box.appendChild(el('p', { className: 'hint', text: 'Ältere Einträge stehen in ' +
                 'der Protokolldatei.' }));
         }
+    }
+
+    // "heute", "gestern" or the date of a day of the log.
+    function dayLabel(date) {
+        function iso(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+        }
+        var today = new Date();
+        var yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+        if (date === iso(today)) return 'Heute';
+        if (date === iso(yesterday)) return 'Gestern';
+        var parts = date.split('-');
+        return parts.length === 3 ? parts[2] + '.' + parts[1] + '.' + parts[0] : date;
+    }
+
+    // One entry of the log with its buttons.
+    function logItem(e, byId) {
+        var what = e.column
+            ? e.column + ': „' + e.old + '“ → „' + e.new + '“'
+            : (e.new || e.old);
+        var row = logRow(e, byId);
+        var buttons = [];
+        if (row) {
+            buttons.push(el('button', { type: 'button', className: 'log-action',
+                text: 'Zur Zeile', title: 'Die Zeile in der Tabelle zeigen',
+                onclick: function () { grid.select(row); grid.focus(); } }));
+        }
+        if (row && e.column && UNDOABLE.indexOf(e.action) >= 0) {
+            buttons.push(el('button', { type: 'button', className: 'log-action',
+                text: '↶ Rückgängig', title: e.column + ' wieder auf „' + e.old + '“ setzen',
+                onclick: guarded(function () { undoEntry(e, row); }) }));
+        }
+        return el('li', {}, [
+            el('span', { className: 'time', text: e.time.slice(11) }),
+            ' ',
+            el('strong', { text: e.action }),
+            ' ' + [e.id, e.name, e.variant].filter(Boolean).join(' · '),
+            buttons.length ? el('span', { className: 'log-actions' }, buttons) : null,
+            what ? el('div', { className: 'what', text: what }) : null
+        ]);
+    }
+
+    // The row a log entry is about: same card number and variant, preferably the same name.
+    function logRow(e, byId) {
+        var rows = (byId.get(e.id) || []).filter(function (row) {
+            return changelog.variant(row) === e.variant;
+        });
+        return rows.filter(function (row) { return row.Name === e.name; })[0] || rows[0] || null;
+    }
+
+    // Undoes a changed cell, if it still has the value the entry set.
+    function undoEntry(e, row) {
+        var current = row[e.column] == null ? '' : String(row[e.column]);
+        if (current !== e.new) {
+            showMessage('Rückgängig nicht möglich', e.id + ' ' + e.column + ' wurde inzwischen ' +
+                'geändert (jetzt „' + current + '“). Bitte direkt in der Tabelle anpassen.');
+            grid.select(row);
+            return;
+        }
+        changeCell(row, e.column, e.old, 'Rückgängig');
+        FCT.log.info('log', 'Rückgängig', { id: e.id, column: e.column });
+        setDirty(true);
+        rebuild();
+        grid.select(row);
     }
 
     // Many changes in a row (e.g. applying reference data) redraw the pane only once.
@@ -336,6 +410,8 @@ FCT.app = (function () {
                 menu.appendChild(button);
             });
             dialog.addEventListener('cancel', onCancel);
+            // Elements in the body can close the dialog with a value of their own.
+            if (options.setup) options.setup(function (value) { finish(value); });
             dialog.showModal();
         });
     }
@@ -357,7 +433,7 @@ FCT.app = (function () {
     function guarded(action) {
         return function () {
             Promise.resolve().then(action).catch(function (error) {
-                console.error(error);
+                FCT.log.error('app', 'Fehler bei einer Aktion', error);
                 showMessage('Fehler', error && error.message ? error.message : String(error));
             });
         };
@@ -369,48 +445,284 @@ FCT.app = (function () {
     function newCollection() {
         if (!confirmDiscard()) return;
         setCollection(model.create(), null, false);
+        FCT.log.info('file', 'Neuer leerer Bestand');
     }
 
-    // Shows a collection read from a file ({ name, text, handle }). Resolves true if loaded.
+    // Shows a collection read from a file ({ name, text, handle, inFolder }). Resolves true
+    // if loaded.
     function loadCollection(result) {
         var loaded = model.fromCsv(result.text);
         if (!loaded.collection) { showReport(loaded.report); return false; }
-        setCollection(loaded.collection, { name: result.name, handle: result.handle }, false);
+        setCollection(loaded.collection, { name: result.name, handle: result.handle,
+            inFolder: !!result.inFolder }, false);
         state.openedText = result.text;
         state.fileText = withoutBom(result.text);
         updateStatus();
         showReport(loaded.report);
         showReport(model.validate(state.collection, 'Prüfung des Bestands'));
+        FCT.log.info('file', 'Bestand geladen', { name: result.name, inFolder: !!result.inFolder,
+            rows: state.collection.rows.length, chars: result.text.length });
         rememberCurrent();
         return true;
     }
 
-    // Opens a collection. For the file opened last time the autosave decision is kept; for
-    // any other file ("a new collection") the question comes again. The file is remembered
-    // for the next start.
+    /*
+     * Opens a collection: from the working folder (a list of its collections) or with the
+     * file dialog. For the file opened last time the autosave decision is kept; for any other
+     * file ("a new collection") the question comes again. The earlier change log of the
+     * collection is loaded, so it goes on. The file is remembered for the next start.
+     */
     function open() {
         if (!confirmDiscard()) return null;
-        var opened = null;
-        return FCT.storage.openCollection().then(function (result) {
-            if (!result || !loadCollection(result)) return null;
-            opened = result;
-            $('restore-banner').hidden = true;
-            // The same file as last time keeps its autosave decision and its log file.
+        return ensureFolder().then(function () {
+            return hasFolder() ? pickFromFolder() : FCT.storage.openCollection();
+        }).then(function (result) {
+            return result ? openResult(result) : null;
+        });
+    }
+
+    function openResult(result) {
+        return placeFile(result).then(function (placed) {
+            if (!loadCollection(placed)) return null;
+            FCT.notices.clear('restore');
             return FCT.storage.recallFile().then(function (last) {
-                return last ? FCT.storage.sameFile(last.handle, result.handle)
-                    .then(function (same) {
-                        if (!same) return null;
-                        state.logCandidate = last.logHandle || null;
-                        return last.autosave;
-                    }) : null;
+                return last ? FCT.storage.sameFile(last.handle, placed.handle)
+                    .then(function (same) { return same ? last : null; }) : null;
+            }).then(function (last) {
+                // The same file as last time keeps its autosave decision and its log file.
+                if (last) state.logCandidate = last.logHandle || null;
+                return loadLog(last).then(function () {
+                    return askAutosave(placed.handle, last ? last.autosave || null : null);
+                });
             });
-        }).then(function (choice) {
-            if (!opened) return null;
-            return askAutosave(opened.handle, choice || null);
         }).then(function () {
             updateStatus();
             grid.focus();
         });
+    }
+
+    /*
+     * Working folder (feedback on 2.0.2.0, decided 24.09.2026). Chosen once (Chrome/Edge), it
+     * holds the collection, its change log <name>-log.csv, backups and the diagnosis log
+     * fct-diagnose.log. One permission of the browser for the folder covers all of them: the
+     * log file no longer has to be chosen, and after a restart one question is enough. Files
+     * in the folder are always reached through the folder (see placeFile). Other browsers
+     * save as downloads, as before.
+     */
+    var folderSkipped = false;   // "without working folder" was chosen in this session
+
+    // True if the working folder is known and may be written.
+    function hasFolder() {
+        return !!(state.folder && state.folderAccess);
+    }
+
+    // True if the open collection lies in the working folder and the folder may be written.
+    function fileInFolder() {
+        return !!(state.file && state.file.inFolder && hasFolder());
+    }
+
+    function setFolder(handle, access) {
+        state.folder = handle || null;
+        state.folderAccess = !!(handle && access);
+        updateFolderStatus();
+        if (state.folderAccess) FCT.diagnosis.schedule();
+    }
+
+    function updateFolderStatus() {
+        var box = $('status-folder');
+        var button = $('btn-folder');
+        button.hidden = !FCT.storage.canUseFolder;
+        if (!state.folder) {
+            box.textContent = FCT.storage.canUseFolder ? 'kein Arbeitsordner' : '';
+            button.title = 'Arbeitsordner für Bestand, Protokoll und Backups wählen';
+            return;
+        }
+        box.textContent = 'Ordner: ' + state.folder.name +
+            (state.folderAccess ? '' : ' (nicht verbunden)');
+        button.title = 'Arbeitsordner: ' + state.folder.name + ' – klicken zum Ändern';
+    }
+
+    // Asks for the working folder the first time it is needed, with an explanation. A folder
+    // remembered from earlier sessions only needs the browser's permission again.
+    function ensureFolder() {
+        if (state.folder && !state.folderAccess) return requestFolderAccess();
+        if (!FCT.storage.canUseFolder || state.folder || folderSkipped) {
+            return Promise.resolve(state.folder);
+        }
+        return openDialog({
+            title: 'Arbeitsordner festlegen',
+            body: el('div', {}, [
+                el('p', { text: 'Bestand, Änderungsprotokoll, Backups und Diagnose-Log liegen ' +
+                    'künftig zusammen in einem Ordner, z. B. in deinem OneDrive. Du wählst ' +
+                    'ihn einmal; danach fragt die Anwendung nicht mehr nach einzelnen Dateien.' }),
+                el('p', { text: 'Der Browser fragt anschließend, ob die Anwendung Dateien in ' +
+                    'diesem Ordner ansehen und bearbeiten darf – bitte erlauben.' })
+            ]),
+            hint: 'Der Ordner lässt sich jederzeit über „Ordner …“ (Gruppe Bestand) ändern.',
+            buttons: [
+                { label: 'Ohne Arbeitsordner', value: 'skip' },
+                { label: 'Ordner wählen …', value: 'choose', primary: true }
+            ]
+        }).then(function (value) {
+            if (value !== 'choose') { folderSkipped = true; return null; }
+            return chooseFolder();
+        });
+    }
+
+    // Lets the user choose (or change) the working folder.
+    function chooseFolder() {
+        return FCT.storage.chooseFolder().then(function (handle) {
+            if (!handle) return null;
+            FCT.storage.rememberFolder(handle);
+            setFolder(handle, true);
+            FCT.log.info('folder', 'Arbeitsordner gewählt', handle.name);
+
+            // The open collection may lie in the new folder.
+            var file = state.file;
+            var check = file && file.handle
+                ? placeFile({ name: file.name, handle: file.handle })
+                : Promise.resolve(null);
+            return check.then(function (placed) {
+                if (state.file) {
+                    state.file.inFolder = !!(placed && placed.inFolder);
+                    if (state.file.inFolder) {
+                        state.file.handle = placed.handle;
+                        state.writable = true;
+                    }
+                }
+                rememberCurrent();
+                updateStatus();
+                FCT.notices.show('folder', 'ok', 'Arbeitsordner: ' + handle.name);
+                return handle;
+            });
+        });
+    }
+
+    // Asks the browser again for access to the remembered folder (only right after a click).
+    function requestFolderAccess() {
+        var folder = state.folder;
+        return FCT.storage.requestAccess(folder, 'readwrite').then(function (granted) {
+            FCT.log.info('folder', 'Zugriff auf den Arbeitsordner ' +
+                (granted ? 'erlaubt' : 'abgelehnt'), folder.name);
+            setFolder(folder, granted);
+            if (!granted) return null;
+            return deriveFileHandle().then(function () { return folder; });
+        });
+    }
+
+    // Takes the handle of the open collection from the folder, so its permission covers it.
+    function deriveFileHandle() {
+        if (!hasFolder() || !state.file || !state.file.inFolder) return Promise.resolve();
+        return FCT.storage.folderFile(state.folder, state.file.name, false).then(function (h) {
+            state.file.handle = h;
+        }, function () {
+            // The file is no longer in the folder (moved or renamed).
+            state.file.inFolder = false;
+            FCT.log.warn('folder', 'Bestand nicht mehr im Arbeitsordner', state.file.name);
+        });
+    }
+
+    // Relates a picked file to the working folder: a file directly in it gets its handle
+    // from the folder and result.inFolder = true.
+    function placeFile(result) {
+        if (!hasFolder() || !result.handle) return Promise.resolve(result);
+        return FCT.storage.inFolder(state.folder, result.handle).then(function (inside) {
+            if (!inside) return result;
+            return FCT.storage.folderFile(state.folder, result.name, false).then(function (h) {
+                result.handle = h;
+                result.inFolder = true;
+                return result;
+            });
+        });
+    }
+
+    // The collections in the working folder, to open with one click; others via the dialog.
+    function pickFromFolder() {
+        return FCT.storage.listFolder(state.folder).then(function (names) {
+            var files = names.filter(function (name) {
+                return /\.csv$/i.test(name) && !/-log\.csv$/i.test(name) &&
+                    !/-backup-/i.test(name);
+            });
+            var choose = null;
+            var list = el('ul', { className: 'folder-files' }, files.map(function (name) {
+                return el('li', {}, [el('button', { type: 'button', text: name,
+                    onclick: function () { choose(name); } })]);
+            }));
+            return openDialog({
+                title: 'Bestand öffnen – Ordner ' + state.folder.name,
+                body: files.length ? list
+                    : el('p', { text: 'Im Arbeitsordner liegt noch kein Bestand.' }),
+                setup: function (done) { choose = done; },
+                hint: 'Eine Datei außerhalb des Arbeitsordners öffnet „Andere Datei …“; ihr ' +
+                    'Protokoll wird dann beim ersten Speichern gesondert gefragt.',
+                buttons: [
+                    { label: 'Abbrechen', value: 'cancel' },
+                    { label: 'Andere Datei …', value: 'other' }
+                ]
+            });
+        }).then(function (value) {
+            if (value === 'cancel') return null;
+            if (value === 'other') return FCT.storage.openCollection();
+            return FCT.storage.folderFile(state.folder, value, false)
+                .then(FCT.storage.readHandle).then(function (result) {
+                    result.inFolder = true;
+                    return result;
+                });
+        });
+    }
+
+    // Name of a new collection file in the working folder; false if cancelled.
+    function askFileName() {
+        var input = el('input', { type: 'text', size: '30' });
+        input.value = (state.file && state.file.name) || 'collection.csv';
+        var done = null;
+        input.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            done('save');
+        });
+        return openDialog({
+            title: 'Bestand speichern – Ordner ' + state.folder.name,
+            body: el('label', {}, ['Dateiname: ', input]),
+            setup: function (finish) { done = finish; },
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Speichern', value: 'save', primary: true }
+            ]
+        }).then(function (value) {
+            var name = input.value.trim();
+            if (value !== 'save' || !name) return false;
+            if (!/\.csv$/i.test(name)) name += '.csv';
+            return FCT.storage.folderFile(state.folder, name, false).then(function () {
+                return window.confirm(name + ' gibt es im Arbeitsordner schon. Überschreiben?')
+                    ? name : false;
+            }, function () { return name; });
+        });
+    }
+
+    // File name of the change log of the open collection, e.g. collection-log.csv.
+    function logName() {
+        var base = String(state.file ? state.file.name : 'collection.csv').replace(/\.csv$/i, '');
+        return base + '-log.csv';
+    }
+
+    /*
+     * Loads the earlier change log of the opened collection: from its log file in the
+     * working folder, otherwise from the browser copy (if it is the same file as last time).
+     */
+    function loadLog(last) {
+        if (fileInFolder()) {
+            return FCT.storage.readFolderFile(state.folder, logName()).then(function (file) {
+                var records = file.text.trim() ? FCT.csv.parse(withoutBom(file.text)) : [];
+                if (records.length && records[0].join('|') === changelog.HEADER.join('|')) {
+                    changelog.load(records.slice(1));
+                }
+            }).catch(function (error) {
+                FCT.log.warn('log', 'Protokolldatei nicht lesbar', error);
+            });
+        }
+        if (last && last.log) changelog.load(last.log, last.logWritten);
+        return Promise.resolve();
     }
 
     /*
@@ -440,6 +752,9 @@ FCT.app = (function () {
         FCT.storage.rememberFile({
             name: state.file ? state.file.name : '',
             handle: state.file ? state.file.handle : null,
+            inFolder: !!(state.file && state.file.inFolder),
+            log: changelog.toRecords(changelog.entries()),
+            logWritten: changelog.written(),
             logHandle: state.logHandle || state.logCandidate || null,
             autosave: state.autosaveChoice,
             text: model.toCsv(state.collection),
@@ -462,9 +777,10 @@ FCT.app = (function () {
             var copyChanged = last.fileText != null &&
                 model.toCsv(model.fromCsv(last.fileText).collection || model.create()) !==
                 last.text;
-            setCollection(loaded.collection,
-                last.name ? { name: last.name, handle: last.handle || null } : null,
+            setCollection(loaded.collection, last.name ? { name: last.name,
+                handle: last.handle || null, inFolder: !!last.inFolder } : null,
                 copyChanged || !last.handle);
+            changelog.load(last.log || [], last.logWritten);
             state.fileText = last.fileText;
             state.openedText = last.fileText;
             state.logCandidate = last.logHandle || null;
@@ -475,11 +791,30 @@ FCT.app = (function () {
             showMessage('Bestand wiederhergestellt', (last.name || 'Bestand ohne Datei') +
                 ' wurde aus der Kopie im Browser geladen' + (when ? ' (Stand ' + when + ')' : '') +
                 '. Die Datei bleibt das Original.');
+            if (loaded.report.groups.length) showReport(loaded.report);
+            FCT.log.info('file', 'Kopie aus dem Browser geladen', { name: last.name,
+                rows: state.collection.rows.length, inFolder: !!last.inFolder,
+                changed: copyChanged });
             if (!last.handle) {
-                showRestoreBanner(last, null, FCT.storage.canWriteBack
+                showRestoreNotice(last, null, FCT.storage.canWriteBack
                     ? 'Dieser Bestand ist noch mit keiner Datei verbunden – bitte speichern.'
                     : 'Angezeigt wird die Kopie im Browser. Dieser Browser kann nicht direkt in ' +
                         'die Datei schreiben; Strg+S speichert wie gewohnt als Download.');
+                return null;
+            }
+
+            // A collection in the working folder: one permission for the folder is enough.
+            if (last.inFolder && state.folder) {
+                if (state.folderAccess) {
+                    return deriveFileHandle().then(function () {
+                        last.handle = state.file.handle;
+                        return connectFile(last, true);
+                    });
+                }
+                showRestoreNotice(last, 'readwrite', 'Angezeigt wird die Kopie im Browser. ' +
+                    'Ein Klick verbindet den Arbeitsordner ' + state.folder.name + ' (der ' +
+                    'Browser fragt einmal nach dem Zugriff); sonst fragt er bei der ersten ' +
+                    'Änderung.');
                 return null;
             }
             var mode = last.autosave === 'on' ? 'readwrite' : 'read';
@@ -488,32 +823,51 @@ FCT.app = (function () {
 
                 // Diagnosis: "Allow on every visit" should make the browser answer "granted"
                 // here. If it does not, the browser did not keep the permission.
-                showMessage('Dateizugriff beim Start', 'Der Browser meldet für ' + last.name +
-                    ' den Zugriffsstatus „' + access + '“ (' + (access === 'denied'
-                        ? 'verweigert' : 'muss erneut gefragt werden') + '). Ein dauerhaft ' +
-                    'erlaubter Zugriff („Allow on every visit“) würde „granted“ melden; dann ' +
-                    'verbindet sich die Anwendung ohne Rückfrage.');
-                showRestoreBanner(last, mode, 'Angezeigt wird die Kopie im Browser. Der ' +
+                FCT.log.info('file', 'Zugriffsstatus beim Start', { name: last.name,
+                    access: access });
+                showRestoreNotice(last, mode, 'Angezeigt wird die Kopie im Browser. Der ' +
                     'Browser fragt bei der ersten Änderung nach dem Dateizugriff.');
                 return null;
             });
         }).catch(function (error) {
-            console.error(error);
+            FCT.log.error('file', 'Kopie aus dem Browser nicht ladbar', error);
             return null;
         });
     }
 
-    // Banner at the top: which copy is shown, with "connect" and "forget".
-    function showRestoreBanner(last, mode, text) {
-        $('restore-name').textContent = last.name || '(ohne Datei)';
-        $('restore-text').textContent = text;
-        $('btn-restore').hidden = !mode;
-        $('restore-banner').hidden = false;
-        $('btn-restore').onclick = guarded(function () { return askFileAccess(mode); });
-        $('btn-restore-forget').onclick = function () {
-            FCT.storage.forgetFile();
-            $('restore-banner').hidden = true;
-        };
+    // Notice at the top: which copy is shown, with "connect" and "forget".
+    function showRestoreNotice(last, mode, text) {
+        var buttons = [];
+        if (mode) {
+            buttons.push({ label: last.inFolder && state.folder ? 'Arbeitsordner verbinden'
+                : 'Mit Datei verbinden', primary: true,
+                onClick: guarded(function () { return askFileAccess(mode); }) });
+        }
+        buttons.push({ label: 'Kopie vergessen',
+            title: 'Kopie im Browser löschen; beim nächsten Start startet die App leer',
+            onClick: function () {
+                FCT.storage.forgetFile();
+                FCT.notices.clear('restore');
+            } });
+        FCT.notices.show('restore', 'warn', ['Bestand ', el('strong',
+            { text: last.name || '(ohne Datei)' }), ': ' + text], {
+            buttons: buttons,
+            hint: mode ? 'Der Browser verlangt für den Dateizugriff einen Klick. Erlaubt er ' +
+                'ihn dauerhaft („Bei jedem Besuch zulassen“), verbindet sich die App künftig ' +
+                'von selbst.' : null
+        });
+    }
+
+    // Notice while the browser asks for write access, so that its question makes sense.
+    function showPermissionNotice(viaFolder) {
+        FCT.notices.show('permission', 'warn', viaFolder
+            ? 'Der Browser fragt gerade, ob die Anwendung Dateien im Ordner „' +
+                state.folder.name + '“ bearbeiten darf. Das ist die Erlaubnis für Bestand, ' +
+                'Protokoll und Backups in diesem Ordner – bitte erlauben.'
+            : 'Der Browser fragt gerade „Änderungen speichern?“ („Save changes?“). Das ist nur ' +
+                'die Erlaubnis für das automatische Speichern dieser Datei – es wird noch ' +
+                'nichts gespeichert. Mit „Speichern“ bzw. „Bearbeiten erlauben“ bestätigen.',
+            { closable: false });
     }
 
     /*
@@ -528,26 +882,36 @@ FCT.app = (function () {
         var handle = state.file && state.file.handle;
         if (!handle || askingAccess) return null;
         askingAccess = true;
+        var viaFolder = !!(state.file.inFolder && state.folder);
+        var target = viaFolder ? state.folder : handle;
+        if (viaFolder) mode = 'readwrite';
         var last = { handle: handle, name: state.file.name, autosave: state.autosaveChoice,
-            logHandle: state.logCandidate };
-        $('permission-banner').hidden = mode !== 'readwrite';
-        return FCT.storage.requestAccess(handle, mode).then(function (granted) {
-            $('permission-banner').hidden = true;
-            if (granted && mode === 'readwrite') ensureLogAccess(true);
+            logHandle: state.logCandidate, inFolder: viaFolder };
+        if (mode === 'readwrite') showPermissionNotice(viaFolder);
+        return FCT.storage.requestAccess(target, mode).then(function (granted) {
+            FCT.notices.clear('permission');
+            FCT.log.info('file', 'Zugriff ' + (granted ? 'erlaubt' : 'abgelehnt'), {
+                name: state.file.name, mode: mode, viaFolder: viaFolder });
+            if (viaFolder) setFolder(state.folder, granted);
             if (!granted) {
                 state.autosave.denied = true;
                 updateStatus();
-                showMessage('Datei', 'Der Browser hat den Zugriff auf ' + state.file.name +
+                showMessage('Datei', 'Der Browser hat den Zugriff auf ' + (viaFolder
+                    ? 'den Arbeitsordner ' + state.folder.name : state.file.name) +
                     ' nicht erlaubt. Strg+S speichert wie bisher; „Automatisch speichern“ in ' +
                     'der Statuszeile fragt erneut.');
                 return null;
             }
-            if (state.fromCopy) return connectFile(last, mode === 'readwrite');
-            state.writable = mode === 'readwrite';
-            state.autosave.denied = false;
-            updateStatus();
-            if (state.dirty) scheduleAutosave();
-            return null;
+            return (viaFolder ? deriveFileHandle() : Promise.resolve()).then(function () {
+                last.handle = state.file.handle;
+                if (mode === 'readwrite') ensureLogAccess(true);
+                if (state.fromCopy) return connectFile(last, mode === 'readwrite');
+                state.writable = mode === 'readwrite';
+                state.autosave.denied = false;
+                updateStatus();
+                if (state.dirty) scheduleAutosave();
+                return null;
+            });
         }).then(function (result) {
             askingAccess = false;
             return result;
@@ -566,7 +930,7 @@ FCT.app = (function () {
      */
     function ensureLogAccess(allowAsk) {
         var handle = state.logCandidate;
-        if (!handle || state.logHandle) return Promise.resolve();
+        if (!handle || state.logHandle || fileInFolder()) return Promise.resolve();
         return FCT.storage.queryAccess(handle, 'readwrite').then(function (access) {
             if (access === 'granted') return true;
             return allowAsk ? FCT.storage.requestAccess(handle, 'readwrite') : null;
@@ -595,7 +959,9 @@ FCT.app = (function () {
      */
     function connectFile(last, writable) {
         return FCT.storage.readHandle(last.handle).then(function (result) {
-            $('restore-banner').hidden = true;
+            FCT.notices.clear('restore');
+            FCT.log.info('file', 'Mit Datei verbunden', { name: result.name,
+                unchanged: withoutBom(result.text) === state.fileText, dirty: state.dirty });
             state.fromCopy = false;
             state.writable = writable;
             if (writable) ensureLogAccess(false);
@@ -625,6 +991,7 @@ FCT.app = (function () {
                 return null;
             });
         }, function (error) {
+            FCT.log.warn('file', 'Datei nicht lesbar', error);
             showMessage('Datei', last.name + ' ließ sich nicht lesen (' + error.message +
                 '). Wurde die Datei verschoben? Die Kopie bleibt angezeigt; bitte über ' +
                 '„Öffnen“ laden oder speichern.');
@@ -654,6 +1021,27 @@ FCT.app = (function () {
         if (!FCT.storage.canWriteBack || !handle) return null;
         state.autosaveChoice = choice;
         if (choice === 'off') { rememberCurrent(); return null; }
+
+        // In the working folder the permission is there already: only the decision counts.
+        if (fileInFolder()) {
+            state.writable = true;
+            var asked = choice === 'on' ? Promise.resolve('on') : openDialog({
+                title: 'Automatisch speichern?',
+                body: el('p', { text: 'Die Anwendung kann jede Änderung sofort in die Datei im ' +
+                    'Arbeitsordner speichern – du musst dann nie mehr an Strg+S denken. Die ' +
+                    'Entscheidung gilt für diesen Bestand und lässt sich jederzeit über ' +
+                    '„Automatisch speichern“ in der Statuszeile ändern.' }),
+                buttons: [
+                    { label: 'Nein, ich speichere selbst', value: 'off' },
+                    { label: 'Ja, automatisch speichern', value: 'on', primary: true }
+                ]
+            });
+            return asked.then(function (value) {
+                if (value === 'on' || value === 'off') state.autosaveChoice = value;
+                rememberCurrent();
+                updateStatus();
+            });
+        }
         var decided = choice === 'on' ? Promise.resolve('on') : openDialog({
             title: 'Automatisch speichern?',
             body: el('div', {}, [
@@ -683,9 +1071,11 @@ FCT.app = (function () {
 
     // Asks the browser for write permission; a banner explains its question meanwhile.
     function requestAutosave(handle) {
-        $('permission-banner').hidden = false;
+        showPermissionNotice(false);
         return FCT.storage.requestWrite(handle).then(function (granted) {
-            $('permission-banner').hidden = true;
+            FCT.notices.clear('permission');
+            FCT.log.info('file', 'Erlaubnis für automatisches Speichern ' +
+                (granted ? 'erteilt' : 'verweigert'));
             state.writable = granted;
             state.autosave.denied = !granted;
             if (granted) ensureLogAccess(true);
@@ -717,20 +1107,42 @@ FCT.app = (function () {
         return null;
     }
 
-    // Saves the collection and then appends the new change log entries to the log file.
+    /*
+     * Saves the collection and then the new change log entries. A collection without a file
+     * goes into the working folder (the name is asked for), or - without a folder - wherever
+     * the user chooses in the file dialog.
+     */
     function save() {
         clearTimeout(state.autosave.timer);
         var text = '﻿' + model.toCsv(state.collection);
-        return FCT.storage.saveCollection(text, state.file).then(function (result) {
+        var started = Date.now();
+        var target = state.file && state.file.handle ? Promise.resolve(null)
+            : ensureFolder().then(function () { return hasFolder() ? askFileName() : null; });
+        return target.then(function (name) {
+            if (name === false) return null;
+            if (name) {
+                return FCT.storage.writeFolderFile(state.folder, name, text)
+                    .then(function (handle) {
+                        return { name: name, handle: handle, method: 'file', inFolder: true };
+                    });
+            }
+            return FCT.storage.saveCollection(text, state.file).then(function (result) {
+                return result && result.handle ? placeFile(result) : result;
+            });
+        }).then(function (result) {
             if (!result) return null;
-            state.file = { name: result.name, handle: result.handle };
+            state.file = { name: result.name, handle: result.handle,
+                inFolder: !!result.inFolder };
             state.writable = result.method === 'file';
             state.autosave.saved = new Date();
             state.autosave.error = '';
+            FCT.notices.clear('autosave');
+            FCT.log.info('file', 'Gespeichert', { name: result.name, method: result.method,
+                inFolder: !!result.inFolder, chars: text.length, ms: Date.now() - started });
             if (result.method === 'file') {
                 state.fileText = withoutBom(text);
                 state.fromCopy = false;
-                $('restore-banner').hidden = true;
+                FCT.notices.clear('restore');
             }
             setDirty(false);
             rememberCurrent();
@@ -770,16 +1182,25 @@ FCT.app = (function () {
         if (auto.running) { scheduleAutosave(); return; }
         auto.running = true;
         var text = '﻿' + model.toCsv(state.collection);
+        var started = Date.now();
         FCT.storage.writeFile(state.file.handle, text).then(function () {
             auto.saved = new Date();
             auto.error = '';
             state.dirty = false;
             state.fileText = withoutBom(text);
+            FCT.notices.clear('autosave');
+            FCT.log.debug('file', 'Automatisch gespeichert', { name: state.file.name,
+                chars: text.length, ms: Date.now() - started });
             rememberCurrent();
             offerOpenedBackup();
-            return state.logHandle || state.logCandidate ? saveLog(false) : null;
+            return fileInFolder() || state.logHandle || state.logCandidate
+                ? saveLog(false) : null;
         }).catch(function (error) {
             auto.error = error && error.message ? error.message : String(error);
+            FCT.log.error('file', 'Automatisches Speichern fehlgeschlagen', error);
+            FCT.notices.show('autosave', 'error', 'Automatisches Speichern fehlgeschlagen: ' +
+                auto.error, { buttons: [{ label: 'Jetzt speichern', primary: true,
+                    onClick: guarded(save) }], closable: true });
         }).then(function () {
             auto.running = false;
             updateStatus();
@@ -823,8 +1244,8 @@ FCT.app = (function () {
         toggle.textContent = 'Automatisch speichern: ' + (!on ? 'aus'
             : state.file && state.file.handle && !state.writable ? 'jetzt erlauben' : 'an');
         toggle.setAttribute('aria-pressed', String(on));
-        $('btn-log-file').hidden = !(canAutosave() && !state.logHandle && !state.logCandidate &&
-            changelog.pending().length);
+        $('btn-log-file').hidden = !(canAutosave() && !fileInFolder() && !state.logHandle &&
+            !state.logCandidate && changelog.pending().length);
     }
 
     // After the first automatic save, the state as opened can be kept as a backup.
@@ -835,7 +1256,7 @@ FCT.app = (function () {
         var name = state.file.name;
         var button = el('button', { type: 'button', text: 'Stand beim Öffnen als Backup sichern',
             onclick: guarded(function () {
-                return FCT.storage.backup(text, name).then(function (result) {
+                return writeBackup(text, name).then(function (result) {
                     if (result) showMessage('Backup erstellt', result.name);
                 });
             }) });
@@ -850,11 +1271,14 @@ FCT.app = (function () {
         showPane('messages');
     }
 
-    // Log file: <collection>-log.csv. In Chrome/Edge the user chooses it once; it is
-    // remembered with the collection. A remembered log file is used again as soon as the
-    // browser allows it; only without one the user is asked to choose.
-    // interactive = false (autosave) writes only into an already known log file, silently.
+    /*
+     * Log file: <collection>-log.csv, with the latest changelog.LIMIT entries. In the working
+     * folder it is written without any question. Otherwise (Chrome/Edge) the user chooses it
+     * once; it is remembered with the collection and used again as soon as the browser
+     * allows it. interactive = false (autosave) writes only into a known log file, silently.
+     */
     function saveLog(interactive) {
+        if (fileInFolder()) return writeFolderLog(interactive);
         if (!state.logHandle && state.logCandidate) {
             return ensureLogAccess(interactive).then(function () {
                 return state.logHandle || interactive ? writeLog(interactive) : null;
@@ -870,14 +1294,9 @@ FCT.app = (function () {
         var header = changelog.HEADER;
         var records = changelog.toRecords(pending);
 
-        // Complete file content: existing lines plus the new ones.
+        // Complete file content: existing lines plus the new ones, the latest ones only.
         function makeText(existing) {
-            var old = existing.trim() ? FCT.csv.parse(existing) : [header];
-            if (old[0].join('|') !== header.join('|')) {
-                throw new Error('Die gewählte Datei ist kein Änderungsprotokoll dieser ' +
-                    'Anwendung und wurde nicht verändert.');
-            }
-            return '﻿' + FCT.csv.stringify(old.concat(records));
+            return logText(existing, records, 'Die gewählte Datei');
         }
         var newOnly = '﻿' + FCT.csv.stringify([header].concat(records));
 
@@ -910,7 +1329,7 @@ FCT.app = (function () {
             state.logHandle = result.handle;
             state.logCandidate = null;
             rememberCurrent();
-            changelog.markWritten();
+            changelog.markWritten(pending[pending.length - 1]);
             renderLog();
             updateSaveStatus();
             if (interactive) {
@@ -920,14 +1339,58 @@ FCT.app = (function () {
         });
     }
 
+    // Text of a log file: the existing records (checked to be a log of this app) plus the
+    // new ones, limited to the latest changelog.LIMIT entries.
+    function logText(existing, records, what) {
+        var header = changelog.HEADER;
+        var old = existing.trim() ? FCT.csv.parse(withoutBom(existing)) : [header];
+        if (old[0].join('|') !== header.join('|')) {
+            throw new Error(what + ' ist kein Änderungsprotokoll dieser Anwendung und wurde ' +
+                'nicht verändert.');
+        }
+        var kept = old.slice(1).filter(function (r) { return r.length >= header.length; });
+        return '﻿' + FCT.csv.stringify([header].concat(
+            changelog.fileRecords(kept, records)));
+    }
+
+    // Writes the new change log entries into the log file in the working folder.
+    function writeFolderLog(interactive) {
+        var pending = changelog.pending();
+        if (!pending.length) return Promise.resolve();
+        var name = logName();
+        return FCT.storage.readFolderFile(state.folder, name).then(function (file) {
+            var text = logText(file.text, changelog.toRecords(pending), name);
+            return FCT.storage.writeFolderFile(state.folder, name, text);
+        }).then(function () {
+            changelog.markWritten(pending[pending.length - 1]);
+            rememberCurrent();
+            renderLog();
+            updateSaveStatus();
+            if (interactive) {
+                showMessage('Protokoll gespeichert', pending.length + ' Einträge → ' + name);
+            }
+        });
+    }
+
     // Button in the status line: choose the log file once, then autosave writes it too.
     function chooseLogFile() {
         return saveLog(true);
     }
 
+    // Writes a backup: into the working folder without a dialog, otherwise as before.
+    function writeBackup(text, name) {
+        if (!hasFolder()) return FCT.storage.backup(text, name);
+        var file = String(name || 'collection.csv').replace(/\.csv$/i, '') + '-backup-' +
+            util.timestamp() + '.csv';
+        return FCT.storage.writeFolderFile(state.folder, file, text).then(function () {
+            FCT.log.info('file', 'Backup im Arbeitsordner', file);
+            return { name: file + ' (im Arbeitsordner ' + state.folder.name + ')' };
+        });
+    }
+
     function backup() {
         var text = '﻿' + model.toCsv(state.collection);
-        return FCT.storage.backup(text, state.file && state.file.name).then(function (result) {
+        return writeBackup(text, state.file && state.file.name).then(function (result) {
             if (result) showMessage('Backup erstellt', result.name);
         });
     }
@@ -941,11 +1404,17 @@ FCT.app = (function () {
             return Promise.resolve(convert(file)).then(function (result) {
                 $('busy').hidden = true;
                 if (result.collection) {
+                    model.reportPlaysets(result.report,
+                        model.keepPlaysets(result.collection.rows));
                     var check = model.validate(result.collection);
                     check.groups.forEach(function (g) { result.report.groups.push(g); });
                 }
+                FCT.log.info('import', 'Import gelesen', { file: file.name,
+                    rows: result.collection ? result.collection.rows.length : 0,
+                    errors: result.report.count('error') });
                 return preview(result.report, !!result.collection).then(function (ok) {
                     showReport(result.report);
+                    FCT.log.info('import', ok ? 'Import übernommen' : 'Import verworfen');
                     if (!ok) return;
                     setCollection(result.collection, null, true);
                     changelog.add('Import', null, '', '', file.name + ' – ' +
@@ -955,6 +1424,7 @@ FCT.app = (function () {
                 });
             }, function (error) {
                 $('busy').hidden = true;
+                FCT.log.error('import', 'Import fehlgeschlagen', error);
                 throw error;
             });
         });
@@ -975,6 +1445,7 @@ FCT.app = (function () {
     function exportFabrary() {
         var result = FCT.exportFabrary.exportFabrary(state.collection);
         FCT.storage.download('fabrary-' + util.timestamp() + '.csv', result.text);
+        FCT.log.info('export', 'Fabrary-Export', { chars: result.text.length });
         showReport(result.report);
     }
 
@@ -1005,11 +1476,18 @@ FCT.app = (function () {
         setDirty(true);
     }
 
-    // Which cells can be edited: the user's input always, everything else in edit mode.
-    function isEditable(column) {
-        if (column.kind === 'input') return true;
-        if (column.kind === 'reference' || column.kind === 'identity') return state.editMode;
-        return false;
+    // Which cells can be edited: the user's input always, everything else in edit mode, and
+    // marked deviations from the reference data also outside edit mode (see model).
+    function isEditable(column, row) {
+        if (column.kind === 'calc') return false;
+        return model.isEditable(row, column.key, state.editMode);
+    }
+
+    // Value of the reference data for a cell, offered first in its drop-down (or null).
+    function referenceValue(column, row) {
+        if (model.columnKind(column.key) !== 'reference') return null;
+        var expected = FCT.reference.expected(row);
+        return expected ? expected[column.key] : null;
     }
 
     // Marks of a row: locally changed reference values, deviations from the reference data
@@ -1026,10 +1504,11 @@ FCT.app = (function () {
             var want = expected ? '„' + expected[column] + '“' : 'unbekannt';
             if (overridden.indexOf(column) >= 0) {
                 marks[column] = { className: 'override',
-                    title: 'Lokal geändert – Stammdaten: ' + want };
+                    title: 'Lokal geändert – Stammdaten: ' + want + '\nKlicken zum Ändern' };
             } else if (model.deviates(row, column, expected)) {
                 marks[column] = { className: 'stale',
-                    title: 'Weicht von den Stammdaten ab: ' + want };
+                    title: 'Weicht von den Stammdaten ab: ' + want +
+                        '\nKlicken zum Korrigieren' };
             }
         });
         return marks;
@@ -1324,6 +1803,86 @@ FCT.app = (function () {
     }
 
     /*
+     * Taking whole sets into the collection (feedback on 2.0.2.0): the sets of the reference
+     * data that do not occur in the collection yet are listed, newest first; every printing of
+     * the ticked sets becomes a row with empty quantities, as in the old spreadsheet.
+     */
+    function addSets() {
+        var sets = model.missingSets(state.collection);
+        if (!sets.length) {
+            showMessage('Sets aufnehmen', 'Alle Sets der Stammdaten sind schon im Bestand.');
+            return null;
+        }
+        var boxes = [];
+        var list = el('ul', { className: 'cards set-list' });
+        var search = el('input', { type: 'search', placeholder: 'Set suchen (* ?)',
+            title: 'Enthält den Text; * = beliebiger Text, ? = ein Zeichen' });
+        sets.forEach(function (set) {
+            var box = el('input', { type: 'checkbox' });
+            box._set = set;
+            boxes.push(box);
+            var date = set.date ? new Date(set.date + 'T00:00:00').toLocaleDateString('de-DE')
+                : 'ohne Datum';
+            box._item = el('li', {}, [el('label', {}, [box, ' ',
+                el('strong', { text: set.name + ' (' + set.code + ')' }),
+                el('span', { className: 'what', text: ' ' + date + ' · ' +
+                    set.printings.toLocaleString('de-DE') + ' Drucke' })])]);
+            list.appendChild(box._item);
+        });
+
+        // The search narrows the list (also with wildcards); ticked sets stay ticked.
+        search.addEventListener('input', function () {
+            var text = util.fold(search.value);
+            var test = util.wildcard(search.value);
+            boxes.forEach(function (box) {
+                var name = util.fold(box._set.name + ' (' + box._set.code + ')');
+                var match = !text || (test ? test(name) : name.indexOf(text) >= 0);
+                box._item.hidden = !match;
+            });
+        });
+
+        return openDialog({
+            title: 'Sets aufnehmen – ' + sets.length + ' Sets noch nicht im Bestand',
+            body: el('div', { className: 'report take-over' }, [search, list]),
+            hint: 'Alle Drucke der angehakten Sets werden als Zeilen mit leeren Mengen in den ' +
+                'Bestand aufgenommen – so lassen sie sich wie in der ODS ausfüllen. Später ' +
+                'erscheinende Drucke eines Sets tauchen automatisch als ○ auf.',
+            wide: true,
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Aufnehmen', value: 'accept', primary: true }
+            ]
+        }).then(function (value) {
+            if (value !== 'accept') return;
+            var chosen = boxes.filter(function (b) { return b.checked; }).map(function (b) {
+                return b._set;
+            });
+            if (!chosen.length) return;
+            var rows = model.setRows(state.collection, chosen.map(function (set) {
+                return set.code;
+            }));
+            Array.prototype.push.apply(state.collection.rows, rows);
+            chosen.forEach(function (set) {
+                var count = rows.filter(function (row) {
+                    return model.setCode(row.Id) === set.code;
+                }).length;
+                changelog.add('Set aufgenommen', null, '', '', set.name + ' (' + set.code +
+                    ') – ' + count + ' Zeilen');
+            });
+            FCT.log.info('sets', 'Sets aufgenommen', { sets: chosen.map(function (set) {
+                return set.code;
+            }), rows: rows.length });
+            setDirty(true);
+            rebuild();
+            if (rows.length) grid.select(rows[0]);
+            showMessage('Sets aufgenommen', chosen.map(function (set) {
+                return set.name + ' (' + set.code + ')';
+            }).join(', ') + ': ' + rows.length.toLocaleString('de-DE') + ' Zeilen mit leeren ' +
+                'Mengen aufgenommen.');
+        });
+    }
+
+    /*
      * Reference data: status, online update, and applying it to the collection
      */
     function referenceStatus() {
@@ -1354,7 +1913,11 @@ FCT.app = (function () {
     function updateReference(manual) {
         state.reference.loading = true;
         referenceStatus();
+        var started = Date.now();
         return FCT.referenceUpdate.run().then(function (result) {
+            FCT.log.info('reference', 'Stammdaten online geladen', { commit: result.info.commit,
+                date: result.info.commitDate, cards: result.data.cards.length,
+                ms: Date.now() - started });
             FCT.reference.install(result.data, result.info);
             state.reference = { info: result.info, online: true, loading: false, error: '' };
             referenceStatus();
@@ -1368,6 +1931,7 @@ FCT.app = (function () {
                         : 'Der Bestand stimmt mit den Stammdaten überein.'));
             }
         }, function (error) {
+            FCT.log.warn('reference', 'Stammdaten online nicht verfügbar', error);
             state.reference.loading = false;
             state.reference.error = error.message;
             referenceStatus();
@@ -1447,9 +2011,9 @@ FCT.app = (function () {
             title: 'Stammdaten übernehmen – ' + items.length + ' Karten weichen ab',
             body: el('div', { className: 'report take-over' }, groups),
             hint: 'Bei angehakten Karten werden alle abweichenden Werte aus den Stammdaten ' +
-                'übernommen. Lokal geänderte Werte (✱) bleiben unberührt. Mengen, Playset, ' +
-                'Notiz, Kartennummer, Edition und Art Treatment werden nie verändert – das ' +
-                'wird vor und nach dem Übernehmen geprüft.',
+                'übernommen. Lokal geänderte Werte (✱) bleiben unberührt. Mengen, Notiz, ' +
+                'Kartennummer, Edition und Art Treatment werden nie verändert – das wird vor ' +
+                'und nach dem Übernehmen geprüft.',
             wide: true,
             buttons: [
                 { label: 'Alle', left: true, onClick: function () { tick(true); } },
@@ -1524,7 +2088,16 @@ FCT.app = (function () {
     function setEditMode(on) {
         state.editMode = on;
         document.body.classList.toggle('edit-mode', on);
-        $('edit-banner').hidden = !on;
+        if (on) {
+            FCT.notices.show('edit', 'info', 'Editiermodus: alle Spalten sind bearbeitbar ' +
+                '(Doppelklick, Klick auf die aktive Zelle oder einfach tippen), feste Werte per ' +
+                'Auswahlliste. Werte, die von den Stammdaten abweichen, sind erlaubt und werden ' +
+                'mit einer violetten Ecke (✱) markiert.', { buttons: [{ label: 'Beenden',
+                    onClick: function () { setEditMode(false); } }] });
+        } else {
+            FCT.notices.clear('edit');
+        }
+        FCT.log.debug('view', 'Editiermodus ' + (on ? 'an' : 'aus'));
         $('btn-edit-mode').setAttribute('aria-pressed', String(on));
         grid.refresh();
     }
@@ -1570,6 +2143,10 @@ FCT.app = (function () {
     function init() {
         document.title = 'FabCollectionTool ' + FCT.VERSION;
         $('version').textContent = FCT.VERSION;
+        FCT.log.info('app', 'Start FabCollectionTool ' + FCT.VERSION, {
+            browser: navigator.userAgent, page: location.protocol,
+            writeBack: FCT.storage.canWriteBack, folder: FCT.storage.canUseFolder });
+        FCT.diagnosis.start(function () { return hasFolder() ? state.folder : null; });
         installBundledReference();
         setFontSize(settings.get('fontSize', 'M'));
 
@@ -1579,8 +2156,16 @@ FCT.app = (function () {
                 'Translated Backside Name', 'Set', 'Note'],
             isEditable: isEditable,
             choices: choices,
+            referenceValue: referenceValue,
             rowMarks: rowMarks,
             status: rowStatus,
+            statusValues: [
+                { value: 'differs', label: '≠ weicht von den Stammdaten ab' },
+                { value: 'override', label: '✱ lokal geändert' },
+                { value: 'gap', label: '○ noch nicht im Bestand' },
+                { value: 'unknown', label: '? Kartennummer unbekannt' },
+                { value: 'none', label: 'ohne Auffälligkeit' }
+            ],
             actions: rowActions,
             groupNames: model.groupNames,
             setInfo: setInfo,
@@ -1596,11 +2181,14 @@ FCT.app = (function () {
         // Toolbar.
         var actions = {
             'btn-new': newCollection, 'btn-open': open, 'btn-save': save,
-            'btn-backup': backup, 'btn-import-ods': importOds,
+            'btn-backup': backup, 'btn-add-sets': addSets, 'btn-import-ods': importOds,
             'btn-import-fabrary': importFabrary, 'btn-export-fabrary': exportFabrary,
             'btn-reference-update': function () { return updateReference(true); },
             'btn-reference-apply': applyReference, 'btn-reference-info': showReferenceInfo,
-            'btn-log-file': chooseLogFile, 'btn-autosave': toggleAutosave
+            'btn-log-file': chooseLogFile, 'btn-autosave': toggleAutosave,
+            'btn-folder': chooseFolder, 'btn-diagnose': FCT.diagnosis.download,
+            'btn-tour': function () { FCT.tour.start(); },
+            'btn-docs': function () { window.open('doku.html', '_blank'); }
         };
         Object.keys(actions).forEach(function (id) {
             $(id).addEventListener('click', guarded(actions[id]));
@@ -1676,7 +2264,20 @@ FCT.app = (function () {
         referenceStatus();
         updateReference(false);
         grid.focus();
-        restoreLast();
+
+        // The working folder of earlier sessions, then the copy of the last collection. The
+        // tutorial starts by itself at the first visit.
+        updateFolderStatus();
+        FCT.storage.recallFolder().then(function (folder) {
+            if (!folder) return null;
+            return FCT.storage.queryAccess(folder, 'readwrite').then(function (access) {
+                FCT.log.info('folder', 'Arbeitsordner beim Start', { name: folder.name,
+                    access: access });
+                setFolder(folder, access === 'granted');
+            });
+        }).then(restoreLast).then(function () {
+            if (!settings.get('tourDone', false)) FCT.tour.start();
+        });
     }
 
     return { init: init };

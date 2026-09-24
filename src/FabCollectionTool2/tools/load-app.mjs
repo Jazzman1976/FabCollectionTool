@@ -13,6 +13,7 @@ export const appRoot = path.join(toolDir, '..');
 // Scripts that work without a browser page, in the same order as in index.html.
 const LOGIC_SCRIPTS = [
     'app/core.js',
+    'app/log.js',
     'reference/vocab.js',
     'app/csv.js',
     'app/reference-transform.js'

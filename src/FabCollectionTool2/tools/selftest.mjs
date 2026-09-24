@@ -41,6 +41,8 @@ function check(name, ok, detail) {
         ST: '1', Note: 'Zeile 1\nZeile 2 mit "Anführungszeichen"' }));
     collection.rows.push(FCT.model.newRow({ Id: 'MON254', Name: 'Tremor of íArathael',
         Note: 'Ünïcödé ✓' }));
+    // Playsets as the reference data expects them (an empty one would be filled in on load).
+    collection.rows.forEach((row) => { row.Playset = FCT.reference.expected(row).Playset; });
     const text = FCT.model.toCsv(collection);
     const back = FCT.model.fromCsv('﻿' + text).collection;
     check('CSV round trip', FCT.model.toCsv(back) === text &&
@@ -254,10 +256,112 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     check('Value lists complete', missing.length === 0, [...new Set(missing)].join(', '));
 }
 
+// Wildcards in filters and search (2.0.3.0): * any text, ? one character, whole value; special
+// characters of regular expressions are plain text.
+{
+    const match = (pattern, value) => FCT.util.wildcard(pattern)(FCT.util.fold(value));
+    const ok = FCT.util.wildcard('Gravy') === null &&
+        match('*Gravy*', 'Armory Deck - Gravy Bones') &&
+        !match('Gravy*', 'Armory Deck - Gravy Bones') &&
+        match('armory*', 'Armory Deck - Gravy Bones') &&
+        match('W?R*', 'WTR001') && !match('W?R', 'WTR001') &&
+        match('*(2H)*', 'Hammer (2H)') && !match('a.b*', 'axb') && match('a.b*', 'a.bc') &&
+        match('*[x]*', 'a[x]b');
+    check('Wildcard filters', ok);
+}
+
+// Taking whole sets (2.0.3.0): every printing variant once, empty quantities, real rows; sets
+// of the collection are not offered.
+{
+    const collection = FCT.model.fromCsv(FCT.model.toCsv(ods.collection)).collection;
+    const present = new Set(collection.rows.map((row) => FCT.model.setCode(row.Id)));
+    const offered = FCT.model.missingSets(collection);
+    const set = offered.find((s) => s.printings > 10);
+    const rows = FCT.model.setRows(collection, [set.code]);
+    const keys = new Set(rows.map((row) => FCT.model.variantKey(row.Id, row.Edition,
+        row['Art Treatment'])));
+    const ok = !offered.some((s) => present.has(s.code)) && rows.length === set.printings &&
+        keys.size === rows.length &&
+        rows.every((row) => FCT.model.setCode(row.Id) === set.code && !row._reference &&
+            FCT.model.QUANTITIES.every((q) => row[q] === '') && row.Playset !== '');
+    check('Take whole sets', ok, `${offered.length} sets offered, ${set.code}: ` +
+        `${rows.length} rows`);
+}
+
+// Playset from the reference data (2.0.3.0): legendary cards 1, Evo equipment 3. A differing
+// value of a file is kept as override; an empty one is filled in; nothing else changes.
+{
+    const legendary = FCT.DATA.cards.find((c) => c[4] === 'L');
+    const playset = FCT.reference.playset;
+    const rules = playset({ types: legendary[3], legendary: true }) === 1 &&
+        playset('Mechanologist, Action, Equipment, Evo, Head') === 3 &&
+        playset('Generic, Equipment, Chest') === 1 && playset('Warrior, Weapon, Sword, 1H') === 2 &&
+        playset('Mystic, Resource, Chi') === 1 && playset('Generic, Action, Attack') === 3;
+
+    const collection = FCT.model.create();
+    const differs = FCT.model.newRow({ Id: 'WTR001', Name: 'Rhinar, Reckless Rampage',
+        Playset: '3', ST: '1' });
+    const empty = FCT.model.newRow({ Id: 'WTR001', Name: 'Rhinar, Reckless Rampage',
+        Edition: 'Unlimited', Playset: '', ST: '2' });
+    // All other reference values as expected, so that only the playset could differ.
+    [differs, empty].forEach((row) => {
+        const expected = FCT.reference.expected(row);
+        Object.keys(expected).filter((key) => key !== 'Playset')
+            .forEach((key) => { row[key] = expected[key]; });
+    });
+    collection.rows.push(differs, empty);
+    const loaded = FCT.model.fromCsv(FCT.model.toCsv(collection)).collection;
+    const [a, b] = loaded.rows;
+    const transition = a.Playset === '3' && a.Overrides === 'Playset' && b.Playset === '1' &&
+        b.Overrides === '' && a.ST === '1' && b.ST === '2' &&
+        FCT.model.differences(a).length === 0;
+    check('Playset from reference data', rules && transition,
+        `rules ${rules}, kept as override / filled in ${transition}`);
+}
+
+// Which cells can be edited (2.0.3.0): input always; a value that differs from the reference
+// data also outside edit mode; everything in edit mode.
+{
+    const row = FCT.model.newRow({ Id: 'WTR001', Name: 'Rhinar, Reckless Rampage',
+        Rarity: 'Majestic' });
+    const expected = FCT.reference.expected(row);
+    Object.keys(expected).forEach((key) => { row[key] = expected[key]; });
+    const same = !FCT.model.isEditable(row, 'Rarity', false);
+    row.Rarity = 'Common';
+    const differs = FCT.model.isEditable(row, 'Rarity', false);
+    const ok = same && differs && FCT.model.isEditable(row, 'ST', false) &&
+        FCT.model.isEditable(row, 'Note', false) && !FCT.model.isEditable(row, 'Id', false) &&
+        !FCT.model.isEditable(row, 'Playset', false) && FCT.model.isEditable(row, 'Id', true) &&
+        !FCT.model.isEditable(row, 'Overrides', true);
+    check('Editable cells', ok);
+}
+
+// Limits (2.0.3.0): the change log keeps the latest 1,000 entries (memory and file); the
+// diagnosis log file is rotated at its size limit.
+{
+    const log = FCT.changelog;
+    log.clear();
+    const row = FCT.model.newRow({ Id: 'WTR001', Name: 'Rhinar' });
+    for (let i = 0; i < 1100; i++) log.add('Geändert', row, 'ST', String(i), String(i + 1));
+    const entries = log.entries();
+    const file = log.fileRecords(Array.from({ length: 995 }, (_, i) => [String(i)]),
+        Array.from({ length: 10 }, (_, i) => ['new' + i]));
+    const back = log.fromRecords(log.toRecords(entries.slice(-2)));
+    log.clear();
+    const changeLog = entries.length === 1000 && entries[999].new === '1100' &&
+        file.length === 1000 && file[999][0] === 'new9' && file[0][0] === '5' &&
+        back.length === 2 && back[1].new === '1100';
+    const limit = FCT.log.FILE_LIMIT;
+    const rotation = !FCT.log.needsRotation(0, limit * 2) &&
+        !FCT.log.needsRotation(limit - 100, 50) && FCT.log.needsRotation(limit - 100, 200);
+    check('Log limits', changeLog && rotation, `change log ${changeLog}, rotation ${rotation}`);
+}
+
 // Line length of hand-written source files (generated data files are exempt). Only source
 // files count; a collection the user saved into the app folder is not checked.
 {
-    const files = ['index.html', 'app', 'tools', 'reference/vocab.js'].flatMap((entry) => {
+    const sources = ['index.html', 'doku.html', 'app', 'tools', 'reference/vocab.js'];
+    const files = sources.flatMap((entry) => {
         const full = path.join(appRoot, entry);
         return fs.statSync(full).isDirectory()
             ? fs.readdirSync(full).map((f) => path.join(full, f))

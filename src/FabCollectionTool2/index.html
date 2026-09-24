@@ -18,6 +18,10 @@
                 <button id="btn-save" title="Bestand und Änderungsprotokoll speichern (Strg+S)">
                     Speichern</button>
                 <button id="btn-backup" title="Kopie mit Zeitstempel speichern">Backup</button>
+                <button id="btn-folder" hidden>Ordner …</button>
+                <button id="btn-add-sets"
+                    title="Sets aus den Stammdaten aufnehmen, auch ohne eigene Karte">
+                    Sets aufnehmen …</button>
             </fieldset>
             <fieldset class="group">
                 <legend>Import</legend>
@@ -55,6 +59,15 @@
                 </select>
                 <button id="btn-edit-mode" class="toggle" aria-pressed="false"
                     title="Auch Stammdaten- und Identitätsspalten bearbeiten">Editiermodus</button>
+            </fieldset>
+            <fieldset class="group" id="group-help">
+                <legend>Hilfe</legend>
+                <button id="btn-tour" title="Kurze Einführung in die wichtigsten Bereiche">
+                    Tutorial</button>
+                <button id="btn-docs" title="Ausführliche Anleitung in einem neuen Tab">
+                    Dokumentation</button>
+                <button id="btn-diagnose"
+                    title="Diagnose-Log für die Fehlersuche herunterladen">Diagnose</button>
             </fieldset>
         </nav>
         <nav class="toolbar">
@@ -99,27 +112,8 @@
             </fieldset>
         </nav>
     </header>
-    <div id="banners">
-        <div id="restore-banner" class="banner" hidden>
-            Bestand <strong id="restore-name"></strong>: <span id="restore-text"></span>
-            <button id="btn-restore">Mit Datei verbinden</button>
-            <button id="btn-restore-forget"
-                title="Kopie im Browser löschen; beim nächsten Start startet die App leer">
-                Kopie vergessen</button>
-            <span class="hint">Der Browser verlangt für den Dateizugriff einen Klick. Erlaubt er
-                ihn dauerhaft („Bei jedem Besuch zulassen“), verbindet sich die App künftig von
-                selbst.</span>
-        </div>
-        <div id="permission-banner" class="banner" hidden>
-            Der Browser fragt gerade „Änderungen speichern?“ („Save changes?“). Das ist nur die
-            Erlaubnis für das automatische Speichern dieser Datei – es wird noch nichts
-            gespeichert. Mit „Speichern“ bzw. „Bearbeiten erlauben“ bestätigen.
-        </div>
-        <div id="edit-banner" class="banner" hidden>
-            Editiermodus: alle Spalten sind bearbeitbar, feste Werte per Auswahlliste. Lokal
-            geänderte Stammdaten sind mit einer violetten Ecke markiert.
-        </div>
-    </div>
+    <!-- Notice area: everything to notice right now (see notices.js) -->
+    <div id="banners" aria-live="polite"></div>
 
     <!-- Collection table -->
     <main id="grid"></main>
@@ -135,6 +129,7 @@
         <div id="log-list" class="pane" hidden></div>
     </section>
     <footer>
+        <span id="status-folder"></span>
         <span id="status-file"></span>
         <span id="status-rows"></span>
         <span id="status-clipboard"></span>
@@ -161,6 +156,8 @@
 
     <!-- Scripts in fixed order: namespace, reference data, logic, user interface -->
     <script src="app/core.js"></script>
+    <script src="app/log.js"></script>
+    <script src="app/notices.js"></script>
     <script src="app/settings.js"></script>
     <script src="reference/vocab.js"></script>
     <script src="reference/info.js"></script>
@@ -173,11 +170,14 @@
     <script src="app/model.js"></script>
     <script src="app/changelog.js"></script>
     <script src="app/storage.js"></script>
+    <script src="app/diagnosis.js"></script>
+    <script src="app/grid-filter.js"></script>
     <script src="app/grid.js"></script>
     <script src="app/import-ods.js"></script>
     <script src="app/import-fabrary.js"></script>
     <script src="app/export-fabrary.js"></script>
     <script src="app/reference-update.js"></script>
+    <script src="app/tour.js"></script>
     <script src="app/app.js"></script>
 </body>
 </html>
