@@ -35,13 +35,14 @@ FCT.app = (function () {
     function $(id) { return document.getElementById(id); }
 
     /*
-     * Columns. The order is the one of the old spreadsheet; the default view shows the
-     * columns asked for in the feedback on 2.0.0.0. Widths are in em, so they follow the
-     * font size.
+     * Columns, in the order of collection.csv (model.COLUMNS), with the calculated columns
+     * after the quantities. The default view shows the columns asked for in the feedback.
+     * Widths are in em, so they follow the font size.
      */
     var DEFAULT_COLUMNS = ['Set', 'Edition', 'Id', 'Rarity', 'Talent', 'Class1', 'Class2',
-        'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Pitch', 'Playset', 'ST', 'RF', 'CF',
-        'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal', '_leftTotal'];
+        'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Art Treatment', 'Pitch', 'Playset',
+        'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
+        '_leftTotal'];
     var WIDTHS = {
         Set: 12, Edition: 5.5, Id: 5.5, 'First In': 5, Rarity: 6.5, Talent: 6.5, Class1: 7.5,
         Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5, Sub3: 4.5, Name: 16,
@@ -69,7 +70,6 @@ FCT.app = (function () {
 
         // Calculated columns follow the quantities, as in the old spreadsheet.
         var calculated = [
-            { key: '_haveThis', label: 'Have (this)', value: calc('have') },
             { key: '_haveSet', label: 'Have (set)', value: calc('haveSet') },
             { key: '_needSet', label: 'Need (set)', value: calc('needSet') },
             { key: '_leftSet', label: 'Left (set)', value: calc('leftSet') },
@@ -79,6 +79,8 @@ FCT.app = (function () {
         ].map(function (c) {
             c.numeric = true;
             c.kind = 'calc';
+            c.group = 'calc';
+            c.nowrap = true;
             c.width = CALC_WIDTH;
             return c;
         });
@@ -91,8 +93,14 @@ FCT.app = (function () {
         var all = columns.slice(0, at).concat(calculated, columns.slice(at, note),
             columns.slice(note), [types]);
 
-        // Visibility: as last chosen by the user, otherwise the default view.
+        // Visibility: as last chosen by the user, otherwise the default view. Art Treatment
+        // belongs to the default view since 2.0.4.0; a remembered choice gets it once.
         var visible = settings.get('columns', DEFAULT_COLUMNS);
+        if (!settings.get('columnsArt2040', false)) {
+            if (visible.indexOf('Art Treatment') < 0) visible = visible.concat(['Art Treatment']);
+            settings.set('columnsArt2040', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
         all.forEach(function (c) { c.hidden = visible.indexOf(c.key) < 0; });
         return all;
     }
@@ -1845,8 +1853,8 @@ FCT.app = (function () {
             title: 'Sets aufnehmen – ' + sets.length + ' Sets noch nicht im Bestand',
             body: el('div', { className: 'report take-over' }, [search, list]),
             hint: 'Alle Drucke der angehakten Sets werden als Zeilen mit leeren Mengen in den ' +
-                'Bestand aufgenommen – so lassen sie sich wie in der ODS ausfüllen. Später ' +
-                'erscheinende Drucke eines Sets tauchen automatisch als ○ auf.',
+                'Bestand aufgenommen – so lassen sie sich wie in der 1.0-Tabelle ausfüllen. ' +
+                'Später erscheinende Drucke eines Sets tauchen automatisch als ○ auf.',
             wide: true,
             buttons: [
                 { label: 'Abbrechen', value: 'cancel' },
@@ -1897,10 +1905,62 @@ FCT.app = (function () {
         } else {
             text = 'mitgeliefert, ' + date + (r.error ? ' (online nicht verfügbar)' : '');
         }
+        // Data of another branch than the default one are a preview and marked as such.
+        var preview = r.online && info.branch && info.branch !== DEFAULT_BRANCH;
+        if (preview) text = info.branch + ' (Vorschau), ' + text;
         $('reference-status').textContent = text;
-        $('reference-status').className = 'badge' + (r.online ? ' ok' : r.error ? ' warn' : '');
-        $('reference-status').title = r.error ? 'Letzter Fehler: ' + r.error : '';
+        $('reference-status').className = 'badge' + (preview ? ' warn' : r.online ? ' ok'
+            : r.error ? ' warn' : '');
+        $('reference-status').title = (preview ? 'Vorschau: Daten dieses Branches können sich ' +
+            'noch ändern. ' : '') + (r.error ? 'Letzter Fehler: ' + r.error : '');
         $('btn-reference-update').disabled = r.loading;
+        $('reference-branch').disabled = r.loading;
+    }
+
+    // Name of a set in reference tables that are not installed yet (falls back to the code).
+    function setLabel(data, code) {
+        var set = data.sets.filter(function (s) { return s[0] === code; })[0];
+        return set ? set[1] + ' (' + code + ')' : code;
+    }
+
+    /*
+     * Branch of the card data set (feedback on 2.0.3.0): new sets appear in branches of their
+     * own first (e.g. "usurp-the-shadow-throne"). The choice is remembered; the shipped data
+     * are always "develop".
+     */
+    var DEFAULT_BRANCH = FCT.referenceTransform.SOURCE_BRANCH;
+
+    function referenceBranch() {
+        return settings.get('referenceBranch', DEFAULT_BRANCH);
+    }
+
+    // Fills the branch list from GitHub; without internet the known ones are offered.
+    function loadBranches() {
+        var select = $('reference-branch');
+        function fill(names) {
+            var current = referenceBranch();
+            var list = [DEFAULT_BRANCH, 'main'].concat(names).filter(function (n, i, all) {
+                return all.indexOf(n) === i;
+            });
+            if (list.indexOf(current) < 0) list.push(current);
+            select.textContent = '';
+            list.forEach(function (name) {
+                select.appendChild(el('option', { value: name, text: name +
+                    (name === DEFAULT_BRANCH ? ' (Standard)' : '') }));
+            });
+            select.value = current;
+        }
+        fill([]);
+        return FCT.referenceUpdate.branches().then(fill, function (error) {
+            FCT.log.info('reference', 'Branches nicht abrufbar', error.message);
+        });
+    }
+
+    function chooseBranch(branch) {
+        settings.set('referenceBranch', branch);
+        FCT.log.info('reference', 'Branch gewählt', branch);
+        FCT.notices.clear('branch');
+        return updateReference(true);
     }
 
     function installBundledReference() {
@@ -1914,17 +1974,36 @@ FCT.app = (function () {
         state.reference.loading = true;
         referenceStatus();
         var started = Date.now();
-        return FCT.referenceUpdate.run().then(function (result) {
-            FCT.log.info('reference', 'Stammdaten online geladen', { commit: result.info.commit,
-                date: result.info.commitDate, cards: result.data.cards.length,
-                ms: Date.now() - started });
+        var branch = referenceBranch();
+        // Sets with printings before the update, to name the new ones afterwards. (A set can
+        // be known before its printings are, so the sets list alone does not tell.)
+        function setsWithPrintings(printings) {
+            var codes = new Set();
+            printings.forEach(function (p) { codes.add(model.setCode(p[0])); });
+            return codes;
+        }
+        var before = setsWithPrintings(FCT.reference.allPrintings());
+        var printingsBefore = FCT.reference.allPrintings().length;
+        return FCT.referenceUpdate.run(branch).then(function (result) {
+            FCT.log.info('reference', 'Stammdaten online geladen', { branch: branch,
+                commit: result.info.commit, date: result.info.commitDate,
+                cards: result.data.cards.length, ms: Date.now() - started });
+            var after = setsWithPrintings(result.data.printings);
+            var added = Array.from(after).filter(function (code) {
+                return !before.has(code);
+            }).map(function (code) { return [code, setLabel(result.data, code)]; });
             FCT.reference.install(result.data, result.info);
             state.reference = { info: result.info, online: true, loading: false, error: '' };
             referenceStatus();
             rebuild();
             if (manual) {
                 var count = differingRows().length;
-                showMessage('Stammdaten aktualisiert', result.data.sets.length + ' Sets, ' +
+                var more = result.data.printings.length - printingsBefore;
+                showMessage('Stammdaten aktualisiert', 'Branch ' + branch + ': ' + (added.length
+                    ? added.length + ' neue Sets (' + added.map(function (s) {
+                        return s[1];
+                    }).join(', ') + '), ' : '') + (more ? (more > 0 ? '+' : '') + more +
+                    ' Drucke gegenüber vorher, ' : '') + result.data.sets.length + ' Sets, ' +
                     result.data.cards.length + ' Karten, ' + result.data.printings.length +
                     ' Drucke. ' + (count
                         ? count + ' Zeilen weichen ab (≠) – „Übernehmen …“ zeigt sie.'
@@ -1937,6 +2016,16 @@ FCT.app = (function () {
             referenceStatus();
             showMessage('Stammdaten', 'Online-Aktualisierung nicht möglich: ' + error.message +
                 '. Es werden weiter die bisherigen Stammdaten verwendet.');
+            // A chosen branch that fails (e.g. deleted meanwhile) can be left at once.
+            if (branch !== DEFAULT_BRANCH) {
+                FCT.notices.show('branch', 'error', 'Die Stammdaten aus dem Branch „' + branch +
+                    '“ ließen sich nicht laden (' + error.message + '). Es gelten die ' +
+                    'bisherigen Stammdaten.', { buttons: [{ label: 'Zurück zu ' +
+                        DEFAULT_BRANCH, primary: true, onClick: function () {
+                        $('reference-branch').value = DEFAULT_BRANCH;
+                        guarded(function () { return chooseBranch(DEFAULT_BRANCH); })();
+                    } }], closable: true });
+            }
         });
     }
 
@@ -2042,7 +2131,8 @@ FCT.app = (function () {
         var data = FCT.reference.data() || { sets: [], cards: [], printings: [] };
         var lines = [
             ['Herkunft', r.online ? 'online geladen' : 'mitgeliefert (im Repository)'],
-            ['Quelle', (info.source || '') + ' (' + (info.branch || '') + ')'],
+            ['Quelle', (info.source || '') + ', Branch ' + (info.branch || DEFAULT_BRANCH) +
+                (info.branch && info.branch !== DEFAULT_BRANCH ? ' (Vorschau)' : '')],
             ['Stand (Commit)', (info.commitDate || 'unbekannt') + ' ' +
                 String(info.commit || '').slice(0, 10)],
             ['Geladen', info.loadedAt ? info.loadedAt.toLocaleString('de-DE')
@@ -2083,6 +2173,25 @@ FCT.app = (function () {
         $('font-size').value = size;
         settings.set('fontSize', size);
         if (grid) grid.setRowHeight(rowHeight);
+    }
+
+    // Card pictures at the card number: preview while hovering, large window on click.
+    function showCardImage(action, row, cell) {
+        if (action === 'leave') { FCT.cardImage.leave(); return; }
+        var caption = [row.Id, row.Name, [row.Edition, row['Art Treatment']].filter(Boolean)
+            .join(', ')].filter(Boolean).join(' · ');
+        if (action === 'hover') FCT.cardImage.hover(FCT.reference.image(row, 'normal'), cell,
+            caption);
+        else if (action === 'open') FCT.cardImage.open(FCT.reference.image(row, 'large'), caption);
+    }
+
+    // Design: 'system' follows the operating system, 'light' and 'dark' are fixed.
+    function setTheme(theme) {
+        var value = theme === 'light' || theme === 'dark' ? theme : 'system';
+        if (value === 'system') document.documentElement.removeAttribute('data-theme');
+        else document.documentElement.setAttribute('data-theme', value);
+        $('theme').value = value;
+        settings.set('theme', value);
     }
 
     function setEditMode(on) {
@@ -2174,7 +2283,14 @@ FCT.app = (function () {
             onAction: function (action, row) {
                 guarded(function () { return onAction(action, row); })();
             },
-            onView: function () { if ($('status-rows')) updateStatus(); }
+            onView: function () { if ($('status-rows')) updateStatus(); },
+            imageColumn: 'Id',
+            hasImage: function (row) { return !!FCT.reference.image(row, 'normal'); },
+            onImage: showCardImage,
+            collapsed: { calc: settings.get('calcCollapsed', false) },
+            onCollapse: function (group, value) {
+                if (group === 'calc') settings.set('calcCollapsed', value);
+            }
         });
         grid.setRowHeight(Math.round((FONT_SIZES[$('font-size').value] || 14) * 1.75));
 
@@ -2193,10 +2309,20 @@ FCT.app = (function () {
         Object.keys(actions).forEach(function (id) {
             $(id).addEventListener('click', guarded(actions[id]));
         });
-        $('search').addEventListener('input', function (e) { grid.setSearch(e.target.value); });
+        $('search').addEventListener('input', function (e) {
+            grid.setSearch(e.target.value);
+            $('search-clear').hidden = !e.target.value;
+        });
+        $('search-clear').addEventListener('click', function () {
+            $('search').value = '';
+            $('search-clear').hidden = true;
+            grid.setSearch('');
+            $('search').focus();
+        });
         $('mode').addEventListener('change', function (e) { grid.setMode(e.target.value); });
         $('btn-reset').addEventListener('click', function () {
             $('search').value = '';
+            $('search-clear').hidden = true;
             $('mode').value = 'all';
             grid.clearFilters();
         });
@@ -2227,6 +2353,11 @@ FCT.app = (function () {
         });
 
         // View settings.
+        setTheme(settings.get('theme', 'system'));
+        $('theme').addEventListener('change', function (e) {
+            setTheme(e.target.value);
+            FCT.log.debug('view', 'Design ' + e.target.value);
+        });
         $('font-size').addEventListener('change', function (e) { setFontSize(e.target.value); });
         $('messages-position').addEventListener('change', function (e) {
             setMessagesPosition(e.target.value);
@@ -2263,6 +2394,10 @@ FCT.app = (function () {
         rebuild();
         referenceStatus();
         updateReference(false);
+        loadBranches();
+        $('reference-branch').addEventListener('change', function (e) {
+            guarded(function () { return chooseBranch(e.target.value); })();
+        });
         grid.focus();
 
         // The working folder of earlier sessions, then the copy of the last collection. The

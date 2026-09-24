@@ -357,6 +357,59 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     check('Log limits', changeLog && rotation, `change log ${changeLog}, rotation ${rotation}`);
 }
 
+// Column order (2.0.4.0): table and collection.csv share one order (Pitch right before
+// Playset, Backside Name before Translated Name); files in the old order are read by name.
+{
+    const cols = FCT.model.COLUMNS;
+    const order = cols.indexOf('Pitch') === cols.indexOf('Playset') - 1 &&
+        cols.indexOf('Backside Name') === cols.indexOf('Translated Name') - 1 &&
+        cols.indexOf('Art Treatment') < cols.indexOf('Pitch');
+    const oldHeader = ['Set', 'Edition', 'Id', 'First In', 'Rarity', 'Talent', 'Class1',
+        'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Translated Name',
+        'Backside Name', 'Translated Backside Name', 'Pitch', 'Peculiarity', 'Art Treatment',
+        'Playset', 'ST', 'RF', 'CF', 'GF', 'Note', 'Overrides'];
+    const values = oldHeader.map((c) => (c === 'Id' ? 'WTR001' : c === 'Playset' ? '1'
+        : c === 'ST' ? '2' : 'v-' + c));
+    const loaded = FCT.model.fromCsv(FCT.csv.stringify([oldHeader, values]));
+    const row = loaded.collection.rows[0];
+    const readByName = row.Pitch === 'v-Pitch' && row['Translated Name'] === 'v-Translated Name' &&
+        row.ST === '2' && row.Note === 'v-Note';
+    const written = FCT.csv.parse(FCT.model.toCsv(loaded.collection))[0].join('|') ===
+        cols.join('|');
+    const noted = loaded.report.groups.some((g) => /Reihenfolge/.test(g.category));
+    const appSource = fs.readFileSync(path.join(appRoot, 'app/app.js'), 'utf8');
+    const noHaveThis = !appSource.includes('_haveThis');
+    check('Column order', order && readByName && written && noted && noHaveThis,
+        `order ${order}, old file read by name ${readByName}, written in new order ${written}, ` +
+        `noted ${noted}, "Have (this)" removed ${noHaveThis}`);
+}
+
+// Card pictures (2.0.4.0): every known row of the old spreadsheet has a picture; URLs in the
+// three sizes; full URLs of other hosts are kept.
+{
+    const t = FCT.referenceTransform;
+    const known = ods.collection.rows.filter((row) => FCT.reference.printings(row.Id).length);
+    const without = known.filter((row) => !FCT.reference.image(row, 'normal'));
+    const sample = known.find((row) => row.Id === 'MON062' && row.Edition === 'Unlimited');
+    const urls = t.imageUrl('U-MON062', 'normal').endsWith('/media/cards/normal/U-MON062.webp') &&
+        t.imageUrl('X', 'large').includes('/large/X.webp') &&
+        t.imageUrl('https://example.org/a.png', 'large') === 'https://example.org/a.png' &&
+        t.imageUrl('', 'large') === '';
+    const variant = !sample || FCT.reference.image(sample, 'large').includes('MON062');
+    check('Card pictures', without.length <= 10 && urls && variant,
+        `${known.length - without.length} of ${known.length} rows with picture, ` +
+        `urls ${urls}, variant ${variant}`);
+}
+
+// Branch of the reference data (2.0.4.0): the source URL follows the chosen branch.
+{
+    const t = FCT.referenceTransform;
+    const ok = t.sourceBase().endsWith('/flesh-and-blood-cards/develop/csvs/english/') &&
+        t.sourceBase('usurp-the-shadow-throne')
+            .endsWith('/flesh-and-blood-cards/usurp-the-shadow-throne/csvs/english/');
+    check('Reference branch URL', ok);
+}
+
 // Line length of hand-written source files (generated data files are exempt). Only source
 // files count; a collection the user saved into the app folder is not checked.
 {

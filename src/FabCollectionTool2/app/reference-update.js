@@ -1,5 +1,6 @@
 /*
- * reference-update.js - refreshes the reference data online at start-up.
+ * reference-update.js - refreshes the reference data online at start-up, from the branch of
+ * the data set the user chose (default "develop").
  *
  * The app starts immediately with the shipped reference data. In parallel, the current
  * source files are loaded from GitHub (raw.githubusercontent.com allows this even for pages
@@ -17,11 +18,11 @@ FCT.referenceUpdate = (function () {
         });
     }
 
-    // Reads the latest commit of the data set (only for display; failures are ignored).
-    function fetchCommit(signal) {
+    // Reads the latest commit of a branch (only for display; failures are ignored).
+    function fetchCommit(branch, signal) {
         var transform = FCT.referenceTransform;
         var url = 'https://api.github.com/repos/' + transform.SOURCE_REPO + '/commits/' +
-            transform.SOURCE_BRANCH;
+            encodeURIComponent(branch);
         return fetch(url, { signal: signal })
             .then(function (response) { return response.ok ? response.json() : null; })
             .then(function (json) {
@@ -30,19 +31,36 @@ FCT.referenceUpdate = (function () {
             .catch(function () { return {}; });
     }
 
+    /*
+     * Names of the branches of the data set, e.g. ["develop", "main", "usurp-the-shadow-
+     * throne"]. Uses the GitHub API (60 requests per hour without login); rejects on failure.
+     */
+    function branches() {
+        var url = 'https://api.github.com/repos/' + FCT.referenceTransform.SOURCE_REPO +
+            '/branches?per_page=100';
+        return fetch(url).then(function (response) {
+            if (!response.ok) throw new Error('Branches: HTTP ' + response.status);
+            return response.json();
+        }).then(function (list) {
+            return list.map(function (b) { return b.name; });
+        });
+    }
+
     // Main entry. Resolves with { data, info } or rejects with an error explaining why not.
-    function run() {
+    function run(branch) {
         var transform = FCT.referenceTransform;
         var controller = new AbortController();
         var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
         var files = transform.FILES;
+        var name = branch || transform.SOURCE_BRANCH;
+        var base = transform.sourceBase(name);
 
         return Promise.all([
-            fetchText(transform.SOURCE_BASE + files.set, controller.signal),
-            fetchText(transform.SOURCE_BASE + files.setPrinting, controller.signal),
-            fetchText(transform.SOURCE_BASE + files.card, controller.signal),
-            fetchText(transform.SOURCE_BASE + files.printing, controller.signal),
-            fetchCommit(controller.signal)
+            fetchText(base + files.set, controller.signal),
+            fetchText(base + files.setPrinting, controller.signal),
+            fetchText(base + files.card, controller.signal),
+            fetchText(base + files.printing, controller.signal),
+            fetchCommit(name, controller.signal)
         ]).then(function (results) {
             var data = transform.transform({
                 set: results[0], setPrinting: results[1], card: results[2],
@@ -57,7 +75,7 @@ FCT.referenceUpdate = (function () {
             }
             var info = {
                 source: transform.SOURCE_REPO,
-                branch: transform.SOURCE_BRANCH,
+                branch: name,
                 commit: results[4].commit || '',
                 commitDate: (results[4].commitDate || '').slice(0, 10),
                 online: true,
@@ -74,5 +92,5 @@ FCT.referenceUpdate = (function () {
         });
     }
 
-    return { run: run };
+    return { run: run, branches: branches };
 })();

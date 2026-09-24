@@ -23,7 +23,9 @@ FCT.grid = (function () {
         copy: '<rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1"/><path d="M3 10.5V3h7.5"/>',
         paste: '<rect x="3" y="3" width="10" height="11" rx="1"/>' +
             '<path d="M6 3V2h4v1M8 6v5M5.5 8.5L8 11l2.5-2.5"/>',
-        remove: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/>'
+        remove: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/>',
+        picture: '<rect x="2.5" y="1.5" width="11" height="13" rx="1.5"/>' +
+            '<path d="M4.5 11l2.5-3 2 2 1.5-1.5 1.5 2.5"/><circle cx="10" cy="5" r="1"/>'
     };
 
     // Icons are parsed once and then copied; parsing SVG for every row slowed down scrolling.
@@ -40,9 +42,14 @@ FCT.grid = (function () {
 
     // Creates a grid inside the container element.
     // options:
-    //   columns     [{ key, label, width (em), numeric, kind, hidden, step, list, value(row) }]
+    //   columns     [{ key, label, width (em), numeric, kind, hidden, step, list, group,
+    //                  value(row) }]
     //               kind is 'input', 'reference', 'identity' or 'calc'; list = check box
-    //               filter (fixed values) instead of a text filter
+    //               filter (fixed values) instead of a text filter; columns with the same
+    //               group can be collapsed into one narrow column; nowrap keeps the title
+    //               on one line. A column is widened where its title would not fit.
+    //   collapsed                 { group: true } groups collapsed at the start
+    //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
     //   searchKeys  keys searched by the free text search
     //   isEditable(column, row)   whether a cell may be edited
     //   choices(column)           value list for a drop-down editor, or null for free text
@@ -55,6 +62,9 @@ FCT.grid = (function () {
     //   groupNames(row)           [level 1 name, level 2 name] for the accordion
     //   setInfo(name, rows)       { label, date } of a level 1 group (title and release date)
     //   matchesMode(row, mode)    extra quick filters of the application
+    //   imageColumn               key of the column that shows card pictures (e.g. 'Id')
+    //   hasImage(row)             whether a row has a card picture
+    //   onImage(action, row, td)  'hover' (show preview), 'leave' (hide it), 'open' (large)
     //   onEdit(row, key, text), onAction(action, row), onView(count)
     function create(container, options) {
         var columns = options.columns;
@@ -74,6 +84,7 @@ FCT.grid = (function () {
         var filterOpen = new Map();     // the same while a search or filter is active
         var groupKeys = [];             // keys of all groups of the current rows
         var pinned = new Set();         // rows shown regardless of filters (just inserted)
+        var collapsed = Object.assign({}, options.collapsed || {});  // collapsed groups
         var rowHeight = 24;
         var editor = null;
         var renderPending = false;
@@ -91,6 +102,7 @@ FCT.grid = (function () {
         scroller.addEventListener('scroll', function () {
             watchScroll();
             scheduleScroll();
+            if (options.onImage) options.onImage('leave');
         });
 
         // Diagnosis of the scroll jump reported on 2.0.2.0: a jump of more than one screen
@@ -114,6 +126,35 @@ FCT.grid = (function () {
         window.addEventListener('resize', scheduleRender);
 
         /*
+         * Column widths: the configured width, widened where the title would not fit - the
+         * whole title for nowrap columns, otherwise its longest word (titles may wrap between
+         * words, never inside one). Measured once in em, so it follows the font size.
+         */
+        var fitted = {};
+        var measure = null;
+
+        function widthOf(column) {
+            if (column.placeholder) return column.width;
+            if (fitted[column.key] == null) {
+                if (!measure) measure = document.createElement('canvas').getContext('2d');
+                var style = window.getComputedStyle(table);
+                var size = parseFloat(style.fontSize) || 14;
+                measure.font = '700 ' + size + 'px ' + style.fontFamily;
+                var parts = column.nowrap ? [column.label] : String(column.label).split(/\s+/);
+                var text = Math.max.apply(null, parts.map(function (part) {
+                    return measure.measureText(part).width;
+                }));
+                // Padding left (5px), sort marker at the right (1.3em), the collapse button of
+                // a group's first column, and a little air.
+                var extra = 5 / size + 1.3 + (column.group && firstOfGroup(column) ? 1.9 : 0) +
+                    0.3;
+                fitted[column.key] = Math.max(column.width,
+                    Math.ceil((text / size + extra) * 10) / 10);
+            }
+            return fitted[column.key];
+        }
+
+        /*
          * Header: labels with sorting, one filter input per column
          */
         function buildHeader() {
@@ -132,23 +173,51 @@ FCT.grid = (function () {
             // layout really hold, and columns no longer jump while scrolling.
             var total = STATUS_WIDTH + ACTIONS_WIDTH;
             visibleColumns().forEach(function (column) {
-                total += column.width;
-                colgroup.appendChild(el('col', { style: 'width:' + column.width + 'em' }));
+                var width = widthOf(column);
+                total += width;
+                colgroup.appendChild(el('col', { style: 'width:' + width + 'em' }));
 
                 var active = sort.key === column.key;
                 var marker = el('span', {
                     className: 'sort' + (active ? ' active' : ''),
                     text: active ? (sort.dir > 0 ? '▲' : '▼') : '⇅'
                 });
+                // A collapsed group shows one narrow column that expands it again.
+                if (column.placeholder) {
+                    headRow.appendChild(el('th', { className: 'group-expand' }, [
+                        el('button', { type: 'button', className: 'group-toggle',
+                            title: column.title, text: 'Σ ▸',
+                            onclick: function () { setCollapsed(column.group, false); } })
+                    ]));
+                    filterRow.appendChild(el('th'));
+                    return;
+                }
+
+                // The first column of a group can collapse the whole group.
+                var toggle = null;
+                if (column.group && firstOfGroup(column)) {
+                    toggle = el('button', { type: 'button', className: 'group-toggle',
+                        title: 'Rechenspalten einklappen', text: '◂',
+                        onclick: function (event) {
+                            event.stopPropagation();
+                            setCollapsed(column.group, true);
+                        } });
+                }
                 headRow.appendChild(el('th', {
                     title: column.label + ' – klicken zum Sortieren (auf, ab, aus)',
-                    className: 'sortable ' + (column.numeric ? 'num' : ''),
+                    className: 'sortable ' + (column.numeric ? 'num' : '') +
+                        (toggle ? ' has-toggle' : '') + (column.nowrap ? ' nowrap' : ''),
                     onclick: function () { toggleSort(column.key); }
-                }, [el('span', { className: 'label', text: column.label }), marker]));
+                }, [toggle, el('span', { className: 'label', text: column.label }), marker]));
 
                 if (column.list) {
                     filterRow.appendChild(el('th', { className: checks[column.key]
-                        ? 'filtered' : '' }, [listButton(column, false)]));
+                        ? 'filtered' : '' }, [listButton(column, false), clearButton(function () {
+                        delete checks[column.key];
+                        filterChanged();
+                        buildHeader();
+                        applyView();
+                    })]));
                     return;
                 }
                 var input = el('input', {
@@ -165,10 +234,18 @@ FCT.grid = (function () {
                         applyView();
                     }
                 });
-                filterRow.appendChild(el('th', { className: filters[column.key] &&
-                    filters[column.key].trim() ? 'filtered' : '' }, [input]));
-                input.addEventListener('change', function () {
-                    input.parentNode.classList.toggle('filtered', !!input.value.trim());
+                var clear = clearButton(function () {
+                    input.value = '';
+                    filters[column.key] = '';
+                    cell.classList.remove('filtered');
+                    filterChanged();
+                    applyView();
+                });
+                var cell = el('th', { className: filters[column.key] &&
+                    filters[column.key].trim() ? 'filtered' : '' }, [input, clear]);
+                filterRow.appendChild(cell);
+                input.addEventListener('input', function () {
+                    cell.classList.toggle('filtered', !!input.value.trim());
                 });
             });
 
@@ -179,6 +256,41 @@ FCT.grid = (function () {
             table.style.width = total + 'em';
         }
 
+        // Small × that clears the filter of its cell; shown while the filter is active.
+        function clearButton(onClear) {
+            return el('button', { type: 'button', className: 'filter-clear', tabindex: '-1',
+                title: 'Filter löschen', text: '×',
+                onclick: function (event) {
+                    event.stopPropagation();
+                    onClear();
+                } });
+        }
+
+        /*
+         * Column groups (the calculated columns): collapsed into one narrow column, which
+         * expands them again. The state is remembered by the application (onCollapse).
+         */
+        function firstOfGroup(column) {
+            var members = columns.filter(function (c) {
+                return c.group === column.group && !c.hidden;
+            });
+            return members[0] === column;
+        }
+
+        function setCollapsed(group, value) {
+            collapsed[group] = value;
+            if (options.onCollapse) options.onCollapse(group, value);
+            buildHeader();
+            keepCursorColumn();
+            render();
+        }
+
+        // The cursor never stays in a column that is not shown any more.
+        function keepCursorColumn() {
+            var keys = cursorColumns().map(function (c) { return c.key; });
+            if (cursor.key && keys.indexOf(cursor.key) < 0) cursor.key = keys[0] || null;
+        }
+
         /*
          * Check box filters (see grid-filter.js). The list shows the values of the rows that
          * pass all other filters, with their number of rows.
@@ -186,7 +298,7 @@ FCT.grid = (function () {
         function listButton(column, compact) {
             var active = checks[column.key];
             var button = el('button', { type: 'button', className: 'list-filter',
-                title: 'Werte zum Anzeigen auswählen (wie der Autofilter der ODS)',
+                title: 'Werte zum Anzeigen auswählen (wie der Autofilter der 1.0-Tabelle)',
                 text: compact ? '▾' : (active ? active.size + ' gewählt ▾' : 'Alle ▾') });
             button.addEventListener('click', function () {
                 FCT.gridFilter.open({
@@ -252,8 +364,24 @@ FCT.grid = (function () {
             });
         }
 
+        // Columns shown, with a collapsed group replaced by one narrow placeholder column.
         function visibleColumns() {
-            return columns.filter(function (c) { return !c.hidden; });
+            var result = [];
+            columns.forEach(function (c) {
+                if (c.hidden) return;
+                if (!c.group || !collapsed[c.group]) { result.push(c); return; }
+                if (firstOfGroup(c)) {
+                    result.push({ key: '_group_' + c.group, label: 'Σ', width: 3,
+                        kind: 'calc', group: c.group, placeholder: true,
+                        title: 'Rechenspalten einblenden (Have / Need / Left)' });
+                }
+            });
+            return result;
+        }
+
+        // Columns the cell cursor can stand in (not a collapsed group).
+        function cursorColumns() {
+            return visibleColumns().filter(function (c) { return !c.placeholder; });
         }
 
         function columnByKey(key) {
@@ -541,6 +669,7 @@ FCT.grid = (function () {
         // step made scrolling sluggish: the browser has to lay out ~1,500 cells each time.
         var rendered = { first: 0, last: 0 };
         var headHeight = 0;
+        var renderedHead = 0;         // height of the label row, for the sticky filter row
         var MARGIN = 5;
 
         function scheduleScroll() {
@@ -575,6 +704,11 @@ FCT.grid = (function () {
             var cols = visibleColumns();
             var span = cols.length + 2;
             headHeight = table.tHead.offsetHeight;
+            var labelHeight = headRow.offsetHeight;
+            if (labelHeight && labelHeight !== renderedHead) {
+                renderedHead = labelHeight;
+                table.style.setProperty('--head-height', labelHeight + 'px');
+            }
             var viewport = scroller.clientHeight - headHeight;
             var first = Math.max(0, Math.floor(scroller.scrollTop / rowHeight) - OVERSCAN);
             var count = Math.ceil(viewport / rowHeight) + 2 * OVERSCAN;
@@ -665,7 +799,11 @@ FCT.grid = (function () {
             if (mark && mark.className) classes.push(mark.className);
 
             var title = mark && mark.title ? text + '\n' + mark.title : text;
-            var td = el('td', { className: classes.join(' '), title: title || null });
+            var picture = column.key === options.imageColumn && options.hasImage &&
+                options.hasImage(row);
+            if (picture) classes.push('has-image');
+            var td = el('td', { className: classes.join(' '),
+                title: picture ? null : title || null });
             td._column = column;
             if (column.step && editable && isCursor) {
                 // "-" and "+" only in the active cell (also Shift+Down / Shift+Up).
@@ -679,6 +817,13 @@ FCT.grid = (function () {
                     text: '+' }));
             } else {
                 td.textContent = text;
+            }
+            // Card picture: a symbol shows that hovering and clicking show the card.
+            if (picture) {
+                var symbol = icon('picture');
+                symbol.classList.add('card-icon');
+                symbol.title = 'Kartenbild: überfahren = Vorschau, Klick = groß';
+                td.appendChild(symbol);
             }
             return td;
         }
@@ -713,14 +858,14 @@ FCT.grid = (function () {
         function setCursor(item, key, scroll) {
             cursor.item = item || null;
             if (key) cursor.key = key;
-            if (!cursor.key) cursor.key = (visibleColumns()[0] || {}).key || null;
+            if (!cursor.key) cursor.key = (cursorColumns()[0] || {}).key || null;
             if (scroll) scrollToCursor();
             render();
         }
 
         // Moves the cursor by rows and columns; columns wrap into the next or previous row.
         function moveCursor(dRow, dCol, wrap) {
-            var cols = visibleColumns();
+            var cols = cursorColumns();
             if (!viewRows.length || !cols.length) return;
             var index = cursorIndex();
             if (index < 0) {
@@ -749,9 +894,10 @@ FCT.grid = (function () {
             var left = STATUS_WIDTH * em;
             var cols = visibleColumns();
             for (var i = 0; i < cols.length && cols[i].key !== cursor.key; i++) {
-                left += cols[i].width * em;
+                left += widthOf(cols[i]) * em;
             }
-            var width = (columnByKey(cursor.key) || { width: 5 }).width * em;
+            var column = columnByKey(cursor.key);
+            var width = (column ? widthOf(column) : 5) * em;
             var viewLeft = scroller.scrollLeft + STATUS_WIDTH * em;
             var viewRight = scroller.scrollLeft + scroller.clientWidth - ACTIONS_WIDTH * em;
             if (left < viewLeft) scroller.scrollLeft = left - STATUS_WIDTH * em;
@@ -816,12 +962,26 @@ FCT.grid = (function () {
             // to an element that is no longer in the page (the bug of 2.0.2.0).
             var td = event.target.closest('td');
             var tr = event.target.closest('tr');
-            if (event.detail >= 2 && td && td._column && tr && tr._row &&
+            if (event.detail >= 2 && td && td._column && !td._column.placeholder &&
+                tr && tr._row &&
                 !event.target.closest('button')) {
                 cursor.item = tr._row;
                 cursor.key = td._column.key;
                 if (cursorEditable()) startEdit(null, true);
             }
+        });
+
+        // Card pictures: preview while hovering over the picture column.
+        tbody.addEventListener('mouseover', function (event) {
+            if (!options.onImage) return;
+            var td = event.target.closest('td.has-image');
+            var tr = td && td.parentNode;
+            if (td && tr._row && !editor) options.onImage('hover', tr._row, td);
+        });
+        tbody.addEventListener('mouseout', function (event) {
+            if (!options.onImage) return;
+            var td = event.target.closest('td.has-image');
+            if (td && !td.contains(event.relatedTarget)) options.onImage('leave');
         });
 
         tbody.addEventListener('click', function (event) {
@@ -855,7 +1015,17 @@ FCT.grid = (function () {
                 step(tr._row, td._column, parseInt(button.getAttribute('data-step'), 10));
                 return;
             }
-            if (!td || !td._column) return;
+            if (!td || !td._column || td._column.placeholder) return;
+
+            // Card picture: the symbol always opens it; a click on the card number too, unless
+            // the number is editable (edit mode), where the click edits as everywhere else.
+            if (td.classList.contains('has-image') && options.onImage &&
+                (event.target.closest('.card-icon') ||
+                    !options.isEditable(td._column, tr._row))) {
+                setCursor(tr._row, td._column.key, false);
+                options.onImage('open', tr._row, td);
+                return;
+            }
 
             // A click on the active cell edits it (as in the spreadsheet); a click on another
             // cell moves the cursor there.
@@ -900,16 +1070,16 @@ FCT.grid = (function () {
             } else if (key === 'Tab') {
                 moveCursor(0, e.shiftKey ? -1 : 1, true);
             } else if (key === 'Home' && e.ctrlKey) {
-                if (viewRows.length) setCursor(viewRows[0], visibleColumns()[0].key, true);
+                if (viewRows.length) setCursor(viewRows[0], cursorColumns()[0].key, true);
             } else if (key === 'End' && e.ctrlKey) {
-                var cols = visibleColumns();
+                var cols = cursorColumns();
                 if (viewRows.length) {
                     setCursor(viewRows[viewRows.length - 1], cols[cols.length - 1].key, true);
                 }
             } else if (key === 'Home') {
-                moveCursor(0, -visibleColumns().length);
+                moveCursor(0, -cursorColumns().length);
             } else if (key === 'End') {
-                moveCursor(0, visibleColumns().length);
+                moveCursor(0, cursorColumns().length);
             } else if (key === 'PageDown') {
                 moveCursor(pageRows(), 0);
             } else if (key === 'PageUp') {
@@ -1051,6 +1221,7 @@ FCT.grid = (function () {
             },
             setColumnHidden: function (key, hidden) {
                 columns.forEach(function (c) { if (c.key === key) c.hidden = hidden; });
+                fitted = {};    // the first column of a group may have changed
                 buildHeader();
                 render();
             },

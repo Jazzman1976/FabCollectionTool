@@ -39,7 +39,7 @@ FCT.reference = (function () {
             var card = cards.get(p[6]) || { name: '', pitch: '', types: '' };
             var printing = {
                 id: p[0], setCode: p[1], edition: p[2], art: p[3], rarity: p[4],
-                foilings: p[5], card: card
+                foilings: p[5], card: card, image: p[7] || ''
             };
             if (!printingsById.has(printing.id)) printingsById.set(printing.id, []);
             printingsById.get(printing.id).push(printing);
@@ -115,10 +115,12 @@ FCT.reference = (function () {
         };
     }
 
-    // Values the reference data expects for a collection row, or null if its card number is
-    // unknown. The printing is found by card number, edition and art treatment; for cards with
-    // two faces the face is chosen by the row's name.
-    function expected(row) {
+    /*
+     * The printing of a collection row: { front, back } (back only for cards with two faces),
+     * or null if its card number is unknown. The printing is found by card number, edition
+     * and art treatment; for cards with two faces the face is chosen by the row's name.
+     */
+    function printingOf(row) {
         var list = printings(row.Id);
         if (!list.length) return null;
         var vocab = FCT.DATA.vocab;
@@ -144,6 +146,22 @@ FCT.reference = (function () {
         var back = faces.filter(function (p) {
             return p !== front && p.card.name !== front.card.name;
         })[0];
+        return { front: front, back: back || null };
+    }
+
+    // URL of the card image of a row ('small', 'normal' or 'large'), or '' if there is none.
+    function image(row, size) {
+        var found = row && row.Id ? printingOf(row) : null;
+        return found ? FCT.referenceTransform.imageUrl(found.front.image, size) : '';
+    }
+
+    // Values the reference data expects for a collection row, or null if its card number is
+    // unknown (see printingOf).
+    function expected(row) {
+        var found = printingOf(row);
+        if (!found) return null;
+        var front = found.front;
+        var back = found.back;
 
         // The split of the type line is cached on the card, it is needed for every row.
         var card = front.card;
@@ -169,6 +187,7 @@ FCT.reference = (function () {
         splitTypes: splitTypes,
         playset: playset,
         expected: expected,
+        image: image,
         info: function () { return state ? state.info : null; },
         data: function () { return state ? state.data : null; },
         allPrintings: function () { return state ? state.data.printings : []; }
@@ -181,11 +200,13 @@ FCT.reference = (function () {
 FCT.model = (function () {
     var util = FCT.util;
 
-    // Columns of collection.csv, in file order. Same names as in the old spreadsheet.
+    // Columns of collection.csv, in file order. Same names as in the old spreadsheet. The
+    // table of the app shows them in exactly this order, so that the file reads the same in
+    // external tools (decided 24.09.2026); files in another order are read by column name.
     var COLUMNS = [
         'Set', 'Edition', 'Id', 'First In', 'Rarity', 'Talent', 'Class1', 'Class2', 'Type1',
-        'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Translated Name', 'Backside Name',
-        'Translated Backside Name', 'Pitch', 'Peculiarity', 'Art Treatment', 'Playset', 'ST',
+        'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name', 'Translated Name',
+        'Translated Backside Name', 'Peculiarity', 'Art Treatment', 'Pitch', 'Playset', 'ST',
         'RF', 'CF', 'GF', 'Note', 'Overrides'
     ];
     var QUANTITIES = ['ST', 'RF', 'CF', 'GF'];
@@ -354,6 +375,14 @@ FCT.model = (function () {
         collection.extraColumns.forEach(function (name) {
             report.add('info', 'Zusätzliche Spalte wird unverändert mitgeführt', name);
         });
+        // Files of earlier versions have the columns in another order; the next save
+        // writes the current order.
+        var known = table.header.filter(function (name) { return COLUMNS.indexOf(name) >= 0; });
+        var expectedOrder = COLUMNS.filter(function (name) { return known.indexOf(name) >= 0; });
+        if (known.join('|') !== expectedOrder.join('|')) {
+            report.add('info', 'Spalten stehen in älterer Reihenfolge; beim nächsten ' +
+                'Speichern wird die Reihenfolge der Tabelle übernommen');
+        }
         COLUMNS.forEach(function (name) {
             // Files of version 2.0.0.0 have no "Overrides" column yet; that is expected.
             if (table.header.indexOf(name) < 0 && name !== OVERRIDES) {

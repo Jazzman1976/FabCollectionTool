@@ -41,7 +41,10 @@ FCT.importOds = (function () {
         for (var i = bytes.length - 22; i >= stop; i--) {
             if (view.getUint32(i, true) === 0x06054b50) { end = i; break; }
         }
-        if (end < 0) return Promise.reject(new Error('Keine gültige ODS-Datei (kein ZIP)'));
+        if (end < 0) {
+            return Promise.reject(new Error('Keine gültige FabCollectionTool-1.0-Tabelle ' +
+                '(kein ZIP)'));
+        }
 
         // Walk through the central directory until the wanted file is found.
         var count = view.getUint16(end + 10, true);
@@ -68,7 +71,7 @@ FCT.importOds = (function () {
             }
             pos += 46 + nameLength + extraLength + commentLength;
         }
-        return Promise.reject(new Error(wantedName + ' nicht in der ODS-Datei gefunden'));
+        return Promise.reject(new Error(wantedName + ' nicht in der Tabellendatei gefunden'));
     }
 
     /*
@@ -201,7 +204,7 @@ FCT.importOds = (function () {
 
     // Converts the tables of the spreadsheet into a collection and a report.
     function toCollection(tables) {
-        var report = FCT.createReport('Import aus ODS');
+        var report = FCT.createReport('Import aus der FabCollectionTool-1.0-Tabelle');
         var model = FCT.model;
         var collection = model.create();
 

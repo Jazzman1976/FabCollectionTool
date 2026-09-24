@@ -9,21 +9,45 @@ FCT.referenceTransform = (function () {
 
     // Where the source files live online, and which columns each of them must provide.
     var SOURCE_REPO = 'the-fab-cube/flesh-and-blood-cards';
-    var SOURCE_BRANCH = 'develop';
-    var SOURCE_BASE = 'https://raw.githubusercontent.com/' + SOURCE_REPO + '/' +
-        SOURCE_BRANCH + '/csvs/english/';
+    var SOURCE_BRANCH = 'develop';     // default branch; the shipped data come from it
+
+    // Folder of the source files in a branch (new sets appear in branches of their own first).
+    function sourceBase(branch) {
+        return 'https://raw.githubusercontent.com/' + SOURCE_REPO + '/' +
+            encodeURIComponent(branch || SOURCE_BRANCH) + '/csvs/english/';
+    }
     var REQUIRED = {
         set: ['Unique ID', 'Identifier', 'Name'],
         setPrinting: ['Set Unique ID', 'Initial Release Date'],
         card: ['Unique ID', 'Name', 'Pitch', 'Types', 'Card Keywords'],
         printing: ['Card Unique ID', 'Card ID', 'Set ID', 'Edition', 'Rarity', 'Foiling',
-            'Art Variations']
+            'Art Variations', 'Image URL']
     };
     var FILES = {
         set: 'set.csv', setPrinting: 'set-printing.csv', card: 'card.csv',
         printing: 'card-printing.csv'
     };
     var FOILING_ORDER = 'SRCG';
+
+    // Card images: almost all lie in one place in three sizes (small, normal, large). For
+    // those only the file name is kept (e.g. "1HP001"); other images keep their full URL.
+    var IMAGE_BASE = 'https://legendstory-production-s3-public.s3.amazonaws.com/media/cards/';
+    var IMAGE_LARGE = IMAGE_BASE + 'large/';
+
+    function imageKey(url) {
+        var text = String(url || '').trim();
+        var name = text.slice(IMAGE_LARGE.length, -'.webp'.length);
+        var usual = text.indexOf(IMAGE_LARGE) === 0 && /\.webp$/.test(text) && !!name &&
+            !/[/%]/.test(name);
+        return usual ? name : text;
+    }
+
+    // URL of a card image in a size ('small', 'normal' or 'large') from its key.
+    function imageUrl(key, size) {
+        if (!key) return '';
+        if (/^https?:/.test(key)) return key;
+        return IMAGE_BASE + (size || 'large') + '/' + encodeURIComponent(key) + '.webp';
+    }
 
     // Parses one tab separated source file and checks that the required columns exist.
     function readTable(name, text) {
@@ -95,13 +119,17 @@ FCT.referenceTransform = (function () {
             var key = [id, row.Edition, row['Art Variations'], row['Card Unique ID']].join('|');
             var group = groups[key];
             if (!group) {
-                group = { row: row, id: id, foilings: {}, rarityByFoiling: {} };
+                group = { row: row, id: id, foilings: {}, rarityByFoiling: {},
+                    imageByFoiling: {} };
                 groups[key] = group;
                 order.push(key);
             }
             var foiling = row.Foiling || 'S';
             group.foilings[foiling] = true;
             if (!group.rarityByFoiling[foiling]) group.rarityByFoiling[foiling] = row.Rarity;
+            if (!group.imageByFoiling[foiling] && row['Image URL']) {
+                group.imageByFoiling[foiling] = imageKey(row['Image URL']);
+            }
         });
 
         var printings = order.map(function (key) {
@@ -110,8 +138,10 @@ FCT.referenceTransform = (function () {
                 return group.foilings[f];
             }).join('');
 
-            // The rarity of the most basic foiling describes the printing best.
+            // The rarity and image of the most basic foiling describe the printing best.
             var rarityCode = group.rarityByFoiling[foilings[0]] || group.row.Rarity;
+            var image = group.imageByFoiling[foilings[0]] || Object.keys(group.imageByFoiling)
+                .map(function (f) { return group.imageByFoiling[f]; })[0] || '';
             return [
                 group.id,
                 group.row['Set ID'].trim(),
@@ -119,7 +149,8 @@ FCT.referenceTransform = (function () {
                 artLabel(group.row['Art Variations']),
                 label(vocab.rarityCodes, rarityCode),
                 foilings,
-                group.row['Card Unique ID']
+                group.row['Card Unique ID'],
+                image
             ];
         }).sort(function (a, b) {
             var ka = a.join('|');
@@ -133,7 +164,8 @@ FCT.referenceTransform = (function () {
     return {
         SOURCE_REPO: SOURCE_REPO,
         SOURCE_BRANCH: SOURCE_BRANCH,
-        SOURCE_BASE: SOURCE_BASE,
+        sourceBase: sourceBase,
+        imageUrl: imageUrl,
         FILES: FILES,
         transform: transform
     };

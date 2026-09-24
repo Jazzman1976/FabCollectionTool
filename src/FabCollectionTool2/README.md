@@ -1,4 +1,4 @@
-# FabCollectionTool 2.0.3.0
+# FabCollectionTool 2.0.4.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -11,20 +11,25 @@ eine kurze Tour (wiederholbar über *Hilfe → Tutorial*).
 
 **Die ausführliche Anleitung für Anwender steht in [`doku.html`](doku.html)** (in der App:
 *Hilfe → Dokumentation*): Arbeitsordner und Speichern, Spalten, Tastatur, Status und
-Editiermodus, Filter mit Häkchen und Platzhaltern, Gliederung, Sets aufnehmen, Stammdaten,
-Protokoll und Rückgängig, Import/Export, Backup, Diagnose, häufige Fragen.
+Kartenbilder, Editiermodus, Filter mit Häkchen und Platzhaltern, Gliederung, Sets aufnehmen,
+Stammdaten mit Branch-Auswahl, Protokoll und Rückgängig, Import/Export, Backup, Diagnose,
+häufige Fragen.
 
 ## Überblick
 
 | Bereich | Funktion |
 |---|---|
 | **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets aufnehmen …* |
-| **Import / Export** | ODS (altes Calc-File), Fabrary |
-| **Stammdaten** | Stand, *Aktualisieren*, *Übernehmen …* (je Karte), *Info* |
-| **Ansicht** | Schriftgröße, Lage der Meldungen, *Editiermodus* |
+| **Import / Export** | ODS (die FabCollectionTool-1.0-Tabelle), Fabrary |
+| **Stammdaten** | Branch des Datensatzes, Stand, *Aktualisieren*, *Übernehmen …* (je Karte), *Info* |
+| **Ansicht** | Design (System, Hell, Dunkel), Schriftgröße, Lage der Meldungen, *Editiermodus* |
 | **Hilfe** | *Tutorial*, *Dokumentation*, *Diagnose* (Log herunterladen) |
 | **Filter** | Suche, Schnellfilter, *Spalten*, *Filter zurücksetzen*; in der Tabelle Häkchen- und Textfilter je Spalte |
 | **Gliederung** | Gruppierung, Reihenfolge der Sets, Ebenen **1** / **2** / **3** |
+
+In der Tabelle: Kartenbilder an der Kartennummer (Vorschau beim Überfahren, groß per Klick; die
+Bilder lädt der Browser aus dem Internet), einklappbarer Block der Rechenspalten, × zum Löschen
+eines Filters.
 
 Die Stammdaten (Karten, Drucke, Sets) lädt die Anwendung beim Start automatisch aus dem offenen
 Datensatz [the-fab-cube/flesh-and-blood-cards](https://github.com/the-fab-cube/flesh-and-blood-cards);
@@ -39,8 +44,8 @@ ohne Internet gelten die mitgelieferten in `reference/`.
 - **Browser** (IndexedDB): eine Kopie des letzten Bestands mit Protokoll, die Verweise auf Datei
   und Ordner, die Autosave-Entscheidung und die letzten 2.000 Diagnose-Einträge. Die Datei
   bleibt das Original.
-- **Browser** (localStorage): nur Ansichtseinstellungen (Spalten, Schrift, Gliederung,
-  Tutorial gesehen).
+- **Browser** (localStorage): nur Ansichtseinstellungen (Design, Spalten, eingeklappter
+  Rechenblock, Branch der Stammdaten, Schrift, Gliederung, Tutorial gesehen).
 - **Firefox** speichert Bestand und Protokoll als Download.
 
 **Nutzerdaten gehören nicht ins Repository.** Die `.gitignore` in diesem Ordner schließt `*.csv`
@@ -54,11 +59,14 @@ CSV nach RFC 4180, UTF-8, jedes Feld in Anführungszeichen, eine Zeile je Druckv
 
 ```
 Set,Edition,Id,First In,Rarity,Talent,Class1,Class2,Type1,Type2,Sub1,Sub2,Sub3,Name,
-Translated Name,Backside Name,Translated Backside Name,Pitch,Peculiarity,Art Treatment,
+Backside Name,Translated Name,Translated Backside Name,Peculiarity,Art Treatment,Pitch,
 Playset,ST,RF,CF,GF,Note,Overrides
 ```
 
-(im Original eine Zeile). `ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
+(im Original eine Zeile). Die Reihenfolge ist **dieselbe wie in der Tabelle der Anwendung**
+(ohne die berechneten Spalten), damit die Datei in externen Tools genauso aussieht. Dateien
+älterer Versionen mit anderer Reihenfolge werden über die Spaltennamen gelesen; beim nächsten
+Speichern schreibt die Anwendung die aktuelle Reihenfolge. `ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
 Cold, Gold). `Edition` ist eine Edition (`Alpha`, `First`, `Unlimited`) oder eine Sprache (`EN`,
 `DE`, …). Alle Werte bleiben so erhalten, wie sie in der Datei stehen; ungültige Zahlen werden
 gemeldet und rot markiert, aber nicht verändert. Zusätzliche Spalten bleiben erhalten.
@@ -87,6 +95,8 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
 ## Grenzen dieser Fassung
 
 - Imports ersetzen den geöffneten Bestand (kein Zusammenführen).
+- Recherche zu weiteren Spalten (Talent1/2, Cost, Power, Keywords, Artist, …):
+  `docs/Recherche-Spalten-2.0.4.0.md`.
 - Das Fabrary-Skelett wird mitgeliefert und nicht online aktualisiert. Ganz neue Drucke
   exportiert erst eine neuere Fassung des Skeletts (siehe `reference/README.md`).
 - Cardmarket, Dragon Shield und TCGplayer folgen später.
@@ -96,9 +106,11 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
 Klassische Skripte ohne Build-Schritt (ES-Module sind unter `file://` gesperrt), Reihenfolge
 in `index.html`: `core.js` (Namensraum, Hilfen), `log.js` (Diagnose-Log), `notices.js`
 (Hinweisbereich), `settings.js`, `reference/*.js` (Stammdaten), `csv.js`,
-`reference-transform.js`, `model.js` (Bestand, Stammdatenabgleich, Berechnung),
+`reference-transform.js` (Umwandlung, Branch-URL, Bild-URLs), `model.js` (Bestand,
+Stammdatenabgleich, Berechnung),
 `changelog.js`, `storage.js` (Dateien, Arbeitsordner, IndexedDB), `diagnosis.js` (Log-Datei
-mit Rotation), `grid-filter.js` und `grid.js` (Tabelle), Importe/Exporte,
+mit Rotation), `grid-filter.js`, `card-image.js` (Kartenbilder) und `grid.js` (Tabelle),
+Importe/Exporte,
 `reference-update.js`, `tour.js` (Tutorial), `app.js` (Oberfläche).
 
 ## Wartung
@@ -110,5 +122,6 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
   Round-Trip, Skelett ohne Mengen, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
   Gruppen, Änderungsprotokoll, Erscheinungsdaten, Lückenfüllung, Übernehmen ohne Änderung
   des Bestands, Wertelisten, Platzhalter, Sets aufnehmen, Playset, bearbeitbare Zellen,
-  Grenzen von Protokoll und Diagnose-Log, Zeilenlänge):
+  Grenzen von Protokoll und Diagnose-Log, Spaltenreihenfolge, Kartenbilder, Branch-URL,
+  Zeilenlänge):
   `node tools/selftest.mjs <altes.ods> <fabrary-export.csv> [Ordner mit Quell-CSVs]`

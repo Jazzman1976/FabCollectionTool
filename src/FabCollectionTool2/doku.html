@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
     <link rel="stylesheet" href="app/style.css">
+    <!-- Design (System, Hell, Dunkel) before the first paint, so that nothing flashes -->
+    <script>
+        try {
+            var theme = JSON.parse(localStorage.getItem('fct2.theme') || '"system"');
+            if (theme === 'light' || theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        } catch (e) { /* storage blocked: the design follows the system */ }
+    </script>
     <style>
         /* Documentation page: colours from style.css, a readable column with a side index */
         body.doc {
@@ -123,6 +132,7 @@
             <li><a href="#start">Erste Schritte</a></li>
             <li><a href="#ordner">Arbeitsordner und Speichern</a></li>
             <li><a href="#tabelle">Die Tabelle und ihre Spalten</a></li>
+            <li><a href="#bilder">Kartenbilder</a></li>
             <li><a href="#bearbeiten">Bearbeiten und Tastatur</a></li>
             <li><a href="#status">Status, Abweichungen, Editiermodus</a></li>
             <li><a href="#filter">Suchen und Filtern</a></li>
@@ -152,8 +162,9 @@
             wiederholen.</p>
         <p>So kommt dein Bestand in die Anwendung:</p>
         <ul>
-            <li><strong>Du hast das alte Calc-File (.ods):</strong> <em>Import → ODS</em>, Datei
-                wählen, Vorschau prüfen, <em>Übernehmen</em>, dann <em>Speichern</em>. Siehe
+            <li><strong>Du hast die FabCollectionTool-1.0-Tabelle:</strong> <em>Import →
+                ODS</em>, Datei wählen, Vorschau prüfen, <em>Übernehmen</em>, dann
+                <em>Speichern</em>. Siehe
                 <a href="#import">Import und Export</a>.</li>
             <li><strong>Du hast einen Fabrary-Export:</strong> <em>Import → Fabrary</em>.</li>
             <li><strong>Du hast schon eine <code>collection.csv</code>:</strong>
@@ -229,32 +240,35 @@
         <h2 id="tabelle">3. Die Tabelle und ihre Spalten</h2>
         <p>Jede Zeile ist eine <strong>Druckvariante</strong> einer Karte: dieselbe
             Kartennummer in anderer Edition, Sprache oder Art Treatment ist eine eigene Zeile.
-            Die Mengen stehen nebeneinander je Foiling – wie in der ODS.</p>
+            Die Mengen stehen nebeneinander je Foiling – wie in der 1.0-Tabelle. Die Spalten
+            stehen in derselben Reihenfolge wie in der gespeicherten <code>collection.csv</code>,
+            damit du die Datei auch in anderen Programmen wiedererkennst.</p>
         <table>
             <tr><th>Spalte</th><th>Bedeutung</th></tr>
             <tr><td>Set</td><td>Name des Sets, z. B. „Monarch“</td></tr>
             <tr><td>Edition</td><td>Sammler-Edition (Alpha, First, Unlimited) oder Sprache (EN,
                 DE, …)</td></tr>
             <tr><td>Id</td><td>Kartennummer, z. B. <code>MON062</code>; die ersten drei Zeichen
-                sind der Set-Code</td></tr>
+                sind der Set-Code. Mit Bildsymbol: zeigt das Kartenbild (siehe
+                <a href="#bilder">Kartenbilder</a>)</td></tr>
             <tr><td>First In</td><td>Set, in dem die Karte zuerst erschien (für Reprints)</td>
             </tr>
             <tr><td>Rarity</td><td>Seltenheit (Common, Rare, Majestic, …)</td></tr>
             <tr><td>Talent, Class1, Class2</td><td>Talent und Klassen der Karte</td></tr>
             <tr><td>Type1, Type2, Sub1–Sub3</td><td>Kartentypen und Untertypen</td></tr>
-            <tr><td>Name, Translated Name</td><td>Kartenname, bei Sprachvarianten die
-                Übersetzung</td></tr>
-            <tr><td>Backside Name, Translated Backside Name</td><td>Rückseite
-                doppelseitiger Karten</td></tr>
-            <tr><td>Pitch</td><td>Red, Yellow, Blue</td></tr>
+            <tr><td>Name</td><td>Kartenname</td></tr>
+            <tr><td>Backside Name</td><td>Rückseite doppelseitiger Karten</td></tr>
+            <tr><td>Translated Name, Translated Backside Name</td><td>bei Sprachvarianten die
+                Übersetzung von Vorder- und Rückseite</td></tr>
             <tr><td>Peculiarity</td><td>Besonderheit des Drucks</td></tr>
             <tr><td>Art Treatment</td><td>Extended Art, Alternate Art, Full Art, …</td></tr>
+            <tr><td>Pitch</td><td>Red, Yellow, Blue</td></tr>
             <tr><td>Playset</td><td>wie viele Exemplare ein vollständiges Set für ein Deck sind
                 (siehe unten)</td></tr>
             <tr><td>ST, RF, CF, GF</td><td>deine Mengen: Standard, Rainbow Foil, Cold Foil, Gold
                 Foil</td></tr>
-            <tr><td>Have / Need / Left (this, set, total)</td><td>berechnet, siehe unten</td>
-            </tr>
+            <tr><td>Have / Need / Left (set, total)</td><td>berechnet, siehe unten; als Block
+                einklappbar</td></tr>
             <tr><td>Note</td><td>deine Notiz</td></tr>
             <tr><td>Typen (Stammdaten)</td><td>die vollständige Typzeile aus den Stammdaten (zum
                 Nachsehen)</td></tr>
@@ -278,8 +292,12 @@
             als lokale Änderung <span class="sym override">✱</span> markiert – so kannst du ihn
             prüfen und bei Bedarf die Stammdaten übernehmen.</p>
         <h3>Die Rechenspalten</h3>
+        <p>Der Block von <em>Have (set)</em> bis <em>Left (total)</em> lässt sich mit ◂ in
+            seiner ersten Überschrift zu einer schmalen Spalte <strong>Σ ▸</strong>
+            zusammenklappen; ein Klick darauf klappt ihn wieder auf. Die Einstellung bleibt
+            gemerkt. Alle Spaltenüberschriften sind immer ganz lesbar, wo nötig in zwei Zeilen.
+        </p>
         <ul>
-            <li><strong>Have (this):</strong> Summe ST+RF+CF+GF dieser Zeile.</li>
             <li><strong>Have / Need / Left (set):</strong> bezogen auf dieselbe Kartennummer –
                 wie viele du hast, wie viele zum Playset fehlen, wie viele übrig sind.</li>
             <li><strong>Have / Need / Left (total):</strong> bezogen auf dieselbe Karte (Name,
@@ -291,11 +309,32 @@
             Kopie darunter einfügen (ohne Mengen – z. B. für eine weitere Sprache), Löschen.
         </p>
         <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus;
-            <em>Standard wiederherstellen</em> stellt die Grundansicht her. Schriftgröße und
-            Lage der Meldungen stellst du in der Gruppe <em>Ansicht</em> ein.</p>
+            <em>Standard wiederherstellen</em> stellt die Grundansicht her. In der Gruppe
+            <em>Ansicht</em> stellst du das <strong>Design</strong> (<em>System</em> wie im
+            Betriebssystem eingestellt, <em>Hell</em> oder <em>Dunkel</em>), die Schriftgröße und
+            die Lage der Meldungen ein. Das Design gilt auch für diese Dokumentation.</p>
+
+        <!-- 3b -->
+        <h2 id="bilder">4. Kartenbilder</h2>
+        <p>Kartennummern mit einem kleinen <strong>Bildsymbol</strong> und gepunkteter
+            Unterstreichung haben ein Kartenbild:</p>
+        <ul>
+            <li><strong>Überfahren</strong> mit der Maus zeigt nach einem kurzen Moment eine
+                Vorschau neben der Zelle, groß genug, um den Kartentitel zu lesen.</li>
+            <li><strong>Klicken</strong> auf die Kartennummer oder das Bildsymbol öffnet das
+                Bild groß – so groß, dass auch der Kartentext lesbar ist. Darunter stehen
+                Kartennummer, Name und Variante sowie ein Link, um das Bild in einem neuen Tab
+                zu öffnen. <kbd>Esc</kbd>, ein Klick daneben oder × schließt es.</li>
+            <li>Im <strong>Editiermodus</strong> bearbeitet ein Klick auf die Kartennummer wie
+                gewohnt die Zelle; das Bild öffnet dann nur das Bildsymbol.</li>
+        </ul>
+        <p>Gezeigt wird das Bild genau dieses Drucks (Edition, Art Treatment, bei
+            doppelseitigen Karten die Seite zum Namen). Gibt es je Foiling eigene Bilder,
+            erscheint das des einfachsten Foilings. Die Bilder kommen aus dem Internet; ohne
+            Verbindung steht „Kein Bild verfügbar“.</p>
 
         <!-- 4 -->
-        <h2 id="bearbeiten">4. Bearbeiten und Tastatur</h2>
+        <h2 id="bearbeiten">5. Bearbeiten und Tastatur</h2>
         <p>Die Tabelle funktioniert wie eine Tabellenkalkulation. Ein Klick setzt den
             <strong>Zellcursor</strong> (blauer Rahmen). Ein weiterer Klick auf die aktive Zelle
             oder ein Doppelklick bearbeitet sie; Spalten mit festen Werten öffnen dabei direkt
@@ -333,7 +372,7 @@
             die lokal geänderten. Erst <em>Übernehmen</em> speichert die Änderungen.</p>
 
         <!-- 5 -->
-        <h2 id="status">5. Status, Abweichungen, Editiermodus</h2>
+        <h2 id="status">6. Status, Abweichungen, Editiermodus</h2>
         <p>Die schmale Spalte ganz links zeigt in einem Zeichen, was an einer Zeile besonders
             ist. Der Tooltip nennt die Einzelheiten.</p>
         <table>
@@ -365,11 +404,11 @@
             Stammdaten nicht überschrieben.</p>
 
         <!-- 6 -->
-        <h2 id="filter">6. Suchen und Filtern</h2>
+        <h2 id="filter">7. Suchen und Filtern</h2>
         <h3>Suche</h3>
         <p>Das Suchfeld durchsucht Name, übersetzte Namen, Kartennummer, Set und Notiz. Mehrere
             Wörter müssen alle vorkommen.</p>
-        <h3>Häkchenfilter (wie der Autofilter der ODS)</h3>
+        <h3>Häkchenfilter (wie der Autofilter der 1.0-Tabelle)</h3>
         <p>Spalten mit festen Werten und die Statusspalte haben unter der Überschrift einen
             Knopf <em>Alle ▾</em>. Er öffnet die Liste der Werte, die in den gerade angezeigten
             Zeilen vorkommen, mit ihrer Anzahl. Nur angehakte Werte werden gezeigt; mehrere
@@ -403,11 +442,14 @@
             Drucke), im Besitz, fehlt zum Playset (gesamt oder in diesem Set), überzählig, noch
             nicht im Bestand, weicht von den Stammdaten ab, auffällige Zeilen (unbekannte
             Kartennummer, ungültige Zahl).</p>
-        <p><em>Filter zurücksetzen</em> leert Suche, alle Filter und die Sortierung.</p>
+        <p>Ein aktiver Filter zeigt rechts ein <strong>×</strong>, das ihn mit einem Klick
+            löscht – im Suchfeld, in Textfiltern und bei Häkchenfiltern (dann sind wieder alle
+            Werte angehakt). <em>Filter zurücksetzen</em> leert Suche, alle Filter und die
+            Sortierung auf einmal.</p>
 
         <!-- 7 -->
-        <h2 id="gliederung">7. Gliederung und Sortierung</h2>
-        <p>Die Zeilen sind wie in der ODS nach <strong>Set</strong> gruppiert (Titel mit
+        <h2 id="gliederung">8. Gliederung und Sortierung</h2>
+        <p>Die Zeilen sind wie in der 1.0-Tabelle nach <strong>Set</strong> gruppiert (Titel mit
             Set-Code, z. B. „Monarch (MON)“) und darunter nach <strong>Talent und
             Klasse</strong>. Ein Klick auf eine Gruppenzeile klappt sie auf oder zu. Zu Beginn
             ist alles zugeklappt.</p>
@@ -425,7 +467,7 @@
         </ul>
 
         <!-- 8 -->
-        <h2 id="sets">8. Vollständige Sets und Sets aufnehmen</h2>
+        <h2 id="sets">9. Vollständige Sets und Sets aufnehmen</h2>
         <h3>Vollständige Sets</h3>
         <p>Jedes Set in deinem Bestand wird <strong>vollständig</strong> angezeigt: Drucke, die
             du noch nicht hast, stehen als Zeile mit <span class="sym gap">○</span> an ihrer
@@ -436,12 +478,13 @@
             nicht in deinem Bestand sind – die neuesten zuerst, mit Erscheinungsdatum und Zahl
             der Drucke. Das Suchfeld grenzt die Liste ein (auch mit Platzhaltern). Die
             angehakten Sets werden mit <strong>allen Drucken als Zeilen mit leeren
-            Mengen</strong> aufgenommen – so kannst du sie ausfüllen wie früher in der ODS, auch
+            Mengen</strong> aufgenommen – so kannst du sie ausfüllen wie früher in der
+            1.0-Tabelle, auch
             wenn du noch keine einzige Karte davon hast. Welche Sets du sammelst, entscheidest
             nur du; die Anwendung nimmt nie von selbst neue Sets auf.</p>
 
         <!-- 9 -->
-        <h2 id="stammdaten">9. Stammdaten</h2>
+        <h2 id="stammdaten">10. Stammdaten</h2>
         <p>Die Stammdaten sind die Kartendaten aller Drucke: Namen, Seltenheit, Typen, Pitch,
             Sets. Sie stammen aus dem offenen Datensatz
             <a href="https://github.com/the-fab-cube/flesh-and-blood-cards">the-fab-cube</a> und
@@ -451,7 +494,17 @@
         <ul>
             <li><strong>Aktualisieren</strong> lädt sie jetzt neu und meldet, wie viele Zeilen
                 abweichen.</li>
-            <li><strong>Info</strong> zeigt Herkunft, Umfang und den letzten Fehler.</li>
+            <li><strong>Info</strong> zeigt Herkunft, Branch, Umfang und den letzten
+                Fehler.</li>
+            <li><strong>Branch:</strong> Das Auswahlfeld vor dem Stand wählt, aus welchem
+                Branch des Datensatzes die Stammdaten kommen. Standard ist <em>develop</em>.
+                Neue Sets erscheinen oft zuerst in einem eigenen Branch (z. B.
+                <em>usurp-the-shadow-throne</em>); wählst du ihn, lädt die Anwendung sofort neu
+                und meldet neue Sets und zusätzliche Drucke. Die Wahl wird gemerkt. Ein anderer
+                Branch als <em>develop</em> ist gelb markiert: Seine Daten sind eine Vorschau und
+                können sich noch ändern. Lässt er sich nicht laden (z. B. inzwischen gelöscht),
+                gelten die bisherigen Stammdaten, und ein roter Hinweis bietet
+                <em>Zurück zu develop</em> an.</li>
             <li><strong>Übernehmen …</strong> listet jede Karte, die von den Stammdaten
                 abweicht, nach Set gruppiert, mit ihren Abweichungen. Angehakte Karten
                 übernehmen alle ihre abweichenden Werte; vorausgewählt ist nichts.</li>
@@ -462,7 +515,7 @@
             unberührt.</p>
 
         <!-- 10 -->
-        <h2 id="protokoll">10. Protokoll und Rückgängig</h2>
+        <h2 id="protokoll">11. Protokoll und Rückgängig</h2>
         <p>Jede Änderung am Bestand wird festgehalten: Zellwerte, − / +, Einfügen, Kopieren,
             Löschen, Zurücksetzen, Stammdaten übernehmen, Sets aufnehmen, Import. Der Reiter
             <strong>Protokoll</strong> (neben <em>Meldungen</em>) zeigt die neuesten Einträge
@@ -482,7 +535,7 @@
         </ul>
 
         <!-- 11 -->
-        <h2 id="hinweise">11. Hinweise und Meldungen</h2>
+        <h2 id="hinweise">12. Hinweise und Meldungen</h2>
         <p>Der <strong>Hinweisbereich</strong> zwischen Werkzeugleiste und Tabelle zeigt alles,
             was gerade wichtig ist: <span style="color: var(--notice-line)">gelb</span> für
             Hinweise (z. B. „Bestand aus der Kopie im Browser“, eine Frage des Browsers,
@@ -496,10 +549,10 @@
             Beispiele.</p>
 
         <!-- 12 -->
-        <h2 id="import">12. Import und Export</h2>
-        <h3>Umstieg vom Calc-File (ODS)</h3>
+        <h2 id="import">13. Import und Export</h2>
+        <h3>Umstieg von der FabCollectionTool-1.0-Tabelle</h3>
         <ol>
-            <li><em>Import → ODS</em> und das alte <code>.ods</code> wählen.</li>
+            <li><em>Import → ODS</em> und die Datei der 1.0-Tabelle wählen.</li>
             <li>Die Vorschau zeigt, was übernommen wird: erkannte Tabelle, übersprungene
                 Formelspalten und Zwischenüberschriften, unbekannte Spalten (sie werden als
                 Zusatzspalten mitgeführt), Kartennummern ohne Stammdaten, abweichende Namen und
@@ -520,7 +573,7 @@
             zusammengeführt.</p>
 
         <!-- 13 -->
-        <h2 id="kopie">13. Backup und Kopie im Browser</h2>
+        <h2 id="kopie">14. Backup und Kopie im Browser</h2>
         <ul>
             <li><strong>Backup</strong> legt eine Kopie mit Zeitstempel an – im Arbeitsordner
                 ohne Rückfrage, sonst über den Speichern-Dialog.</li>
@@ -537,7 +590,7 @@
         </ul>
 
         <!-- 14 -->
-        <h2 id="diagnose">14. Diagnose</h2>
+        <h2 id="diagnose">15. Diagnose</h2>
         <p>Die Anwendung führt ein <strong>Diagnose-Log</strong>: Start, Öffnen, Speichern,
             Fragen des Browsers, Importe, Stammdaten und Fehler – nicht aber deine einzelnen
             Änderungen (die stehen im Protokoll). Es liegt als <code>fct-diagnose.log</code> im
@@ -548,7 +601,7 @@
             Mengen und keine Notizen.</p>
 
         <!-- 15 -->
-        <h2 id="fragen">15. Häufige Fragen</h2>
+        <h2 id="fragen">16. Häufige Fragen</h2>
         <h3>Der Browser fragt nach jedem Start wieder nach dem Zugriff.</h3>
         <p>Das schreibt der Browser aus Sicherheitsgründen vor. Mit Arbeitsordner genügt ein
             Klick (<em>Arbeitsordner verbinden</em>) – oder er fragt bei der ersten Änderung.
@@ -561,11 +614,17 @@
         <h3>Warum ist ein Wert unterstrichen?</h3>
         <p>Er weicht von den Stammdaten ab. Ein Klick darauf zeigt den Stammdatenwert zur
             Auswahl; oder du lässt deinen Wert, dann bleibt die Markierung als Hinweis.</p>
+        <h3>Ich habe Karten aus einem Vorschau-Branch aufgenommen und bin zurück zu
+            develop gewechselt. Jetzt stehen sie mit „?“ da.</h3>
+        <p>Das ist richtig: <em>develop</em> kennt diese Kartennummern noch nicht. Es geht
+            nichts verloren; sobald das Set auch in <em>develop</em> ist, verschwindet das „?“.
+            Bis dahin kannst du den Vorschau-Branch weiter verwenden.</p>
         <h3>Kann ich einen Wert eintragen, der den Stammdaten widerspricht?</h3>
         <p>Ja, im Editiermodus – er wird als lokale Änderung ✱ markiert und beim Übernehmen
             nicht überschrieben.</p>
         <h3>Wo sind meine Einstellungen?</h3>
-        <p>Sichtbare Spalten, Schriftgröße, Lage der Meldungen, Gruppierung und Reihenfolge
+        <p>Design, sichtbare Spalten, eingeklappter Rechenblock, Branch der Stammdaten,
+            Schriftgröße, Lage der Meldungen, Gruppierung und Reihenfolge
             der Sets merkt sich der Browser. Das sind nur Ansichtseinstellungen, keine
             Bestandsdaten.</p>
         <h3>Ich habe aus Versehen etwas geändert.</h3>

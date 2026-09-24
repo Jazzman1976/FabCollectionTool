@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool</title>
     <link rel="stylesheet" href="app/style.css">
+    <!-- Design (System, Hell, Dunkel) before the first paint, so that nothing flashes -->
+    <script>
+        try {
+            var theme = JSON.parse(localStorage.getItem('fct2.theme') || '"system"');
+            if (theme === 'light' || theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        } catch (e) { /* storage blocked: the design follows the system */ }
+    </script>
 </head>
 <body class="msg-bottom">
     <!-- Title and toolbar; each group is a framed box -->
@@ -25,7 +34,8 @@
             </fieldset>
             <fieldset class="group">
                 <legend>Import</legend>
-                <button id="btn-import-ods" title="Altes Calc-File (.ods) übernehmen">ODS</button>
+                <button id="btn-import-ods"
+                    title="Die FabCollectionTool-1.0-Tabelle übernehmen">ODS</button>
                 <button id="btn-import-fabrary" title="Fabrary-Export (.csv) übernehmen">
                     Fabrary</button>
             </fieldset>
@@ -36,6 +46,10 @@
             </fieldset>
             <fieldset class="group">
                 <legend>Stammdaten</legend>
+                <select id="reference-branch"
+                    title="Branch der Kartendaten (neue Sets kommen zuerst in eigene Branches)">
+                    <option value="develop">develop</option>
+                </select>
                 <span id="reference-status" class="badge"></span>
                 <button id="btn-reference-update" title="Stammdaten jetzt online laden">
                     Aktualisieren</button>
@@ -47,6 +61,11 @@
             </fieldset>
             <fieldset class="group">
                 <legend>Ansicht</legend>
+                <select id="theme" title="Helles oder dunkles Design, oder wie im System">
+                    <option value="system">Design: System</option>
+                    <option value="light">Design: Hell</option>
+                    <option value="dark">Design: Dunkel</option>
+                </select>
                 <select id="font-size" title="Schriftgröße">
                     <option value="S">Schrift klein</option>
                     <option value="M">Schrift mittel</option>
@@ -73,7 +92,12 @@
         <nav class="toolbar">
             <fieldset class="group">
                 <legend>Filter</legend>
-                <input id="search" type="search" placeholder="Suche: Name, Id, Set, Notiz …">
+                <span class="search-box">
+                    <input id="search" type="text" placeholder="Suche: Name, Id, Set, Notiz …"
+                        title="Enthält die Wörter; * und ? als Platzhalter">
+                    <button id="search-clear" type="button" class="filter-clear" hidden
+                        title="Suche löschen">×</button>
+                </span>
                 <select id="mode" title="Schnellfilter">
                     <option value="all">Alle Zeilen</option>
                     <option value="collection">Nur Bestand (ohne fehlende Drucke)</option>
@@ -96,7 +120,7 @@
             </fieldset>
             <fieldset class="group">
                 <legend>Gliederung</legend>
-                <select id="grouping" title="Gruppierung wie in der ODS">
+                <select id="grouping" title="Gruppierung wie in der 1.0-Tabelle">
                     <option value="setClass">Set › Talent Class</option>
                     <option value="set">nur Set</option>
                     <option value="none">keine Gruppen</option>
@@ -172,6 +196,7 @@
     <script src="app/storage.js"></script>
     <script src="app/diagnosis.js"></script>
     <script src="app/grid-filter.js"></script>
+    <script src="app/card-image.js"></script>
     <script src="app/grid.js"></script>
     <script src="app/import-ods.js"></script>
     <script src="app/import-fabrary.js"></script>

@@ -23,25 +23,28 @@ FCT.tour = (function () {
             text: 'Neue Sets holst du dir hier in den Bestand – auch solche, von denen du noch ' +
                 'keine Karte hast. Alle Drucke erscheinen dann als Zeilen zum Ausfüllen.' },
         { target: '#grid', title: 'Die Tabelle',
-            text: 'Sie funktioniert wie die ODS: Zelle anklicken, Zahl tippen, Enter geht nach ' +
-                'unten. Shift+↑ / Shift+↓ zählt eine Menge hoch oder runter. Sets und ' +
-                'Talent/Class-Gruppen lassen sich auf- und zuklappen.' },
+            text: 'Sie funktioniert wie die 1.0-Tabelle: Zelle anklicken, Zahl tippen, Enter ' +
+                'geht nach unten. Shift+↑ / Shift+↓ zählt eine Menge hoch oder runter. Sets ' +
+                'und Talent/Class-Gruppen lassen sich auf- und zuklappen. Eine Kartennummer ' +
+                'mit Bildsymbol zeigt beim Überfahren die Karte, ein Klick zeigt sie groß.' },
         { target: '.grid thead th.status', title: 'Status jeder Zeile',
             text: '≠ weicht von den Stammdaten ab, ✱ hast du bewusst geändert, ○ ist ein Druck, ' +
                 'den du noch nicht im Bestand hast, ? eine unbekannte Kartennummer. ' +
                 'Unterstrichene Werte korrigierst du direkt per Klick.' },
         { target: '.grid thead tr.filters', title: 'Filter',
-            text: 'Spalten mit festen Werten filterst du per Häkchen wie in der ODS, Text mit ' +
-                'Platzhaltern: * steht für beliebigen Text, ? für ein Zeichen – z. B. *Gravy*.' },
+            text: 'Spalten mit festen Werten filterst du per Häkchen wie in der 1.0-Tabelle, ' +
+                'Text mit Platzhaltern: * steht für beliebigen Text, ? für ein Zeichen – z. B. ' +
+                '*Gravy*. Das × löscht einen Filter.' },
         { target: '#search', parent: 'fieldset', title: 'Suche und Schnellfilter',
             text: 'Die Suche findet Name, Kartennummer, Set und Notiz. Der Schnellfilter ' +
                 'beantwortet häufige Fragen, z. B. „Fehlt zum Playset“.' },
         { target: '#btn-outline-1', parent: 'fieldset', title: 'Gliederung',
-            text: 'Wie die Gliederungsknöpfe der ODS: 1 zeigt nur die Sets, 2 auch die ' +
-                'Talent/Class-Gruppen, 3 klappt alles auf.' },
+            text: 'Wie die Gliederungsknöpfe der 1.0-Tabelle: 1 zeigt nur die Sets, 2 auch ' +
+                'die Talent/Class-Gruppen, 3 klappt alles auf.' },
         { target: '#btn-reference-apply', parent: 'fieldset', title: 'Stammdaten',
-            text: 'Kartendaten kommen automatisch online. „Übernehmen …“ zeigt alle Karten, ' +
-                'die abweichen, und übernimmt die Stammdaten nur dort, wo du es willst.' },
+            text: 'Kartendaten kommen automatisch online. Das Auswahlfeld wählt den Branch – ' +
+                'neue Sets gibt es oft zuerst in einem eigenen. „Übernehmen …“ zeigt alle ' +
+                'Karten, die abweichen, und übernimmt die Stammdaten nur, wo du es willst.' },
         { target: '#btn-edit-mode', title: 'Editiermodus',
             text: 'Normalerweise änderst du nur Mengen und Notizen. Im Editiermodus lässt sich ' +
                 'alles bearbeiten – auch abweichend von den Stammdaten.' },
