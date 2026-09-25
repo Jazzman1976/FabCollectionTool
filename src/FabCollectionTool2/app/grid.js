@@ -13,7 +13,7 @@ FCT.grid = (function () {
     var OVERSCAN = 20;
     var STATUS_WIDTH = 2;
     var ACTIONS_WIDTH = 10;
-    var SEP = '\u0000';
+    var SEP = '\u0000';     // separator in group keys, the same as model.SECTION_SEP
     var STATUS_KEY = '_status';
 
     // Icons of the row actions (inline SVG, drawn with the text colour).
@@ -46,11 +46,12 @@ FCT.grid = (function () {
     //                  value(row) }]
     //               kind is 'input', 'reference', 'identity' or 'calc'; list = check box
     //               filter (fixed values) instead of a text filter; columns with the same
-    //               group can be collapsed into one narrow column; nowrap keeps the title
-    //               on one line. A column is widened where its title would not fit.
+    //               group can be collapsed into one narrow column; sparse = numbers that
+    //               may be missing (an empty value matches no number comparison). Titles
+    //               never wrap; a column is widened where its title would not fit.
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
-    //   searchKeys  keys searched by the free text search
+    //   searchKeys  keys searched by the free text search, or functions (row) -> text
     //   isEditable(column, row)   whether a cell may be edited
     //   choices(column)           value list for a drop-down editor, or null for free text
     //   referenceValue(column, row)  value of the reference data, offered first in drop-downs
@@ -60,6 +61,7 @@ FCT.grid = (function () {
     //                             'none' for rows without a status)
     //   actions(row)              [{ action, icon, title, disabled }] buttons at the row end
     //   groupNames(row)           [level 1 name, level 2 name] for the accordion
+    //   sections(rows)            level 2 sections of all rows, see model.sections
     //   setInfo(name, rows)       { label, date } of a level 1 group (title and release date)
     //   matchesMode(row, mode)    extra quick filters of the application
     //   imageColumn               key of the column that shows card pictures (e.g. 'Id')
@@ -126,9 +128,11 @@ FCT.grid = (function () {
         window.addEventListener('resize', scheduleRender);
 
         /*
-         * Column widths: the configured width, widened where the title would not fit - the
-         * whole title for nowrap columns, otherwise its longest word (titles may wrap between
-         * words, never inside one). Measured once in em, so it follows the font size.
+         * Column widths: the configured width, widened where the title would not fit. Titles
+         * never wrap. A first estimate is measured on a canvas; once the header is on screen,
+         * fitTitles() measures the real titles (collapse button and sort marker included) and
+         * widens columns that are still too narrow. Widths are kept in em, so they follow the
+         * font size; refit() measures again (font size changed, web fonts loaded).
          */
         var fitted = {};
         var measure = null;
@@ -137,13 +141,10 @@ FCT.grid = (function () {
             if (column.placeholder) return column.width;
             if (fitted[column.key] == null) {
                 if (!measure) measure = document.createElement('canvas').getContext('2d');
-                var style = window.getComputedStyle(table);
+                var style = window.getComputedStyle(headRow.cells[0] || table);
                 var size = parseFloat(style.fontSize) || 14;
                 measure.font = '700 ' + size + 'px ' + style.fontFamily;
-                var parts = column.nowrap ? [column.label] : String(column.label).split(/\s+/);
-                var text = Math.max.apply(null, parts.map(function (part) {
-                    return measure.measureText(part).width;
-                }));
+                var text = measure.measureText(String(column.label)).width;
                 // Padding left (5px), sort marker at the right (1.3em), the collapse button of
                 // a group's first column, and a little air.
                 var extra = 5 / size + 1.3 + (column.group && firstOfGroup(column) ? 1.9 : 0) +
@@ -153,6 +154,37 @@ FCT.grid = (function () {
             }
             return fitted[column.key];
         }
+
+        // Widens columns whose title is wider than the column (only possible while the table
+        // is displayed). Titles only ever widen a column, so this ends after one more pass.
+        var fitPending = false;
+        function fitTitles() {
+            if (fitPending) return;
+            fitPending = true;
+            window.requestAnimationFrame(function () {
+                fitPending = false;
+                if (!table.offsetWidth) return;
+                var em = parseFloat(window.getComputedStyle(table).fontSize) || 14;
+                var changed = false;
+                Array.prototype.forEach.call(headRow.cells, function (th) {
+                    var key = th.getAttribute('data-key');
+                    if (!key || th.scrollWidth <= th.clientWidth) return;
+                    fitted[key] = Math.ceil((th.scrollWidth / em + 0.2) * 10) / 10;
+                    changed = true;
+                });
+                if (changed) {
+                    buildHeader();
+                    render();
+                }
+            });
+        }
+
+        function refit() {
+            fitted = {};
+            buildHeader();
+            render();
+        }
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(refit);
 
         /*
          * Header: labels with sorting, one filter input per column
@@ -206,7 +238,8 @@ FCT.grid = (function () {
                 headRow.appendChild(el('th', {
                     title: column.label + ' – klicken zum Sortieren (auf, ab, aus)',
                     className: 'sortable ' + (column.numeric ? 'num' : '') +
-                        (toggle ? ' has-toggle' : '') + (column.nowrap ? ' nowrap' : ''),
+                        (toggle ? ' has-toggle' : ''),
+                    'data-key': column.key,
                     onclick: function () { toggleSort(column.key); }
                 }, [toggle, el('span', { className: 'label', text: column.label }), marker]));
 
@@ -254,6 +287,7 @@ FCT.grid = (function () {
             headRow.appendChild(el('th', { className: 'actions', text: 'Aktionen' }));
             filterRow.appendChild(el('th', { className: 'actions' }));
             table.style.width = total + 'em';
+            fitTitles();
         }
 
         // Small × that clears the filter of its cell; shown while the filter is active.
@@ -398,12 +432,13 @@ FCT.grid = (function () {
          */
 
         // Tests one value against a column filter expression.
-        function matchesFilter(value, expression, numeric) {
+        function matchesFilter(value, expression, numeric, sparse) {
             var text = expression.trim();
             if (!text) return true;
             if (numeric) {
                 var m = /^(<=|>=|!=|<|>|=)?\s*(-?\d+)$/.exec(text);
                 if (m) {
+                    if (sparse && !String(value == null ? '' : value).trim()) return false;
                     var n = util.toInt(value);
                     if (isNaN(n)) return false;
                     var x = parseInt(m[2], 10);
@@ -472,7 +507,7 @@ FCT.grid = (function () {
             var words = wordsOf.words;
             if (words.length) {
                 var fields = options.searchKeys.map(function (key) {
-                    return util.fold(row[key]);
+                    return util.fold(typeof key === 'function' ? key(row) : row[key]);
                 });
                 var haystack = fields.join(' ');
                 for (var w = 0; w < words.length; w++) {
@@ -488,7 +523,7 @@ FCT.grid = (function () {
             }
             return columns.every(function (c) {
                 if (c.key === except || !filters[c.key] || !filters[c.key].trim()) return true;
-                return matchesFilter(cellValue(row, c), filters[c.key], c.numeric);
+                return matchesFilter(cellValue(row, c), filters[c.key], c.numeric, c.sparse);
             });
         }
 
@@ -539,63 +574,67 @@ FCT.grid = (function () {
             if (options.onView) options.onView(matchCount);
         }
 
+        // Sections of the accordion from all rows (see model.sections).
+        function buildSections() {
+            return options.sections(allRows);
+        }
+
         /*
-         * Accordion: rows are grouped by set and, below that, by talent and class.
-         * Sets are ordered by release date (or by name); talent/class groups keep the order of
-         * their first row in the file; sorting applies within the groups. All groups start
-         * closed. While a search or filter is active, all groups with hits are open.
+         * Accordion: rows are grouped by set and, below that, in sections by talent and class
+         * (see buildSections). Sets are ordered by release date (or by name), sections by card
+         * number; sorting applies within the groups. All groups start closed. While a search
+         * or filter is active, all groups with hits are open.
          */
         function groupRows(rows) {
             var levels = grouping === 'set' ? 1 : 2;
+            var sections = buildSections();
 
-            // Order of the groups: first appearance in the file; all rows of each set.
-            var order = new Map();
-            var setRows = new Map();
+            // Order of the sets in the file (for equal dates) and keys of all groups, for the
+            // outline levels.
+            var setIndex = new Map();
+            Array.from(sections.rowsOf.keys()).forEach(function (name, i) {
+                setIndex.set(name, i);
+            });
+            var keys = new Set();
             allRows.forEach(function (row) {
-                var names = options.groupNames(row);
-                var key2 = names[0] + SEP + names[1];
-                if (!order.has(names[0])) {
-                    order.set(names[0], order.size);
-                    setRows.set(names[0], []);
-                }
-                if (!order.has(key2)) order.set(key2, order.size);
-                setRows.get(names[0]).push(row);
+                var set = options.groupNames(row)[0];
+                keys.add(set);
+                if (levels === 2 && !sections.flat.has(set)) keys.add(sections.of.get(row).key);
             });
-            groupKeys = Array.from(order.keys()).filter(function (key) {
-                return levels === 2 || key.indexOf(SEP) < 0;
-            });
+            groupKeys = Array.from(keys);
 
             // Put the (sorted) rows into their groups.
             var sets = new Map();
             rows.forEach(function (row) {
-                var names = options.groupNames(row);
-                var set = sets.get(names[0]);
+                var name = options.groupNames(row)[0];
+                var set = sets.get(name);
                 if (!set) {
-                    var info = options.setInfo(names[0], setRows.get(names[0]));
-                    set = header(1, names[0], info.label);
+                    var info = options.setInfo(name, sections.rowsOf.get(name));
+                    set = header(1, name, info.label);
                     set.date = info.date || '';
+                    set.order = setIndex.get(name);
                     set.children = new Map();
-                    sets.set(names[0], set);
+                    sets.set(name, set);
                 }
                 set.rows.push(row);
-                if (levels === 1) return;
-                var key2 = names[0] + SEP + names[1];
-                var sub = set.children.get(key2);
+                if (levels === 1 || sections.flat.has(name)) return;
+                var section = sections.of.get(row);
+                var sub = set.children.get(section.key);
                 if (!sub) {
-                    sub = header(2, key2, names[1]);
-                    set.children.set(key2, sub);
+                    sub = header(2, section.key, section.label);
+                    sub.index = section.index;
+                    set.children.set(section.key, sub);
                 }
                 sub.rows.push(row);
             });
 
             // Sets by release date (sets without a date, e.g. promos, first, as in the old
-            // spreadsheet) or by name; talent/class groups in file order.
-            function byOrder(a, b) { return order.get(a.key) - order.get(b.key); }
+            // spreadsheet) or by name; sections by card number.
             function bySet(a, b) {
                 var result = setOrder === 'alpha'
                     ? util.fold(a.key).localeCompare(util.fold(b.key))
                     : (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-                return result || byOrder(a, b);
+                return result || a.order - b.order;
             }
 
             // Flatten into the list of view rows: headers, and rows of open groups.
@@ -603,11 +642,13 @@ FCT.grid = (function () {
             Array.from(sets.values()).sort(bySet).forEach(function (set) {
                 result.push(set);
                 if (!set.open) return;
-                if (levels === 1) {
+                if (levels === 1 || sections.flat.has(set.key)) {
                     Array.prototype.push.apply(result, set.rows);
                     return;
                 }
-                Array.from(set.children.values()).sort(byOrder).forEach(function (sub) {
+                Array.from(set.children.values()).sort(function (a, b) {
+                    return a.index - b.index;
+                }).forEach(function (sub) {
                     result.push(sub);
                     if (sub.open) Array.prototype.push.apply(result, sub.rows);
                 });
@@ -1225,10 +1266,10 @@ FCT.grid = (function () {
                 buildHeader();
                 render();
             },
-            // Row height in pixels; follows the font size.
+            // Row height in pixels; follows the font size, so the titles are measured again.
             setRowHeight: function (px) {
                 rowHeight = px;
-                render();
+                refit();
             },
             // Grouping: 'none', 'set' or 'setClass'.
             setGrouping: function (value) {
@@ -1252,10 +1293,10 @@ FCT.grid = (function () {
                 var index = viewRows.indexOf(row);
                 if (index < 0 && allRows.indexOf(row) >= 0) {
                     pinned.add(row);
-                    var names = options.groupNames(row);
                     var states = filtering() ? filterOpen : groupOpen;
-                    states.set(names[0], true);
-                    states.set(names[0] + SEP + names[1], true);
+                    states.set(options.groupNames(row)[0], true);
+                    var section = buildSections().of.get(row);
+                    if (section) states.set(section.key, true);
                     applyView();
                 }
                 setCursor(row, null, true);

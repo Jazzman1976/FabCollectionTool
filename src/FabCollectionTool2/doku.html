@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css">
+    <link rel="stylesheet" href="app/style.css?v=2.0.5.0">
     <!-- Design (System, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
@@ -254,7 +254,10 @@
             <tr><td>First In</td><td>Set, in dem die Karte zuerst erschien (für Reprints)</td>
             </tr>
             <tr><td>Rarity</td><td>Seltenheit (Common, Rare, Majestic, …)</td></tr>
-            <tr><td>Talent, Class1, Class2</td><td>Talent und Klassen der Karte</td></tr>
+            <tr><td>Metatype</td><td>Metatyp der Karte, z. B. Event, Rosetta, High Seas
+                (selten)</td></tr>
+            <tr><td>Talent1, Talent2, Class1, Class2</td><td>Talente und Klassen der Karte, in
+                der Reihenfolge der Karte (z. B. Ice / Earth)</td></tr>
             <tr><td>Type1, Type2, Sub1–Sub3</td><td>Kartentypen und Untertypen</td></tr>
             <tr><td>Name</td><td>Kartenname</td></tr>
             <tr><td>Backside Name</td><td>Rückseite doppelseitiger Karten</td></tr>
@@ -272,7 +275,20 @@
             <tr><td>Note</td><td>deine Notiz</td></tr>
             <tr><td>Typen (Stammdaten)</td><td>die vollständige Typzeile aus den Stammdaten (zum
                 Nachsehen)</td></tr>
+            <tr><td>Cost, Power, Defense, Card Keywords, Artist, Nicht legal in,
+                Erscheinungsdatum, Kartentext</td><td>weitere Angaben aus den Stammdaten, nur
+                zum Nachsehen und Filtern; standardmäßig ausgeblendet (über <em>Spalten</em>
+                einblenden) und nie in <code>collection.csv</code>. <em>Nicht legal in</em>
+                nennt die Formate, in denen die Karte nicht gespielt werden darf – bei Silver
+                Age und Commoner meist wegen der Seltenheit, nicht wegen eines Banns. Cost,
+                Power und Defense filtern wie Mengen (z. B. <code>&lt;2</code>); Karten ohne
+                Wert fallen dabei heraus.</td></tr>
         </table>
+        <p>Die Spalten von Metatype bis Sub3 stehen in der Reihenfolge der Typzeile auf der
+            Karte (offizielles Regelwerk, Regel 2.14.1: Metatyp, Talente und Klassen, Typ,
+            Untertypen). Bestände früherer Versionen mit nur einer Spalte <em>Talent</em>
+            werden beim Öffnen verlustfrei aufgeteilt; eine bewusste Änderung am Talent gilt
+            danach für Talent1 und Talent2.</p>
         <h3>Farben der Zellen</h3>
         <ul>
             <li><strong>Weiß mit blauem Rahmen:</strong> deine Eingaben – Mengen und Notiz.</li>
@@ -305,8 +321,9 @@
         </ul>
         <h3>Zeilenaktionen</h3>
         <p>Am Ende jeder Zeile (auch beim seitlichen Scrollen sichtbar): ✎ alle Felder
-            bearbeiten, ＋ neue Zeile darunter (übernimmt Set, Talent und Klassen), Kopieren,
-            Kopie darunter einfügen (ohne Mengen – z. B. für eine weitere Sprache), Löschen.
+            bearbeiten, ＋ neue Zeile darunter (übernimmt Set, Metatyp, Talente und Klassen),
+            Kopieren, Kopie darunter einfügen (ohne Mengen – z. B. für eine weitere Sprache),
+            Löschen.
         </p>
         <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus;
             <em>Standard wiederherstellen</em> stellt die Grundansicht her. In der Gruppe
@@ -394,8 +411,8 @@
         <h3>Editiermodus</h3>
         <p>Normalerweise sind nur Mengen und Notiz bearbeitbar. <em>Editiermodus</em> (Gruppe
             Ansicht) macht <strong>alle</strong> Spalten bearbeitbar; ein gelber Hinweis zeigt,
-            dass er an ist. Spalten mit festen Werten (Edition, Rarity, Pitch, Talent, Class,
-            Type, Sub, Set, Peculiarity, Art Treatment) bieten eine Auswahlliste mit allen
+            dass er an ist. Spalten mit festen Werten (Edition, Rarity, Pitch, Metatype, Talent,
+            Class, Type, Sub, Set, Peculiarity, Art Treatment) bieten eine Auswahlliste mit allen
             gültigen Werten – Freitext gibt es dort nicht.</p>
         <p>Du darfst dabei <strong>jeden gültigen Wert</strong> wählen, auch einen, der den
             Stammdaten widerspricht – etwa um einen Fehler beim Import in ein anderes System
@@ -406,8 +423,9 @@
         <!-- 6 -->
         <h2 id="filter">7. Suchen und Filtern</h2>
         <h3>Suche</h3>
-        <p>Das Suchfeld durchsucht Name, übersetzte Namen, Kartennummer, Set und Notiz. Mehrere
-            Wörter müssen alle vorkommen.</p>
+        <p>Das Suchfeld durchsucht Name, übersetzte Namen, Kartennummer, Set, Notiz und den
+            Kartentext der Stammdaten (z. B. „crowd boos“). Mehrere Wörter müssen alle
+            vorkommen.</p>
         <h3>Häkchenfilter (wie der Autofilter der 1.0-Tabelle)</h3>
         <p>Spalten mit festen Werten und die Statusspalte haben unter der Überschrift einen
             Knopf <em>Alle ▾</em>. Er öffnet die Liste der Werte, die in den gerade angezeigten
@@ -453,6 +471,12 @@
             Set-Code, z. B. „Monarch (MON)“) und darunter nach <strong>Talent und
             Klasse</strong>. Ein Klick auf eine Gruppenzeile klappt sie auf oder zu. Zu Beginn
             ist alles zugeklappt.</p>
+        <p>Die Talent/Klasse-Gruppen folgen den <strong>Kartennummern</strong>: Innerhalb
+            einer Gruppe gibt es keine Lücke. Kommt eine Gruppe im Set später noch einmal vor
+            (z. B. Zusatzkarten am Ende des Sets), erscheint sie dort ein zweites Mal mit
+            demselben Namen. Eine Gruppe nur aus Fabled-Karten heißt „Fabled“. Sets, die dabei
+            in sehr viele kleine Gruppen zerfallen würden (Promos, Blitz- und Armory-Decks),
+            zeigen ihre Zeilen ohne Untergruppen.</p>
         <ul>
             <li><strong>1</strong> zeigt nur die Sets, <strong>2</strong> öffnet die Sets mit
                 ihren Talent/Klasse-Gruppen, <strong>3</strong> öffnet alles.</li>

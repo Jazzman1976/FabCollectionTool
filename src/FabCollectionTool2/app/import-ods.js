@@ -217,9 +217,12 @@ FCT.importOds = (function () {
         report.summary.push('Tabellenblatt "' + found.table.name + '", Kopfzeile in Zeile ' +
             (found.rowIndex + 1));
 
-        // Map header names to columns. Unknown columns are kept as extra columns.
+        // Map header names to columns. Unknown columns are kept as extra columns. The
+        // spreadsheet has one column "Talent"; it is split into Talent1 and Talent2.
         var columns = [];
         var headerCells = found.table.rows[found.rowIndex].cells;
+        var names = headerCells.map(function (value) { return String(value).trim(); });
+        var legacy = names.indexOf(model.LEGACY_TALENT) >= 0 && names.indexOf('Talent1') < 0;
         headerCells.forEach(function (value, index) {
             var name = String(value).trim();
             if (!name) return;
@@ -231,7 +234,7 @@ FCT.importOds = (function () {
                 report.add('info', 'Formelspalte übersprungen (wird neu berechnet)', name);
                 return;
             }
-            if (model.COLUMNS.indexOf(name) < 0) {
+            if (model.COLUMNS.indexOf(name) < 0 && !(legacy && name === model.LEGACY_TALENT)) {
                 report.add('info', 'Unbekannte Spalte wird als Zusatzspalte übernommen', name);
                 collection.extraColumns.push(name);
             }
@@ -239,7 +242,9 @@ FCT.importOds = (function () {
         });
         model.COLUMNS.forEach(function (name) {
             var present = columns.some(function (c) { return c && c.name === name; });
-            if (!present && name !== 'Note' && name !== model.OVERRIDES) {
+            var expectedMissing = name === 'Note' || name === model.OVERRIDES ||
+                (legacy && model.NEW_IN_2050.indexOf(name) >= 0);
+            if (!present && !expectedMissing) {
                 report.add(name === 'Id' ? 'error' : 'warn', 'Spalte fehlt in der Tabelle', name);
             }
         });
@@ -248,6 +253,7 @@ FCT.importOds = (function () {
         // Convert the data rows below the header.
         var rows = found.table.rows;
         var sections = 0;
+        var upgraded = 0;
         for (var r = found.rowIndex + 1; r < rows.length; r++) {
             var cells = rows[r].cells;
             if (!cells.some(function (v) { return String(v).trim() !== ''; })) continue;
@@ -269,7 +275,9 @@ FCT.importOds = (function () {
             }
 
             // Repeated rows with content are materialized as often as they are repeated.
+            var converted = legacy && model.upgradeValues(values);
             for (var n = 0; n < rows[r].repeat; n++) {
+                if (converted) upgraded++;
                 var row = model.newRow(values);
                 collection.extraColumns.forEach(function (name) {
                     row[name] = values[name] || '';
@@ -280,6 +288,7 @@ FCT.importOds = (function () {
 
         report.summary.push(collection.rows.length + ' Zeilen übernommen, ' + sections +
             ' Zwischenüberschriften übersprungen');
+        model.reportUpgrade(report, upgraded);
         return { collection: collection, report: report };
     }
 

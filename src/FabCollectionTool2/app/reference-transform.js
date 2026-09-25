@@ -19,15 +19,21 @@ FCT.referenceTransform = (function () {
     var REQUIRED = {
         set: ['Unique ID', 'Identifier', 'Name'],
         setPrinting: ['Set Unique ID', 'Initial Release Date'],
-        card: ['Unique ID', 'Name', 'Pitch', 'Types', 'Card Keywords'],
+        card: ['Unique ID', 'Name', 'Pitch', 'Types', 'Card Keywords', 'Cost', 'Power',
+            'Defense', 'Functional Text', 'Type Text', 'Blitz Legal', 'CC Legal',
+            'Silver Age Legal', 'Commoner Legal', 'LL Legal'],
         printing: ['Card Unique ID', 'Card ID', 'Set ID', 'Edition', 'Rarity', 'Foiling',
-            'Art Variations', 'Image URL']
+            'Art Variations', 'Artists', 'Image URL']
     };
     var FILES = {
         set: 'set.csv', setPrinting: 'set-printing.csv', card: 'card.csv',
         printing: 'card-printing.csv'
     };
     var FOILING_ORDER = 'SRCG';
+
+    // Formats with a legality column in card.csv ("No" = not legal) and their short names.
+    var FORMATS = [['Blitz Legal', 'Blitz'], ['CC Legal', 'CC'], ['Silver Age Legal',
+        'Silver Age'], ['Commoner Legal', 'Commoner'], ['LL Legal', 'LL']];
 
     // Card images: almost all lie in one place in three sizes (small, normal, large). For
     // those only the file name is kept (e.g. "1HP001"); other images keep their full URL.
@@ -67,6 +73,11 @@ FCT.referenceTransform = (function () {
         return Object.prototype.hasOwnProperty.call(table, code) ? table[code] : code;
     }
 
+    // A source value as trimmed text (missing columns give '').
+    function text(value) {
+        return String(value == null ? '' : value).trim();
+    }
+
     // Art variations can be combined ("AA, EA"); each code is translated on its own.
     function artLabel(codes) {
         var vocab = FCT.DATA.vocab;
@@ -97,15 +108,21 @@ FCT.referenceTransform = (function () {
             .filter(function (set) { return set[0]; })
             .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
 
-        // Cards: unique id -> name, pitch, type line and 'L' for legendary cards (only one
-        // copy allowed in a deck, so their playset is 1).
+        // Cards: unique id -> name, pitch, type line, 'L' for legendary cards (only one copy
+        // allowed in a deck, so their playset is 1), cost, power, defense, card keywords,
+        // functional text, printed type line and the formats the card is not legal in.
         var cards = readTable('card', texts.card)
             .map(function (row) {
                 var keywords = String(row['Card Keywords'] || '').split(',').map(function (k) {
                     return k.trim();
-                });
+                }).filter(Boolean);
+                var notLegal = FORMATS.filter(function (format) {
+                    return String(row[format[0]] || '').trim() === 'No';
+                }).map(function (format) { return format[1]; });
                 return [row['Unique ID'], row.Name, label(vocab.pitchCodes, row.Pitch),
-                    row.Types, keywords.indexOf('Legendary') >= 0 ? 'L' : ''];
+                    row.Types, keywords.indexOf('Legendary') >= 0 ? 'L' : '',
+                    text(row.Cost), text(row.Power), text(row.Defense), keywords.join(', '),
+                    text(row['Functional Text']), text(row['Type Text']), notLegal.join(', ')];
             })
             .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
 
@@ -150,7 +167,8 @@ FCT.referenceTransform = (function () {
                 label(vocab.rarityCodes, rarityCode),
                 foilings,
                 group.row['Card Unique ID'],
-                image
+                image,
+                text(group.row.Artists)
             ];
         }).sort(function (a, b) {
             var ka = a.join('|');

@@ -4,7 +4,7 @@ FCT.DATA.info = {
     "branch": "develop",
     "commit": "e56071b41b6e784b652eeada1ff86e6d8538f554",
     "commitDate": "2026-08-21",
-    "built": "2026-09-24",
+    "built": "2026-09-25",
     "fabraryHeader": [
         "Identifier",
         "Name",

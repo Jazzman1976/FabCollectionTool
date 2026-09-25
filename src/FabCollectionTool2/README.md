@@ -1,4 +1,4 @@
-# FabCollectionTool 2.0.4.0
+# FabCollectionTool 2.0.5.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -58,15 +58,17 @@ und `*.ods` aus; den Arbeitsordner am besten ganz außerhalb des Checkouts anleg
 CSV nach RFC 4180, UTF-8, jedes Feld in Anführungszeichen, eine Zeile je Druckvariante:
 
 ```
-Set,Edition,Id,First In,Rarity,Talent,Class1,Class2,Type1,Type2,Sub1,Sub2,Sub3,Name,
-Backside Name,Translated Name,Translated Backside Name,Peculiarity,Art Treatment,Pitch,
-Playset,ST,RF,CF,GF,Note,Overrides
+Set,Edition,Id,First In,Rarity,Metatype,Talent1,Talent2,Class1,Class2,Type1,Type2,Sub1,
+Sub2,Sub3,Name,Backside Name,Translated Name,Translated Backside Name,Peculiarity,
+Art Treatment,Pitch,Playset,ST,RF,CF,GF,Note,Overrides
 ```
 
 (im Original eine Zeile). Die Reihenfolge ist **dieselbe wie in der Tabelle der Anwendung**
 (ohne die berechneten Spalten), damit die Datei in externen Tools genauso aussieht. Dateien
 älterer Versionen mit anderer Reihenfolge werden über die Spaltennamen gelesen; beim nächsten
-Speichern schreibt die Anwendung die aktuelle Reihenfolge. `ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
+Speichern schreibt die Anwendung die aktuelle Reihenfolge. Metatype bis Sub3 folgen der
+Typzeile der Karte (Regelwerk 2.14.1); die Spalte `Talent` bis 2.0.4.0 wird beim Lesen in
+`Talent1` und `Talent2` aufgeteilt. `ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
 Cold, Gold). `Edition` ist eine Edition (`Alpha`, `First`, `Unlimited`) oder eine Sprache (`EN`,
 `DE`, …). Alle Werte bleiben so erhalten, wie sie in der Datei stehen; ungültige Zahlen werden
 gemeldet und rot markiert, aber nicht verändert. Zusätzliche Spalten bleiben erhalten.
@@ -95,8 +97,8 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
 ## Grenzen dieser Fassung
 
 - Imports ersetzen den geöffneten Bestand (kein Zusammenführen).
-- Recherche zu weiteren Spalten (Talent1/2, Cost, Power, Keywords, Artist, …):
-  `docs/Recherche-Spalten-2.0.4.0.md`.
+- Cost, Power, Defense, Keywords, Artist, Legalität und Kartentext werden nur angezeigt,
+  nicht in `collection.csv` gespeichert (Grundlage: `docs/Recherche-Spalten-2.0.4.0.md`).
 - Das Fabrary-Skelett wird mitgeliefert und nicht online aktualisiert. Ganz neue Drucke
   exportiert erst eine neuere Fassung des Skeletts (siehe `reference/README.md`).
 - Cardmarket, Dragon Shield und TCGplayer folgen später.

@@ -382,17 +382,14 @@ table.grid {
     background: var(--head);
     z-index: 2;
 }
-/* Column titles are never cut off: they wrap onto a second line where needed. The filter
-   row sticks below the measured height of the title row (--head-height, set by grid.js). */
+/* Column titles never wrap and are never cut off: grid.js widens a column to its title. The
+   filter row sticks below the measured height of the title row (--head-height, set by
+   grid.js). */
 .grid thead tr:first-child th {
     top: 0;
     user-select: none;
-    white-space: normal;
+    white-space: nowrap;
     text-overflow: clip;
-    line-height: 1.15;
-    vertical-align: bottom;
-    padding-top: 3px;
-    padding-bottom: 3px;
 }
 .grid thead tr.filters th {
     top: var(--head-height, var(--row-height));
@@ -455,9 +452,11 @@ button.filter-clear:hover {
     line-height: 1.2;
     cursor: pointer;
 }
+/* The collapse button stands inline right before the title. */
 .grid th.has-toggle button.group-toggle {
-    float: left;
-    margin-right: 3px;
+    display: inline-block;
+    margin-right: 4px;
+    vertical-align: baseline;
 }
 .grid th.group-expand {
     padding: 0 2px;
@@ -563,15 +562,11 @@ button.filter-clear:hover {
 .grid th.sortable:hover {
     background: var(--selected);
 }
-.grid th .label {
-    overflow-wrap: normal;
-}
-.grid th.nowrap .label {
-    white-space: nowrap;
-}
 .grid th .sort {
     position: absolute;
     right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
     color: var(--muted);
     opacity: 0.55;
     font-size: 0.85em;

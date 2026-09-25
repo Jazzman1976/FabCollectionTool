@@ -66,11 +66,13 @@ function writeData(file, comment, variable, records) {
 }
 
 writeData('sets.js', 'Sets: [code, name, release date]', 'sets', data.sets);
-writeData('cards.js', 'Cards: [unique id, name, pitch, types, L = legendary]', 'cards',
-    data.cards);
+writeData('cards.js',
+    'Cards: [unique id, name, pitch, types, L = legendary, cost, power, defense, ' +
+        'card keywords, functional text, type text, not legal in]',
+    'cards', data.cards);
 writeData('printings.js',
     'Printings: [card number, set code, edition, art treatment, rarity, foilings, card id, ' +
-        'image]',
+        'image, artists]',
     'printings', data.printings);
 writeData('fabrary-skeleton.js',
     'Fabrary skeleton: identity columns of every Fabrary row, never any quantities',

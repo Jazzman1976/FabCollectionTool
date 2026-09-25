@@ -39,13 +39,15 @@ FCT.app = (function () {
      * after the quantities. The default view shows the columns asked for in the feedback.
      * Widths are in em, so they follow the font size.
      */
-    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Id', 'Rarity', 'Talent', 'Class1', 'Class2',
-        'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Art Treatment', 'Pitch', 'Playset',
+    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Id', 'Rarity', 'Metatype', 'Talent1',
+        'Talent2', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name',
+        'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
         '_leftTotal'];
     var WIDTHS = {
-        Set: 12, Edition: 5.5, Id: 5.5, 'First In': 5, Rarity: 6.5, Talent: 6.5, Class1: 7.5,
-        Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5, Sub3: 4.5, Name: 16,
+        Set: 12, Edition: 5.5, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5, Talent1: 6.5,
+        Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
+        Sub3: 4.5, Name: 16,
         'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 4.5,
         Peculiarity: 7, 'Art Treatment': 8.5, Note: 15
     };
@@ -54,6 +56,22 @@ FCT.app = (function () {
 
     function calc(key) {
         return function (row) { return row._calc ? String(row._calc[key]) : ''; };
+    }
+
+    // Value of a field of the card of a row (reference data), e.g. 'cost'.
+    function cardValue(field) {
+        return function (row) {
+            var printing = FCT.reference.printingFor(row);
+            return printing ? printing.card[field] : '';
+        };
+    }
+
+    // Functional text of the card of a row on one line, without the bold marks of the
+    // reference data ("**Go again**").
+    function cardText(row) {
+        var printing = FCT.reference.printingFor(row);
+        return printing ? printing.card.text.replace(/\*\*/g, '').replace(/\s*\n+\s*/g, ' ')
+            : '';
     }
 
     function buildColumns() {
@@ -80,25 +98,61 @@ FCT.app = (function () {
             c.numeric = true;
             c.kind = 'calc';
             c.group = 'calc';
-            c.nowrap = true;
             c.width = CALC_WIDTH;
             return c;
         });
         var types = { key: '_types', label: 'Typen (Stammdaten)', width: 16, kind: 'calc',
             value: function (row) { return FCT.reference.types(row.Id); } };
 
+        // Further reference data, only shown (never saved in collection.csv, since 2.0.5.0).
+        var shown = [
+            { key: '_cost', label: 'Cost', width: 4.5, numeric: true, value: cardValue('cost') },
+            { key: '_power', label: 'Power', width: 4.5, numeric: true,
+                value: cardValue('power') },
+            { key: '_defense', label: 'Defense', width: 4.5, numeric: true,
+                value: cardValue('defense') },
+            { key: '_keywords', label: 'Card Keywords', width: 12,
+                value: cardValue('keywords') },
+            { key: '_artist', label: 'Artist', width: 10, value: function (row) {
+                var printing = FCT.reference.printingFor(row);
+                return printing ? printing.artists : '';
+            } },
+            { key: '_notLegal', label: 'Nicht legal in', width: 9,
+                value: cardValue('notLegal') },
+            { key: '_released', label: 'Erscheinungsdatum', width: 7, value: function (row) {
+                return FCT.reference.setDate(model.setCode(row.Id));
+            } },
+            { key: '_text', label: 'Kartentext', width: 30, value: cardText }
+        ].map(function (c) {
+            c.kind = 'calc';
+            c.sparse = c.numeric;
+            return c;
+        });
+
         var keys = columns.map(function (c) { return c.key; });
         var at = keys.indexOf('GF') + 1;
         var note = keys.indexOf('Note');
         var all = columns.slice(0, at).concat(calculated, columns.slice(at, note),
-            columns.slice(note), [types]);
+            columns.slice(note), [types], shown);
 
         // Visibility: as last chosen by the user, otherwise the default view. Art Treatment
-        // belongs to the default view since 2.0.4.0; a remembered choice gets it once.
+        // belongs to the default view since 2.0.4.0, Metatype, Talent1 and Talent2 replace
+        // Talent since 2.0.5.0; a remembered choice gets them once.
         var visible = settings.get('columns', DEFAULT_COLUMNS);
         if (!settings.get('columnsArt2040', false)) {
             if (visible.indexOf('Art Treatment') < 0) visible = visible.concat(['Art Treatment']);
             settings.set('columnsArt2040', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
+        if (!settings.get('columns2050', false)) {
+            var hadTalent = visible.indexOf(model.LEGACY_TALENT) >= 0;
+            visible = visible.filter(function (k) { return k !== model.LEGACY_TALENT; });
+            if (hadTalent) {
+                model.NEW_IN_2050.forEach(function (k) {
+                    if (visible.indexOf(k) < 0) visible.push(k);
+                });
+            }
+            settings.set('columns2050', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
         all.forEach(function (c) { c.hidden = visible.indexOf(c.key) < 0; });
@@ -1650,9 +1704,11 @@ FCT.app = (function () {
             rebuild();
             grid.select(row);
         } else if (action === 'insert') {
-            // The new row keeps set, talent and classes, so it stays in the same group.
-            insertBelow(row, model.newRow({ Set: row.Set, Talent: row.Talent,
-                Class1: row.Class1, Class2: row.Class2, Playset: row.Playset }), 'Eingefügt');
+            // The new row keeps set, metatype, talents and classes, so it stays in the same
+            // group.
+            insertBelow(row, model.newRow({ Set: row.Set, Metatype: row.Metatype,
+                Talent1: row.Talent1, Talent2: row.Talent2, Class1: row.Class1,
+                Class2: row.Class2, Playset: row.Playset }), 'Eingefügt');
         } else if (action === 'copy') {
             state.clipboard = copyRow(row);
             updateStatus();
@@ -2262,7 +2318,7 @@ FCT.app = (function () {
         grid = FCT.grid.create($('grid'), {
             columns: buildColumns(),
             searchKeys: ['Id', 'Name', 'Translated Name', 'Backside Name',
-                'Translated Backside Name', 'Set', 'Note'],
+                'Translated Backside Name', 'Set', 'Note', cardText],
             isEditable: isEditable,
             choices: choices,
             referenceValue: referenceValue,
@@ -2277,6 +2333,7 @@ FCT.app = (function () {
             ],
             actions: rowActions,
             groupNames: model.groupNames,
+            sections: model.sections,
             setInfo: setInfo,
             matchesMode: matchesMode,
             onEdit: onEdit,

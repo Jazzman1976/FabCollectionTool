@@ -8,14 +8,14 @@ dürfen länger als 100 Zeichen sein; die Zeilenlängen-Regel gilt für handgesc
 | Datei | Inhalt | Herkunft |
 |---|---|---|
 | `sets.js` | `[Set-Code, Name, Erscheinungsdatum]` | the-fab-cube `set.csv` und `set-printing.csv` (frühestes Datum je Set) |
-| `cards.js` | `[Karten-ID, Name, Pitch, Typzeile, L = Legendary]` | the-fab-cube `card.csv` (Legendary aus `Card Keywords`) |
-| `printings.js` | `[Kartennummer, Set-Code, Edition, Art Treatment, Rarity, Foilings, Karten-ID, Bild]` | the-fab-cube `card-printing.csv` (Bild: Dateiname des üblichen Speicherorts oder volle URL, des einfachsten Foilings) |
+| `cards.js` | `[Karten-ID, Name, Pitch, Typzeile, L = Legendary, Cost, Power, Defense, Card Keywords, Kartentext, gedruckte Typzeile, nicht legal in]` | the-fab-cube `card.csv` (Legendary aus `Card Keywords`, „nicht legal in“ aus den Legal-Spalten) |
+| `printings.js` | `[Kartennummer, Set-Code, Edition, Art Treatment, Rarity, Foilings, Karten-ID, Bild, Artists]` | the-fab-cube `card-printing.csv` (Bild: Dateiname des üblichen Speicherorts oder volle URL, des einfachsten Foilings) |
 | `fabrary-skeleton.js` | Identitätsspalten jeder Fabrary-Zeile, **ohne Mengen** | Fabrary-Sammlungsexport |
 | `info.js` | Herkunft, Commit, Stand, Fabrary-Kopfzeile | Build-Skript |
 | `vocab.js` | Wertelisten und Code-Tabellen | von Hand gepflegt |
 
 **Aktueller Stand:** the-fab-cube/flesh-and-blood-cards, Branch `develop`, Commit
-`e56071b41b6e784b652eeada1ff86e6d8538f554` vom 21.08.2026; erzeugt am 24.09.2026.
+`e56071b41b6e784b652eeada1ff86e6d8538f554` vom 21.08.2026; erzeugt am 25.09.2026.
 
 Die Anwendung lädt `set.csv`, `set-printing.csv`, `card.csv` und `card-printing.csv` beim Start
 zusätzlich online (aus dem in der App gewählten Branch, Standard `develop`) und verwendet sie, wenn das gelingt. Die mitgelieferten Dateien sind der Rückfall ohne Internet.

@@ -33,21 +33,31 @@ FCT.DATA.vocab = {
     pitchCodes: { 1: 'Red', 2: 'Yellow', 3: 'Blue' },
 
     // Splitting the type line of card.csv ("Light, Illusionist, Action, Attack") into the
-    // spreadsheet columns Talent, Class1/2, Type1/2 and Sub1-3. Several talents are joined
-    // with a space ("Ice Earth"); everything not listed here is a subtype. Hand sizes are
-    // written as in the spreadsheet: "1H" -> "(1H)".
+    // columns Metatype, Talent1/2, Class1/2, Type1/2 and Sub1-3, following the Comprehensive
+    // Rules (rules.fabtcg.com, fetched 24.09.2026): a type line reads
+    // "[metatypes] [supertypes] [type] - [subtypes]" (2.14.1); supertypes are classes
+    // (2.11.6a) or talents (2.11.6b); the types are listed in 2.15.6a. "Generic" means no
+    // supertypes (2.14.1a) and is kept as a display value. Metatypes have no fixed list in
+    // the rules (2.6.6: hero monikers and set names); the known ones are listed so that new
+    // words are reported; "Invocation Placeholder Card" is the type line of the helper card
+    // UPR225 "Dragons of Legend" and no word of the rules. Hand sizes are written as in the
+    // spreadsheet: "1H" -> "(1H)".
     talents: [
-        'Light', 'Shadow', 'Elemental', 'Earth', 'Ice', 'Lightning', 'Draconic', 'Mystic',
-        'Royal', 'Chaos', 'Revered', 'Reviled', 'Rosetta'
+        'Chaos', 'Draconic', 'Earth', 'Elemental', 'Ice', 'Light', 'Lightning', 'Mystic',
+        'Revered', 'Reviled', 'Royal', 'Shadow'
     ],
     classes: [
         'Generic', 'Adjudicator', 'Assassin', 'Bard', 'Brute', 'Guardian', 'Illusionist',
-        'Mechanologist', 'Merchant', 'Necromancer', 'Ninja', 'Pirate', 'Pit-Fighter', 'Ranger',
-        'Runeblade', 'Shapeshifter', 'Thief', 'Warrior', 'Wizard'
+        'Mechanologist', 'Merchant', 'Necromancer', 'Ninja', 'Pirate', 'Ranger', 'Runeblade',
+        'Shapeshifter', 'Thief', 'Warrior', 'Wizard'
     ],
     cardTypes: [
-        'Action', 'Attack Reaction', 'Block', 'Defense Reaction', 'Demi-Hero', 'Equipment',
-        'Event', 'Hero', 'Instant', 'Macro', 'Mentor', 'Resource', 'Token', 'Weapon'
+        'Action', 'Attack Reaction', 'Block', 'Companion', 'Defense Reaction', 'Demi-Hero',
+        'Equipment', 'Hero', 'Instant', 'Macro', 'Mentor', 'Resource', 'Token', 'Weapon'
+    ],
+    metatypes: [
+        'Arakni', 'Event', 'High Seas', 'Omens of the Third Age', 'Puffin', 'Rosetta', 'Scurv',
+        'Invocation', 'Placeholder Card'
     ],
     handSubtypes: { '1H': '(1H)', '2H': '(2H)' },
 

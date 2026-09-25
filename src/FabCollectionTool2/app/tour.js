@@ -36,8 +36,8 @@ FCT.tour = (function () {
                 'Text mit Platzhaltern: * steht für beliebigen Text, ? für ein Zeichen – z. B. ' +
                 '*Gravy*. Das × löscht einen Filter.' },
         { target: '#search', parent: 'fieldset', title: 'Suche und Schnellfilter',
-            text: 'Die Suche findet Name, Kartennummer, Set und Notiz. Der Schnellfilter ' +
-                'beantwortet häufige Fragen, z. B. „Fehlt zum Playset“.' },
+            text: 'Die Suche findet Name, Kartennummer, Set, Notiz und Kartentext. Der ' +
+                'Schnellfilter beantwortet häufige Fragen, z. B. „Fehlt zum Playset“.' },
         { target: '#btn-outline-1', parent: 'fieldset', title: 'Gliederung',
             text: 'Wie die Gliederungsknöpfe der 1.0-Tabelle: 1 zeigt nur die Sets, 2 auch ' +
                 'die Talent/Class-Gruppen, 3 klappt alles auf.' },

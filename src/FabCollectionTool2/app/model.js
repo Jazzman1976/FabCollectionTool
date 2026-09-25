@@ -31,7 +31,9 @@ FCT.reference = (function () {
         var cards = new Map();
         data.cards.forEach(function (card) {
             cards.set(card[0], { name: card[1], pitch: card[2], types: card[3],
-                legendary: card[4] === 'L' });
+                legendary: card[4] === 'L', cost: card[5] || '', power: card[6] || '',
+                defense: card[7] || '', keywords: card[8] || '', text: card[9] || '',
+                typeText: card[10] || '', notLegal: card[11] || '' });
         });
 
         var printingsById = new Map();
@@ -39,7 +41,7 @@ FCT.reference = (function () {
             var card = cards.get(p[6]) || { name: '', pitch: '', types: '' };
             var printing = {
                 id: p[0], setCode: p[1], edition: p[2], art: p[3], rarity: p[4],
-                foilings: p[5], card: card, image: p[7] || ''
+                foilings: p[5], card: card, image: p[7] || '', artists: p[8] || ''
             };
             if (!printingsById.has(printing.id)) printingsById.set(printing.id, []);
             printingsById.get(printing.id).push(printing);
@@ -90,28 +92,74 @@ FCT.reference = (function () {
         return 3;
     }
 
-    // Splits a type line into the spreadsheet columns Talent, Class1/2, Type1/2, Sub1-3.
-    // Example: "Light, Illusionist, Action, Attack" -> Talent "Light", Class1 "Illusionist",
-    // Type1 "Action", Sub1 "Attack".
-    function splitTypes(typeLine) {
+    // Words of a type line that were already reported as unknown metatypes (once per word).
+    var reportedWords = {};
+
+    /*
+     * Splits a type line into the columns Metatype, Talent1/2, Class1/2, Type1/2, Sub1-3,
+     * following the Comprehensive Rules 2.14.1: "[metatypes] [supertypes] [type] -
+     * [subtypes]". typeLine is the comma separated list of card.csv ("Types"), typeText the
+     * printed type line ("Type Text"), whose dash tells where the subtypes begin. All values
+     * keep the order of the card.
+     * Example: "Light, Illusionist, Action, Attack" -> Talent1 "Light", Class1 "Illusionist",
+     * Type1 "Action", Sub1 "Attack".
+     * A word is placed by its position: types by the list of the rules; supertypes (talents,
+     * classes) before the last type; subtypes after the last type or behind the dash of the
+     * printed line; everything else in front is a metatype. Cards with two halves ("Null //
+     * Shock") list both halves in one line; their words between two types count as well.
+     */
+    function splitTypes(typeLine, typeText) {
         var vocab = FCT.DATA.vocab;
-        var talents = [];
-        var classes = [];
-        var cardTypes = [];
-        var subtypes = [];
-        String(typeLine || '').split(',').forEach(function (part) {
-            var t = part.trim();
-            if (!t) return;
-            if (vocab.talents.indexOf(t) >= 0) talents.push(t);
-            else if (vocab.classes.indexOf(t) >= 0) classes.push(t);
-            else if (vocab.cardTypes.indexOf(t) >= 0) cardTypes.push(t);
-            else subtypes.push(vocab.handSubtypes[t] || t);
+        var words = String(typeLine || '').split(',').map(function (w) {
+            return w.trim();
+        }).filter(Boolean);
+
+        // Words behind the dash of each half of the printed type line.
+        var behindDash = {};
+        String(typeText || '').split(' // ').forEach(function (half) {
+            var at = half.indexOf(' - ');
+            if (at < 0) return;
+            half.slice(at + 3).split(/[\s(),]+/).forEach(function (w) {
+                if (w) behindDash[w] = true;
+            });
         });
+
+        var typeIndexes = [];
+        words.forEach(function (w, i) {
+            if (vocab.cardTypes.indexOf(w) >= 0) typeIndexes.push(i);
+        });
+        var first = typeIndexes.length ? typeIndexes[0] : words.length;
+        var last = typeIndexes.length ? typeIndexes[typeIndexes.length - 1] : -1;
+
+        var lists = { meta: [], talents: [], classes: [], types: [], subs: [] };
+        function add(list, w) {
+            if (lists[list].indexOf(w) < 0) lists[list].push(w);
+        }
+        words.forEach(function (w, i) {
+            var isTalent = vocab.talents.indexOf(w) >= 0;
+            var isClass = vocab.classes.indexOf(w) >= 0;
+            if (i >= first && i <= last && typeIndexes.indexOf(i) >= 0) add('types', w);
+            else if (i > last && last >= 0) add('subs', w);
+            else if (behindDash[w]) add('subs', w);
+            else if (isTalent) add('talents', w);
+            else if (isClass) add('classes', w);
+            else if (i > first) add('subs', w);
+            else {
+                add('meta', w);
+                if (vocab.metatypes.indexOf(w) < 0 && !reportedWords[w]) {
+                    reportedWords[w] = true;
+                    FCT.log.warn('reference', 'Unbekanntes Wort vor dem Kartentyp, als ' +
+                        'Metatyp eingeordnet (neue Klasse oder neues Talent?)', w);
+                }
+            }
+        });
+        var subs = lists.subs.map(function (w) { return vocab.handSubtypes[w] || w; });
         return {
-            Talent: talents.join(' '),
-            Class1: classes[0] || '', Class2: classes[1] || '',
-            Type1: cardTypes[0] || '', Type2: cardTypes[1] || '',
-            Sub1: subtypes[0] || '', Sub2: subtypes[1] || '', Sub3: subtypes[2] || ''
+            Metatype: lists.meta.join(' '),
+            Talent1: lists.talents[0] || '', Talent2: lists.talents[1] || '',
+            Class1: lists.classes[0] || '', Class2: lists.classes[1] || '',
+            Type1: lists.types[0] || '', Type2: lists.types[1] || '',
+            Sub1: subs[0] || '', Sub2: subs[1] || '', Sub3: subs[2] || ''
         };
     }
 
@@ -149,6 +197,12 @@ FCT.reference = (function () {
         return { front: front, back: back || null };
     }
 
+    // Printing of the front side of a row ({ card, artists, ... }), or null if unknown.
+    function printingFor(row) {
+        var found = row && row.Id ? printingOf(row) : null;
+        return found ? found.front : null;
+    }
+
     // URL of the card image of a row ('small', 'normal' or 'large'), or '' if there is none.
     function image(row, size) {
         var found = row && row.Id ? printingOf(row) : null;
@@ -165,7 +219,7 @@ FCT.reference = (function () {
 
         // The split of the type line is cached on the card, it is needed for every row.
         var card = front.card;
-        if (!card.split) card.split = splitTypes(card.types);
+        if (!card.split) card.split = splitTypes(card.types, card.typeText);
         var result = {
             Set: setName(front.setCode),
             Rarity: front.rarity,
@@ -187,6 +241,7 @@ FCT.reference = (function () {
         splitTypes: splitTypes,
         playset: playset,
         expected: expected,
+        printingFor: printingFor,
         image: image,
         info: function () { return state ? state.info : null; },
         data: function () { return state ? state.data : null; },
@@ -203,12 +258,16 @@ FCT.model = (function () {
     // Columns of collection.csv, in file order. Same names as in the old spreadsheet. The
     // table of the app shows them in exactly this order, so that the file reads the same in
     // external tools (decided 24.09.2026); files in another order are read by column name.
+    // Metatype to Sub3 follow the type line of the card (rules 2.14.1, since 2.0.5.0).
     var COLUMNS = [
-        'Set', 'Edition', 'Id', 'First In', 'Rarity', 'Talent', 'Class1', 'Class2', 'Type1',
-        'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name', 'Translated Name',
-        'Translated Backside Name', 'Peculiarity', 'Art Treatment', 'Pitch', 'Playset', 'ST',
-        'RF', 'CF', 'GF', 'Note', 'Overrides'
+        'Set', 'Edition', 'Id', 'First In', 'Rarity', 'Metatype', 'Talent1', 'Talent2',
+        'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name',
+        'Translated Name', 'Translated Backside Name', 'Peculiarity', 'Art Treatment', 'Pitch',
+        'Playset', 'ST', 'RF', 'CF', 'GF', 'Note', 'Overrides'
     ];
+    // Columns of the type line, as filled from the reference data.
+    var TYPE_COLUMNS = ['Metatype', 'Talent1', 'Talent2', 'Class1', 'Class2', 'Type1',
+        'Type2', 'Sub1', 'Sub2', 'Sub3'];
     var QUANTITIES = ['ST', 'RF', 'CF', 'GF'];
     var NUMBER_COLUMNS = ['Playset'].concat(QUANTITIES);
 
@@ -217,9 +276,14 @@ FCT.model = (function () {
     // "Overrides" lists the reference columns the user changed on purpose (";" separated).
     // Playset is a reference column since 2.0.3.0: it follows from the card and never changes.
     var INPUT_COLUMNS = QUANTITIES.concat(['Note']);
-    var REFERENCE_COLUMNS = ['Set', 'Rarity', 'Talent', 'Class1', 'Class2', 'Type1', 'Type2',
-        'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name', 'Pitch', 'Playset'];
+    var REFERENCE_COLUMNS = ['Set', 'Rarity'].concat(TYPE_COLUMNS,
+        ['Name', 'Backside Name', 'Pitch', 'Playset']);
     var OVERRIDES = 'Overrides';
+
+    // Up to 2.0.4.0 a single column "Talent" held all talents of a card, separated by spaces
+    // ("Ice Earth"). Files of that format are converted when they are read.
+    var LEGACY_TALENT = 'Talent';
+    var NEW_IN_2050 = ['Metatype', 'Talent1', 'Talent2'];
 
     // Kind of a column: 'input', 'reference', 'identity' or 'internal'.
     function columnKind(column) {
@@ -244,6 +308,43 @@ FCT.model = (function () {
             return REFERENCE_COLUMNS.indexOf(a) - REFERENCE_COLUMNS.indexOf(b);
         });
         row[OVERRIDES] = list.join(';');
+    }
+
+    // True if a record (values by column name) is in the format up to 2.0.4.0.
+    function isLegacy(values) {
+        return Object.prototype.hasOwnProperty.call(values, LEGACY_TALENT) &&
+            !Object.prototype.hasOwnProperty.call(values, 'Talent1');
+    }
+
+    /*
+     * Converts a record of the format up to 2.0.4.0 in place: "Talent" is split at spaces
+     * into Talent1 and Talent2 (order kept), a deliberate change of "Talent" becomes one of
+     * Talent1 and Talent2. Returns true if the record was converted.
+     */
+    function upgradeValues(values) {
+        if (!isLegacy(values)) return false;
+        var talents = String(values[LEGACY_TALENT] || '').split(/\s+/).filter(Boolean);
+        values.Talent1 = talents[0] || '';
+        values.Talent2 = talents.slice(1).join(' ');
+        delete values[LEGACY_TALENT];
+        if (values[OVERRIDES]) {
+            var list = [];
+            overrides(values).forEach(function (c) {
+                var names = c === LEGACY_TALENT ? ['Talent1', 'Talent2'] : [c];
+                names.forEach(function (n) { if (list.indexOf(n) < 0) list.push(n); });
+            });
+            values[OVERRIDES] = '';
+            list.forEach(function (c) { setOverride(values, c, true); });
+        }
+        return true;
+    }
+
+    // Reports the conversion of records of the format up to 2.0.4.0 (see upgradeValues).
+    function reportUpgrade(report, count) {
+        if (!count) return;
+        report.add('info', 'Spalte "Talent" in Talent1 und Talent2 aufgeteilt (Format ' +
+            '2.0.5.0); Metatype kommt aus den Stammdaten. Beim nächsten Speichern steht das ' +
+            'neue Format in der Datei', count + ' Zeilen');
     }
 
     // True if a reference column of a row differs from the value the reference data expects.
@@ -271,12 +372,81 @@ FCT.model = (function () {
             deviates(row, column, FCT.reference.expected(row));
     }
 
-    // Accordion groups of a row: level 1 is the set, level 2 talent and classes.
+    // Accordion groups of a row: level 1 is the set, level 2 metatype, talents and classes.
     function groupNames(row) {
-        var talentClass = [row.Talent, row.Class1, row.Class2].map(function (v) {
+        var parts = [row.Metatype, row.Talent1, row.Talent2, row.Class1, row.Class2];
+        var talentClass = parts.map(function (v) {
             return String(v || '').trim();
         }).filter(Boolean).join(' ');
         return [String(row.Set || '').trim() || '(ohne Set)', talentClass || 'Generic'];
+    }
+
+    // Separator of the parts of a section key (set name, section name, first card number).
+    var SECTION_SEP = '\u0000';
+
+    /*
+     * Sections of the accordion (level 2, since 2.0.5.0): the rows of each set, ordered by
+     * card number, are cut wherever the talent/class group changes. A group that comes back
+     * later makes a section of its own with the same name (e.g. "Lightning" twice), so that
+     * no section has a gap in its card numbers. Sections are built from all rows, so that
+     * filters do not move them. A section of Fabled cards only is called "Fabled". A set
+     * whose groups fall apart too much (more than twice as many sections as groups, e.g.
+     * promo sets) gets no sections at all ("flat").
+     * allRows: all rows in the order of the table. Returns { of: Map row -> section, flat:
+     * Set of flat set names, rowsOf: Map set name -> rows }; a section is { key, label,
+     * index }, its key starts with the set name followed by SECTION_SEP.
+     */
+    function sections(allRows) {
+        var positions = new Map();
+        var sortId = new Map();
+        var previous = '';
+        var rowsOf = new Map();
+        allRows.forEach(function (row, i) {
+            positions.set(row, i);
+            if (row.Id) previous = row.Id;
+            sortId.set(row, row.Id || previous);
+            var set = groupNames(row)[0];
+            if (!rowsOf.has(set)) rowsOf.set(set, []);
+            rowsOf.get(set).push(row);
+        });
+        var of = new Map();
+        var flat = new Set();
+        rowsOf.forEach(function (rows, set) {
+            var ordered = rows.slice().sort(function (a, b) {
+                var ia = sortId.get(a);
+                var ib = sortId.get(b);
+                if (ia !== ib) return ia < ib ? -1 : 1;
+                return positions.get(a) - positions.get(b);
+            });
+
+            // Cut into runs of the same group; talents and classes in any order count
+            // as the same group ("Ice Earth" = "Earth Ice").
+            var runs = [];
+            var groups = new Set();
+            ordered.forEach(function (row) {
+                var name = groupNames(row)[1];
+                var same = name.split(' ').sort().join(' ');
+                var run = runs[runs.length - 1];
+                if (!run || run.same !== same) {
+                    run = { same: same, name: name, rows: [] };
+                    runs.push(run);
+                    groups.add(same);
+                }
+                run.rows.push(row);
+            });
+            if (runs.length > 2 * groups.size) flat.add(set);
+            runs.forEach(function (run, index) {
+                var fabled = run.rows.every(function (row) {
+                    return row.Rarity === 'Fabled';
+                });
+                var label = fabled ? 'Fabled' : run.name;
+                var first = sortId.get(run.rows[0]) || '';
+                var section = { key: set + SECTION_SEP + label + SECTION_SEP + first,
+                    label: label, index: index };
+                run.rows.forEach(function (row) { of.set(row, section); });
+            });
+        });
+        return { of: of, flat: flat, rowsOf: rowsOf };
     }
 
     // Creates an empty collection.
@@ -368,9 +538,12 @@ FCT.model = (function () {
             return { collection: null, report: report };
         }
 
-        // Columns that are not part of the format are kept, but reported.
+        // Columns that are not part of the format are kept, but reported. The column
+        // "Talent" of earlier versions is converted (see upgradeValues).
+        var legacy = table.header.indexOf(LEGACY_TALENT) >= 0 &&
+            table.header.indexOf('Talent1') < 0;
         collection.extraColumns = table.header.filter(function (name) {
-            return name && COLUMNS.indexOf(name) < 0;
+            return name && COLUMNS.indexOf(name) < 0 && !(legacy && name === LEGACY_TALENT);
         });
         collection.extraColumns.forEach(function (name) {
             report.add('info', 'Zusätzliche Spalte wird unverändert mitgeführt', name);
@@ -384,20 +557,26 @@ FCT.model = (function () {
                 'Speichern wird die Reihenfolge der Tabelle übernommen');
         }
         COLUMNS.forEach(function (name) {
-            // Files of version 2.0.0.0 have no "Overrides" column yet; that is expected.
-            if (table.header.indexOf(name) < 0 && name !== OVERRIDES) {
+            // Files of version 2.0.0.0 have no "Overrides" column yet, files up to 2.0.4.0
+            // no Metatype, Talent1 and Talent2; that is expected.
+            var expectedMissing = name === OVERRIDES ||
+                (legacy && NEW_IN_2050.indexOf(name) >= 0);
+            if (table.header.indexOf(name) < 0 && !expectedMissing) {
                 report.add('warn', 'Spalte fehlt in der Datei und wird leer ergänzt', name);
             }
         });
 
         // Create one row per record; nothing is dropped.
+        var upgraded = 0;
         table.rows.forEach(function (values) {
+            if (legacy && upgradeValues(values)) upgraded++;
             var row = newRow(values);
             collection.extraColumns.forEach(function (name) { row[name] = values[name]; });
             collection.rows.push(row);
         });
 
         report.summary.push(collection.rows.length + ' Zeilen gelesen');
+        reportUpgrade(report, upgraded);
         reportPlaysets(report, keepPlaysets(collection.rows));
         return { collection: collection, report: report };
     }
@@ -516,8 +695,7 @@ FCT.model = (function () {
             // Talent, classes, types and subtypes as the reference data expects them.
             var values = FCT.reference.expected(row);
             if (values) {
-                ['Talent', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3']
-                    .forEach(function (c) { row[c] = values[c]; });
+                TYPE_COLUMNS.forEach(function (c) { row[c] = values[c]; });
             }
             row._reference = true;
             rows.push(row);
@@ -704,8 +882,9 @@ FCT.model = (function () {
      */
     var CHOICE_VOCAB = {
         Set: null, Edition: 'editions', Rarity: 'rarities', Pitch: 'pitches',
-        Peculiarity: 'peculiarities', 'Art Treatment': 'artTreatments', Talent: 'talents',
-        Class1: 'classes', Class2: 'classes', Type1: 'cardTypes', Type2: 'cardTypes',
+        Peculiarity: 'peculiarities', 'Art Treatment': 'artTreatments', Metatype: null,
+        Talent1: 'talents', Talent2: 'talents', Class1: 'classes', Class2: 'classes',
+        Type1: 'cardTypes', Type2: 'cardTypes',
         Sub1: null, Sub2: null, Sub3: null
     };
     var choiceCache = { data: null, values: {} };
@@ -727,7 +906,7 @@ FCT.model = (function () {
                 data.cards.forEach(function (c) { found.add(c[2]); });
             } else {
                 data.cards.forEach(function (c) {
-                    found.add(FCT.reference.splitTypes(c[3])[column]);
+                    found.add(FCT.reference.splitTypes(c[3], c[10])[column]);
                 });
             }
         }
@@ -805,6 +984,11 @@ FCT.model = (function () {
 
     return {
         COLUMNS: COLUMNS,
+        TYPE_COLUMNS: TYPE_COLUMNS,
+        LEGACY_TALENT: LEGACY_TALENT,
+        NEW_IN_2050: NEW_IN_2050,
+        upgradeValues: upgradeValues,
+        reportUpgrade: reportUpgrade,
         QUANTITIES: QUANTITIES,
         NUMBER_COLUMNS: NUMBER_COLUMNS,
         INPUT_COLUMNS: INPUT_COLUMNS,
@@ -816,6 +1000,8 @@ FCT.model = (function () {
         deviates: deviates,
         isEditable: isEditable,
         groupNames: groupNames,
+        sections: sections,
+        SECTION_SEP: SECTION_SEP,
         create: create,
         newRow: newRow,
         fromCsv: fromCsv,

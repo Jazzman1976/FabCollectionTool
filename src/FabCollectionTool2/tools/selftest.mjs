@@ -92,18 +92,73 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         `${FCT.DATA.fabrarySkeleton.length} rows, ${bad.length} with extra columns`);
 }
 
-// Type line split into the spreadsheet columns (2.0.1.0).
+// Type line split into the columns Metatype to Sub3 by the rules 2.14.1 (2.0.5.0): words
+// are placed by their position; the dash of the printed type line marks the subtypes.
 {
     const split = FCT.reference.splitTypes;
-    const same = (a, b) => JSON.stringify(a) === JSON.stringify({ Talent: '', Class1: '',
-        Class2: '', Type1: '', Type2: '', Sub1: '', Sub2: '', Sub3: '', ...b });
-    check('Type line split',
-        same(split('Light, Illusionist, Action, Attack'),
-            { Talent: 'Light', Class1: 'Illusionist', Type1: 'Action', Sub1: 'Attack' }) &&
-        same(split('Generic, Equipment, Chest'),
-            { Class1: 'Generic', Type1: 'Equipment', Sub1: 'Chest' }) &&
-        same(split('Ice, Earth, Guardian, Weapon, Hammer, 2H'), { Talent: 'Ice Earth',
-            Class1: 'Guardian', Type1: 'Weapon', Sub1: 'Hammer', Sub2: '(2H)' }));
+    const empty = Object.fromEntries(FCT.model.TYPE_COLUMNS.map((c) => [c, '']));
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify({ ...empty, ...b });
+    const cases = [
+        ['Light, Illusionist, Action, Attack', 'Light Illusionist Action - Attack',
+            { Talent1: 'Light', Class1: 'Illusionist', Type1: 'Action', Sub1: 'Attack' }],
+        ['Generic, Equipment, Chest', 'Generic Equipment - Chest',
+            { Class1: 'Generic', Type1: 'Equipment', Sub1: 'Chest' }],
+        ['Ice, Earth, Guardian, Weapon, Hammer, 2H', 'Ice Earth Guardian Weapon - Hammer (2H)',
+            { Talent1: 'Ice', Talent2: 'Earth', Class1: 'Guardian', Type1: 'Weapon',
+                Sub1: 'Hammer', Sub2: '(2H)' }],
+        ['Guardian, Hero, Pit-Fighter', 'Guardian Hero - Pit-Fighter',
+            { Class1: 'Guardian', Type1: 'Hero', Sub1: 'Pit-Fighter' }],
+        ['Rosetta, Macro', 'Rosetta Macro', { Metatype: 'Rosetta', Type1: 'Macro' }],
+        ['Puffin, Companion, Off-Hand, Ally', 'Puffin Companion - Off-Hand Ally',
+            { Metatype: 'Puffin', Type1: 'Companion', Sub1: 'Off-Hand', Sub2: 'Ally' }],
+        ['Event, Equipment, Head', 'Event Equipment - Head',
+            { Metatype: 'Event', Type1: 'Equipment', Sub1: 'Head' }],
+        ['Light, Angel, Ally', 'Light - Angel Ally',
+            { Talent1: 'Light', Sub1: 'Angel', Sub2: 'Ally' }],
+        ['Brute, Attack, Action', 'Brute Action - Attack',
+            { Class1: 'Brute', Type1: 'Action', Sub1: 'Attack' }],
+        ['Hero, Merchant', 'Hero - Merchant', { Type1: 'Hero', Sub1: 'Merchant' }],
+        ['Wizard, Instant, Earth, Instant', 'Wizard Instant // Earth Instant',
+            { Talent1: 'Earth', Class1: 'Wizard', Type1: 'Instant' }]
+    ];
+    const wrong = cases.filter(([types, text, want]) => !same(split(types, text), want));
+
+    // Every word of every type line of the reference data is placed in exactly one column.
+    const lost = FCT.DATA.cards.filter((card) => {
+        const placed = Object.values(split(card[3], card[10])).filter(Boolean).join(' ');
+        const words = ` ${placed.replace(/[()]/g, '')} `;
+        return card[3].split(',').map((w) => w.trim()).filter(Boolean)
+            .some((w) => !words.includes(` ${w} `));
+    });
+    const unknown = FCT.log.entries().filter((e) => /Unbekanntes Wort/.test(e.message));
+    check('Type line split', !wrong.length && !lost.length && !unknown.length,
+        `${cases.length - wrong.length} of ${cases.length} cases, ${lost.length} cards with ` +
+        `unplaced words, unknown words: ${unknown.map((e) => e.data).join(', ') || 'none'}` +
+        (wrong.length ? `; wrong: ${wrong.map((c) => c[0]).join(' / ')}` : ''));
+}
+
+// Files up to 2.0.4.0 (collection.csv and spreadsheet) with one column "Talent" are split into
+// Talent1 and Talent2 in the order of the file; a deliberate change moves along (2.0.5.0).
+{
+    const header = ['Set', 'Id', 'Talent', 'Class1', 'Name', 'ST', 'Overrides'];
+    const old = FCT.model.fromCsv(FCT.csv.stringify([header,
+        ['Kyloria', 'WTR001', 'Ice Earth', 'Guardian', 'X', '1', 'Rarity;Talent'],
+        ['Kyloria', 'WTR002', 'Light', '', 'Y', '1', '']]));
+    const [a, b] = old.collection.rows;
+    const split = a.Talent1 === 'Ice' && a.Talent2 === 'Earth' && b.Talent1 === 'Light' &&
+        b.Talent2 === '' && !('Talent' in a) && !old.collection.extraColumns.length;
+    const moved = a.Overrides === 'Rarity;Talent1;Talent2';
+    const noted = old.report.groups.some((g) => /Talent1 und Talent2/.test(g.category));
+    const quiet = !old.report.groups.some((g) => g.examples.some((e) =>
+        FCT.model.NEW_IN_2050.includes(e)));
+    const written = FCT.csv.parse(FCT.model.toCsv(old.collection))[0].join('|') ===
+        FCT.model.COLUMNS.join('|');
+    const fromOds = ods.collection.rows.some((r) => r.Talent2) &&
+        !ods.collection.extraColumns.includes('Talent') &&
+        ods.report.groups.some((g) => /Talent1 und Talent2/.test(g.category));
+    check('Talent split of old files', split && moved && noted && quiet && written && fromOds,
+        `split ${split}, override moved ${moved}, noted ${noted}, no missing column ` +
+        `${quiet}, written in new format ${written}, spreadsheet ${fromOds}`);
 }
 
 // Overrides: kept in collection.csv; files of 2.0.0.0 without the column still load.
@@ -242,8 +297,8 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
 
 // Value lists of the edit mode contain every value found in the ODS import.
 {
-    const columns = ['Set', 'Edition', 'Rarity', 'Pitch', 'Art Treatment', 'Talent', 'Class1',
-        'Type1', 'Sub1'];
+    const columns = ['Set', 'Edition', 'Rarity', 'Pitch', 'Art Treatment', 'Metatype',
+        'Talent1', 'Talent2', 'Class1', 'Type1', 'Sub1'];
     const missing = [];
     columns.forEach((column) => {
         const list = FCT.model.choices(column, ods.collection.rows);
@@ -361,9 +416,12 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
 // Playset, Backside Name before Translated Name); files in the old order are read by name.
 {
     const cols = FCT.model.COLUMNS;
+    const typeLine = FCT.model.TYPE_COLUMNS;
     const order = cols.indexOf('Pitch') === cols.indexOf('Playset') - 1 &&
         cols.indexOf('Backside Name') === cols.indexOf('Translated Name') - 1 &&
-        cols.indexOf('Art Treatment') < cols.indexOf('Pitch');
+        cols.indexOf('Art Treatment') < cols.indexOf('Pitch') &&
+        cols.slice(cols.indexOf('Metatype'), cols.indexOf('Sub3') + 1).join('|') ===
+            typeLine.join('|') && cols.indexOf('Rarity') === cols.indexOf('Metatype') - 1;
     const oldHeader = ['Set', 'Edition', 'Id', 'First In', 'Rarity', 'Talent', 'Class1',
         'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Translated Name',
         'Backside Name', 'Translated Backside Name', 'Pitch', 'Peculiarity', 'Art Treatment',
@@ -382,6 +440,60 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     check('Column order', order && readByName && written && noted && noHaveThis,
         `order ${order}, old file read by name ${readByName}, written in new order ${written}, ` +
         `noted ${noted}, "Have (this)" removed ${noHaveThis}`);
+}
+
+// Reference data shown only (2.0.5.0): cost, power, defense, keywords, text, printed type
+// line, formats a card is not legal in, artists of a printing.
+{
+    const row = (id) => FCT.model.newRow({ Id: id });
+    const p = FCT.reference.printingFor(row('WTR001'));
+    const horns = FCT.DATA.cards.find((c) => c[1] === 'Horns of the Despised');
+    const fields = p && p.card.typeText === 'Brute Hero' && p.artists &&
+        horns[7] === '1' && horns[8].includes('The Crowd Boos') &&
+        /crowd boos/.test(horns[9]) && typeof p.card.notLegal === 'string';
+    const numbers = FCT.DATA.cards.filter((c) => c[5] && !/^(\d+|X+\d*|\*)$/.test(c[5]));
+    const widths = FCT.DATA.cards.every((c) => c.length === 12) &&
+        FCT.DATA.printings.every((x) => x.length === 9);
+    const unknown = FCT.reference.printingFor(row('XXX999')) === null;
+    const notSaved = FCT.model.COLUMNS.every((c) => !/Cost|Power|Defense|Artist/.test(c));
+    check('Reference data shown only', fields && !numbers.length && widths && unknown &&
+        notSaved, `fields ${!!fields}, odd costs ${numbers.map((c) => c[5]).join(' ')}, ` +
+        `record widths ${widths}, unknown id ${unknown}, not in collection.csv ${notSaved}`);
+}
+
+// Accordion sections (2.0.5.0): cut by card number, so that no section has a gap; a group
+// coming back later is a section of its own; Fabled only = "Fabled"; decks and promos flat.
+{
+    const rows = FCT.model.referenceRows(FCT.model.create());
+    const sec = FCT.model.sections(rows);
+    const setOf = (code) => [...sec.rowsOf.keys()].find((name) =>
+        sec.rowsOf.get(name).some((row) => FCT.model.setCode(row.Id) === code));
+    const labels = (name) => [...new Set(sec.rowsOf.get(name).map((r) => sec.of.get(r)))]
+        .map((s) => s.label);
+
+    // Walking a set in card number order, a section once left never comes back.
+    let gaps = 0;
+    sec.rowsOf.forEach((list) => {
+        const left = new Set();
+        let current = null;
+        list.slice().sort((a, b) => (a.Id < b.Id ? -1 : a.Id > b.Id ? 1 : 0)).forEach((row) => {
+            const section = sec.of.get(row);
+            if (section === current) return;
+            if (left.has(section)) gaps++;
+            if (current) left.add(current);
+            current = section;
+        });
+    });
+    const omn = setOf('OMN');
+    const omnLabels = labels(omn);
+    const twice = omnLabels.some((l, i) => omnLabels.indexOf(l) !== i);
+    const fabled = sec.of.get(sec.rowsOf.get(omn).find((r) => r.Id === 'OMN000')).label ===
+        'Fabled' && labels(setOf('WTR'))[0] === 'Fabled';
+    const flat = sec.flat.has(setOf('AAZ')) && sec.flat.has(setOf('FAB')) &&
+        !['WTR', 'MON', 'OMN', 'ROS'].some((code) => sec.flat.has(setOf(code)));
+    check('Accordion sections', !gaps && twice && fabled && flat,
+        `${sec.rowsOf.size} sets, ${sec.flat.size} flat, gaps ${gaps}, a group twice in OMN ` +
+        `${twice}, Fabled ${fabled}, decks/promos flat and main sets not ${flat}`);
 }
 
 // Card pictures (2.0.4.0): every known row of the old spreadsheet has a picture; URLs in the
