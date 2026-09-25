@@ -1,0 +1,48 @@
+# Publishes FabCollectionTool 2 (src/FabCollectionTool2) as GitHub Page.
+# Runs on every push to main (and on demand): first the self test, then the deployment.
+# The page is https://jazzman1976.github.io/FabCollectionTool/
+name: GitHub Page
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; a newer push waits instead of cancelling a running one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # Self test of the app with the example data in docs/ - no deployment if it fails.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Self test
+        working-directory: src/FabCollectionTool2
+        run: node tools/selftest.mjs ../../docs/example.ods "../../docs/Fabrary Export Beispiel.csv"
+
+  # The tool folder is the site; user files (collection.csv, logs) are never in the repository.
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: src/FabCollectionTool2
+      - id: deployment
+        uses: actions/deploy-pages@v4

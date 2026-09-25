@@ -1,0 +1,7 @@
+# User data must never be committed: the repository only contains the tool itself.
+# Collections, backups, spreadsheets and exports stay local on the user's machine.
+*.csv
+*.tsv
+*.ods
+*.xlsx
+backup*/

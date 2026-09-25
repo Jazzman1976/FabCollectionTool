@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FabCollectionTool</title>
+    <link rel="stylesheet" href="app/style.css?v=2.1.0.0">
+    <!-- Design (Auto, Hell, Dunkel) before the first paint, so that nothing flashes -->
+    <script>
+        try {
+            var theme = JSON.parse(localStorage.getItem('fct2.theme') || '"system"');
+            if (theme === 'light' || theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        } catch (e) { /* storage blocked: the design follows the system */ }
+    </script>
+</head>
+<body class="msg-bottom">
+    <!-- Title and toolbar; each group is a framed box -->
+    <header>
+        <h1>FabCollectionTool <span id="version"></span></h1>
+        <nav class="toolbar">
+            <fieldset class="group">
+                <legend>Bestand</legend>
+                <button id="btn-new"
+                    title="Neuen, leeren Bestand anlegen (fragt nach Name und Ort)">Neu</button>
+                <button id="btn-open" title="collection.csv öffnen">Öffnen</button>
+                <button id="btn-save" title="Bestand und Änderungsprotokoll speichern (Strg+S)">
+                    Speichern</button>
+                <button id="btn-backup" title="Kopie mit Zeitstempel speichern">Backup</button>
+                <button id="btn-folder" hidden>Ordner …</button>
+                <button id="btn-add-sets"
+                    title="Sets aus den Stammdaten aufnehmen, auch ohne eigene Karte">
+                    Sets aufnehmen …</button>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Import</legend>
+                <button id="btn-import-ods"
+                    title="Die FabCollectionTool-1.0-Tabelle übernehmen">ODS</button>
+                <button id="btn-import-fabrary" title="Fabrary-Export (.csv) übernehmen">
+                    Fabrary</button>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Export</legend>
+                <button id="btn-export-fabrary" title="Importdatei für Fabrary erzeugen">
+                    Fabrary</button>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Stammdaten</legend>
+                <select id="reference-branch"
+                    title="Branch der Kartendaten (neue Sets kommen zuerst in eigene Branches)">
+                    <option value="develop">develop</option>
+                </select>
+                <span id="reference-status" class="badge"></span>
+                <button id="btn-reference-update" title="Stammdaten jetzt online laden">
+                    Aktualisieren</button>
+                <button id="btn-reference-apply"
+                    title="Abweichende Karten anzeigen und Stammdaten je Karte übernehmen">
+                    Übernehmen …</button>
+                <button id="btn-reference-info" title="Herkunft und Stand der Stammdaten">
+                    Info</button>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Ansicht</legend>
+                <select id="theme" title="Helles oder dunkles Design, oder wie im System">
+                    <option value="system">Design: Auto</option>
+                    <option value="light">Design: Hell</option>
+                    <option value="dark">Design: Dunkel</option>
+                </select>
+                <select id="font-size" title="Schriftgröße">
+                    <option value="S">Schrift klein</option>
+                    <option value="M">Schrift mittel</option>
+                    <option value="L">Schrift groß</option>
+                </select>
+                <select id="messages-position" title="Wo die Meldungen stehen">
+                    <option value="bottom">Meldungen unten</option>
+                    <option value="left">Meldungen links</option>
+                    <option value="right">Meldungen rechts</option>
+                </select>
+                <button id="btn-edit-mode" class="toggle" aria-pressed="false"
+                    title="Auch Stammdaten- und Identitätsspalten bearbeiten">Editiermodus</button>
+            </fieldset>
+            <fieldset class="group" id="group-help">
+                <legend>Hilfe</legend>
+                <button id="btn-onboarding" title="Assistent zum Einrichten eines Bestands">
+                    Einrichtung</button>
+                <button id="btn-tour" title="Kurze Einführung in die wichtigsten Bereiche">
+                    Tutorial</button>
+                <button id="btn-docs" title="Ausführliche Anleitung in einem neuen Tab">
+                    Dokumentation</button>
+                <button id="btn-diagnose"
+                    title="Diagnose-Log für die Fehlersuche herunterladen">Diagnose</button>
+            </fieldset>
+        </nav>
+        <nav class="toolbar">
+            <fieldset class="group">
+                <legend>Filter</legend>
+                <span class="search-box">
+                    <input id="search" type="text" placeholder="Suche: Name, Id, Set, Notiz …"
+                        title="Enthält die Wörter; * und ? als Platzhalter">
+                    <button id="search-clear" type="button" class="filter-clear" hidden
+                        title="Suche löschen">×</button>
+                </span>
+                <select id="mode" title="Schnellfilter">
+                    <option value="all">Alle Zeilen</option>
+                    <option value="collection">Nur Bestand (ohne fehlende Varianten)</option>
+                    <option value="owned">Im Besitz</option>
+                    <option value="missing">Fehlt zum Playset (gesamt)</option>
+                    <option value="missingSet">Fehlt zum Playset (dieses Set)</option>
+                    <option value="surplus">Überzählig</option>
+                    <option value="gaps">Noch nicht im Bestand (○)</option>
+                    <option value="differs">Weicht von den Stammdaten ab (≠)</option>
+                    <option value="problems">Auffällige Zeilen</option>
+                </select>
+
+                <details class="dropdown">
+                    <summary>Spalten</summary>
+                    <div class="dropdown-panel">
+                        <div id="columns-list"></div>
+                        <button id="btn-columns-default">Standard wiederherstellen</button>
+                    </div>
+                </details>
+                <button id="btn-reset">Filter zurücksetzen</button>
+            </fieldset>
+            <fieldset class="group">
+                <legend>Gliederung</legend>
+                <select id="grouping" title="Gruppierung wie in der 1.0-Tabelle">
+                    <option value="setClass">Set › Talent Class</option>
+                    <option value="set">nur Set</option>
+                    <option value="none">keine Gruppen</option>
+                </select>
+                <select id="set-order" title="Reihenfolge der Sets">
+                    <option value="date">Sets nach Erscheinen</option>
+                    <option value="alpha">Sets alphabetisch</option>
+                </select>
+                <button id="btn-outline-1" class="outline" title="Ebene 1: nur die Sets">1</button>
+                <button id="btn-outline-2" class="outline"
+                    title="Ebene 2: Sets offen, Talent/Class-Gruppen zu">2</button>
+                <button id="btn-outline-3" class="outline" title="Ebene 3: alles offen">3</button>
+            </fieldset>
+        </nav>
+    </header>
+    <!-- Notice area: everything to notice right now (see notices.js) -->
+    <div id="banners" aria-live="polite"></div>
+
+    <!-- Collection table -->
+    <main id="grid"></main>
+
+    <!-- Messages and change log -->
+    <section id="messages" class="collapsed">
+        <div class="tabs">
+            <button id="tab-messages" class="tab active">Meldungen</button>
+            <button id="tab-log" class="tab">Protokoll</button>
+            <button id="messages-toggle" class="collapse" title="Ein-/ausklappen">▴</button>
+        </div>
+        <div id="messages-list" class="pane"></div>
+        <div id="log-list" class="pane" hidden></div>
+    </section>
+    <footer>
+        <span id="status-folder"></span>
+        <span id="status-file"></span>
+        <span id="status-rows"></span>
+        <span id="status-clipboard"></span>
+        <span id="status-save"></span>
+        <button id="btn-autosave" class="toggle" hidden aria-pressed="true"
+            title="Automatisches Speichern ein- oder ausschalten (wird gemerkt)"></button>
+        <button id="btn-log-file" hidden
+            title="Einmal wählen, dann wird das Protokoll automatisch mitgespeichert">
+            Protokolldatei festlegen</button>
+    </footer>
+
+    <!-- Dialog for import previews, row editing and information -->
+    <dialog id="dialog">
+        <form method="dialog">
+            <h2 id="dialog-title"></h2>
+            <div id="dialog-body"></div>
+            <p id="dialog-hint" class="hint"></p>
+            <menu id="dialog-buttons"></menu>
+        </form>
+    </dialog>
+    <div id="busy" hidden>Datei wird gelesen …</div>
+
+    <noscript>Diese Anwendung benötigt JavaScript.</noscript>
+
+    <!-- Scripts in fixed order: namespace, reference data, logic, user interface -->
+    <script src="app/core.js?v=2.1.0.0"></script>
+    <script src="app/log.js?v=2.1.0.0"></script>
+    <script src="app/notices.js?v=2.1.0.0"></script>
+    <script src="app/settings.js?v=2.1.0.0"></script>
+    <script src="reference/vocab.js?v=2.1.0.0"></script>
+    <script src="reference/info.js?v=2.1.0.0"></script>
+    <script src="reference/sets.js?v=2.1.0.0"></script>
+    <script src="reference/cards.js?v=2.1.0.0"></script>
+    <script src="reference/printings.js?v=2.1.0.0"></script>
+    <script src="reference/fabrary-skeleton.js?v=2.1.0.0"></script>
+    <script src="app/csv.js?v=2.1.0.0"></script>
+    <script src="app/reference-transform.js?v=2.1.0.0"></script>
+    <script src="app/model.js?v=2.1.0.0"></script>
+    <script src="app/changelog.js?v=2.1.0.0"></script>
+    <script src="app/storage.js?v=2.1.0.0"></script>
+    <script src="app/diagnosis.js?v=2.1.0.0"></script>
+    <script src="app/grid-filter.js?v=2.1.0.0"></script>
+    <script src="app/card-image.js?v=2.1.0.0"></script>
+    <script src="app/grid.js?v=2.1.0.0"></script>
+    <script src="app/import-ods.js?v=2.1.0.0"></script>
+    <script src="app/import-fabrary.js?v=2.1.0.0"></script>
+    <script src="app/export-fabrary.js?v=2.1.0.0"></script>
+    <script src="app/reference-update.js?v=2.1.0.0"></script>
+    <script src="app/tour.js?v=2.1.0.0"></script>
+    <script src="app/onboarding.js?v=2.1.0.0"></script>
+    <script src="app/app.js?v=2.1.0.0"></script>
+</body>
+</html>

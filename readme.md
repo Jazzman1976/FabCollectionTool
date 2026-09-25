@@ -1,5 +1,16 @@
 # Fab Collection Tool
 
+## FabCollectionTool 2 – in the browser
+
+The new version runs right in the browser, without installation:
+**<https://jazzman1976.github.io/FabCollectionTool/>** (Google Chrome or Microsoft Edge).
+Your collection stays a CSV file on your own computer. Source code and German documentation:
+[`src/FabCollectionTool2`](src/FabCollectionTool2/README.md).
+
+The rest of this page describes the original tool (version 1).
+
+## FabCollectionTool 1
+
 Manage your collection in an Open Document Spreadsheet (ODS).  
 Then export the ODS contents to your favorite collection manager.
 
