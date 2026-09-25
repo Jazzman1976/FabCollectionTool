@@ -463,6 +463,50 @@ FCT.model = (function () {
         return row;
     }
 
+    // The next card number: the number at the end counted up by one, with the same number of
+    // digits ("MON062" -> "MON063", "WTR009" -> "WTR010"); '' if there is no number at the end.
+    function nextId(id) {
+        var match = /^(.*?)(\d+)$/.exec(String(id || ''));
+        if (!match) return '';
+        var next = String(parseInt(match[2], 10) + 1);
+        while (next.length < match[2].length) next = '0' + next;
+        return match[1] + next;
+    }
+
+    /*
+     * Values that all variants (edition, art treatment) of a card number share in the
+     * reference data (feedback on 2.0.5.0): a new row can take them before the user says
+     * which variant is meant. Columns whose values differ between the variants are left out,
+     * and so is the set name (the new row keeps that of the row above). Returns null if the
+     * card number is unknown.
+     */
+    function commonValues(id) {
+        var variants = new Map();
+        FCT.reference.printings(id).forEach(function (p) {
+            variants.set(p.edition + '|' + p.art, { Id: id, Edition: p.edition,
+                'Art Treatment': p.art, Name: '' });
+        });
+        if (!variants.size) return null;
+        var columns = REFERENCE_COLUMNS.filter(function (c) { return c !== 'Set'; })
+            .concat(['Art Treatment']);
+        var values = null;
+        variants.forEach(function (probe) {
+            var want = FCT.reference.expected(probe) || {};
+            want['Art Treatment'] = probe['Art Treatment'];
+            if (!values) {
+                values = {};
+                columns.forEach(function (c) { values[c] = want[c] == null ? '' : want[c]; });
+                return;
+            }
+            columns.forEach(function (c) {
+                if (c in values && values[c] !== (want[c] == null ? '' : want[c])) {
+                    delete values[c];
+                }
+            });
+        });
+        return values;
+    }
+
     // Edition as Fabrary understands it: language variants are no edition of their own.
     function fabraryEdition(edition) {
         var vocab = FCT.DATA.vocab;
@@ -1004,6 +1048,8 @@ FCT.model = (function () {
         SECTION_SEP: SECTION_SEP,
         create: create,
         newRow: newRow,
+        nextId: nextId,
+        commonValues: commonValues,
         fromCsv: fromCsv,
         toCsv: toCsv,
         validate: validate,

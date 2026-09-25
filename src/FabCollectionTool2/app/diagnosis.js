@@ -60,12 +60,12 @@ FCT.diagnosis = (function () {
         });
     }
 
-    // Offers the whole log (including earlier sessions) as a download.
+    // Offers the whole log (including earlier sessions) as a download. Always under the same
+    // name, so that a browser asking where to save can overwrite the previous file.
     function download() {
         FCT.log.info('diagnose', 'Diagnose heruntergeladen', { entries:
             FCT.log.entries().length });
-        FCT.storage.download('fct-diagnose-' + FCT.util.timestamp() + '.log', FCT.log.text(),
-            'text/plain;charset=utf-8');
+        FCT.storage.download('fct-diagnose.log', FCT.log.text(), 'text/plain;charset=utf-8');
     }
 
     return { start: start, flush: flush, download: download, schedule: schedule };

@@ -1,4 +1,4 @@
-# FabCollectionTool 2.0.5.0
+# FabCollectionTool 2.0.6.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -31,7 +31,7 @@ In der Tabelle: Kartenbilder an der Kartennummer (Vorschau beim Überfahren, gro
 Bilder lädt der Browser aus dem Internet), einklappbarer Block der Rechenspalten, × zum Löschen
 eines Filters.
 
-Die Stammdaten (Karten, Drucke, Sets) lädt die Anwendung beim Start automatisch aus dem offenen
+Die Stammdaten (Karten, Varianten, Sets) lädt die Anwendung beim Start automatisch aus dem offenen
 Datensatz [the-fab-cube/flesh-and-blood-cards](https://github.com/the-fab-cube/flesh-and-blood-cards);
 ohne Internet gelten die mitgelieferten in `reference/`.
 
@@ -46,7 +46,9 @@ ohne Internet gelten die mitgelieferten in `reference/`.
   bleibt das Original.
 - **Browser** (localStorage): nur Ansichtseinstellungen (Design, Spalten, eingeklappter
   Rechenblock, Branch der Stammdaten, Schrift, Gliederung, Tutorial gesehen).
-- **Firefox** speichert Bestand und Protokoll als Download.
+- **Firefox** speichert Bestand und Protokoll als Download, immer unter demselben Namen; mit
+  der Firefox-Einstellung „Jedes Mal nachfragen, wo gespeichert werden soll“ ersetzt man so
+  die alte Datei (siehe Dokumentation, Abschnitt Firefox).
 
 **Nutzerdaten gehören nicht ins Repository.** Die `.gitignore` in diesem Ordner schließt `*.csv`
 und `*.ods` aus; den Arbeitsordner am besten ganz außerhalb des Checkouts anlegen.
@@ -55,7 +57,8 @@ und `*.ods` aus; den Arbeitsordner am besten ganz außerhalb des Checkouts anleg
 
 ### `collection.csv` (eigener Bestand)
 
-CSV nach RFC 4180, UTF-8, jedes Feld in Anführungszeichen, eine Zeile je Druckvariante:
+CSV nach RFC 4180, UTF-8, jedes Feld in Anführungszeichen, eine Zeile je Variante (Id + Edition +
+Art Treatment):
 
 ```
 Set,Edition,Id,First In,Rarity,Metatype,Talent1,Talent2,Class1,Class2,Type1,Type2,Sub1,
@@ -91,7 +94,7 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
 - **Export:** Fabrarys eigene Zeilen (das „Skelett“ in `reference/fabrary-skeleton.js`) werden
   zeichengenau übernommen, nur die Mengen werden eingetragen. Sprachvarianten werden
   zusammengezählt, „Micro Text Box“ wird zu „Extended Art“. „Extra for trade“ wird nach den
-  Regeln des alten Tools berechnet. Drucke, die das Skelett nicht kennt, werden gemeldet und
+  Regeln des alten Tools berechnet. Varianten, die das Skelett nicht kennt, werden gemeldet und
   nicht geraten.
 
 ## Grenzen dieser Fassung
@@ -99,7 +102,7 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
 - Imports ersetzen den geöffneten Bestand (kein Zusammenführen).
 - Cost, Power, Defense, Keywords, Artist, Legalität und Kartentext werden nur angezeigt,
   nicht in `collection.csv` gespeichert (Grundlage: `docs/Recherche-Spalten-2.0.4.0.md`).
-- Das Fabrary-Skelett wird mitgeliefert und nicht online aktualisiert. Ganz neue Drucke
+- Das Fabrary-Skelett wird mitgeliefert und nicht online aktualisiert. Ganz neue Varianten
   exportiert erst eine neuere Fassung des Skeletts (siehe `reference/README.md`).
 - Cardmarket, Dragon Shield und TCGplayer folgen später.
 

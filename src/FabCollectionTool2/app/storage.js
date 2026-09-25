@@ -121,11 +121,13 @@ FCT.storage = (function () {
         return saveAs(name, text);
     }
 
-    // Asks for a file name and location (or downloads, if the browser cannot do that).
-    function saveAs(suggestedName, text) {
+    // Asks for a file name and location (or downloads, if the browser cannot do that). The
+    // dialog starts in the working folder, or in the folder of startIn (a file handle).
+    function saveAs(suggestedName, text, startIn) {
         if (canWriteBack && typeof window.showSaveFilePicker === 'function') {
-            return window.showSaveFilePicker(withStart({ suggestedName: suggestedName,
-                types: CSV_TYPES })).then(function (handle) {
+            var options = withStart({ suggestedName: suggestedName, types: CSV_TYPES });
+            if (!options.startIn && startIn) options.startIn = startIn;
+            return window.showSaveFilePicker(options).then(function (handle) {
                     return writeHandle(handle, text).then(function () {
                         return { name: handle.name, handle: handle, method: 'file' };
                     });
@@ -144,9 +146,10 @@ FCT.storage = (function () {
     // Appends lines to the log file next to the collection.
     // Chrome/Edge: the first call asks where the log file is (or should be); the handle is
     // kept, the existing content is read and the new lines are appended. Other browsers get
-    // a download with only the new lines. Resolves with { name, handle, method } or null if
-    // the user cancelled. makeText(existingText) returns the complete new file content.
-    function appendLog(suggestedName, handle, makeText, newOnlyText) {
+    // a download of the complete log (fullText) under the same name every time, so that it
+    // can replace the previous file. Resolves with { name, handle, method } or null if the
+    // user cancelled. makeText(existingText) returns the complete new file content.
+    function appendLog(suggestedName, handle, makeText, fullText) {
         if (canWriteBack && typeof window.showSaveFilePicker === 'function') {
             var ready = handle ? Promise.resolve(handle) : window.showSaveFilePicker(withStart({
                 suggestedName: suggestedName, types: CSV_TYPES
@@ -163,9 +166,8 @@ FCT.storage = (function () {
                 });
             }, cancelled);
         }
-        var name = suggestedName.replace(/\.csv$/i, '') + '-' + FCT.util.timestamp() + '.csv';
-        download(name, newOnlyText);
-        return Promise.resolve({ name: name, handle: null, method: 'download' });
+        download(suggestedName, fullText);
+        return Promise.resolve({ name: suggestedName, handle: null, method: 'download' });
     }
 
     /*

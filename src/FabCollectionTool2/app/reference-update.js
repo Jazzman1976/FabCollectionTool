@@ -71,7 +71,7 @@ FCT.referenceUpdate = (function () {
             var shipped = FCT.DATA.printings.length;
             if (data.printings.length < shipped * 0.9) {
                 throw new Error('Online-Daten unvollständig (' + data.printings.length +
-                    ' statt mindestens ' + Math.round(shipped * 0.9) + ' Drucke)');
+                    ' statt mindestens ' + Math.round(shipped * 0.9) + ' Varianten)');
             }
             var info = {
                 source: transform.SOURCE_REPO,

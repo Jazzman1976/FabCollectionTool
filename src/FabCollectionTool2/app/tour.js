@@ -21,15 +21,17 @@ FCT.tour = (function () {
                 'liegen dann zusammen, und Änderungen werden automatisch gespeichert.' },
         { target: '#btn-add-sets', title: 'Sets aufnehmen',
             text: 'Neue Sets holst du dir hier in den Bestand – auch solche, von denen du noch ' +
-                'keine Karte hast. Alle Drucke erscheinen dann als Zeilen zum Ausfüllen.' },
+                'keine Karte hast. Alle Varianten erscheinen dann als Zeilen zum Ausfüllen.' },
         { target: '#grid', title: 'Die Tabelle',
             text: 'Sie funktioniert wie die 1.0-Tabelle: Zelle anklicken, Zahl tippen, Enter ' +
-                'geht nach unten. Shift+↑ / Shift+↓ zählt eine Menge hoch oder runter. Sets ' +
-                'und Talent/Class-Gruppen lassen sich auf- und zuklappen. Eine Kartennummer ' +
+                'geht nach unten. Mengen zählst du mit den Tasten + / − hoch oder runter – ' +
+                'oder gleichwertig mit Shift+↑ / Shift+↓ (eine Besonderheit dieser App, kein ' +
+                'Tabellen-Standard). Sets und Talent/Class-Gruppen lassen sich auf- und ' +
+                'zuklappen. Eine Kartennummer ' +
                 'mit Bildsymbol zeigt beim Überfahren die Karte, ein Klick zeigt sie groß.' },
         { target: '.grid thead th.status', title: 'Status jeder Zeile',
-            text: '≠ weicht von den Stammdaten ab, ✱ hast du bewusst geändert, ○ ist ein Druck, ' +
-                'den du noch nicht im Bestand hast, ? eine unbekannte Kartennummer. ' +
+            text: '≠ weicht von den Stammdaten ab, ✱ hast du bewusst geändert, ○ ist eine ' +
+                'Variante, die du noch nicht im Bestand hast, ? eine unbekannte Kartennummer. ' +
                 'Unterstrichene Werte korrigierst du direkt per Klick.' },
         { target: '.grid thead tr.filters', title: 'Filter',
             text: 'Spalten mit festen Werten filterst du per Häkchen wie in der 1.0-Tabelle, ' +

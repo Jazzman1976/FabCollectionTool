@@ -20,6 +20,8 @@ FCT.grid = (function () {
     var ICONS = {
         edit: '<path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z"/>',
         insert: '<path d="M8 3v10M3 8h10"/>',
+        // "take into the collection": an arrow into a tray, clearly unlike the plus of insert
+        adopt: '<path d="M8 2v7.5M5 6.5l3 3 3-3"/><path d="M2.5 10v3.5h11V10"/>',
         copy: '<rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1"/><path d="M3 10.5V3h7.5"/>',
         paste: '<rect x="3" y="3" width="10" height="11" rx="1"/>' +
             '<path d="M6 3V2h4v1M8 6v5M5.5 8.5L8 11l2.5-2.5"/>',
@@ -47,8 +49,9 @@ FCT.grid = (function () {
     //               kind is 'input', 'reference', 'identity' or 'calc'; list = check box
     //               filter (fixed values) instead of a text filter; columns with the same
     //               group can be collapsed into one narrow column; sparse = numbers that
-    //               may be missing (an empty value matches no number comparison). Titles
-    //               never wrap; a column is widened where its title would not fit.
+    //               may be missing (an empty value matches no number comparison); hint =
+    //               explanation shown when hovering over the title. Titles never wrap; a
+    //               column is widened where its title would not fit.
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
     //   searchKeys  keys searched by the free text search, or functions (row) -> text
@@ -236,7 +239,8 @@ FCT.grid = (function () {
                         } });
                 }
                 headRow.appendChild(el('th', {
-                    title: column.label + ' – klicken zum Sortieren (auf, ab, aus)',
+                    title: column.label + (column.hint ? ': ' + column.hint : '') +
+                        '\nKlicken zum Sortieren (auf, ab, aus)',
                     className: 'sortable ' + (column.numeric ? 'num' : '') +
                         (toggle ? ' has-toggle' : ''),
                     'data-key': column.key,
@@ -847,14 +851,15 @@ FCT.grid = (function () {
                 title: picture ? null : title || null });
             td._column = column;
             if (column.step && editable && isCursor) {
-                // "-" and "+" only in the active cell (also Shift+Down / Shift+Up).
+                // "-" and "+" only in the active cell (also the keys - / + and Shift+Down /
+                // Shift+Up).
                 td.classList.add('stepper');
                 td.appendChild(el('button', { type: 'button', className: 'step minus',
-                    tabindex: '-1', 'data-step': '-1', title: 'Eins weniger (Shift+↓)',
+                    tabindex: '-1', 'data-step': '-1', title: 'Eins weniger (− oder Shift+↓)',
                     text: '−' }));
                 td.appendChild(el('span', { className: 'value', text: text }));
                 td.appendChild(el('button', { type: 'button', className: 'step plus',
-                    tabindex: '-1', 'data-step': '1', title: 'Eins mehr (Shift+↑)',
+                    tabindex: '-1', 'data-step': '1', title: 'Eins mehr (+ oder Shift+↑)',
                     text: '+' }));
             } else {
                 td.textContent = text;
@@ -900,7 +905,7 @@ FCT.grid = (function () {
             cursor.item = item || null;
             if (key) cursor.key = key;
             if (!cursor.key) cursor.key = (cursorColumns()[0] || {}).key || null;
-            if (scroll) scrollToCursor();
+            if (scroll) scrollToCursor(true);
             render();
         }
 
@@ -926,10 +931,11 @@ FCT.grid = (function () {
         }
 
         // Scrolls so that the cursor cell is visible (vertically and sideways).
-        function scrollToCursor() {
+        // centre: the row goes to the middle (keyboard); otherwise it is only made visible.
+        function scrollToCursor(centre) {
             var index = cursorIndex();
             if (index < 0) return;
-            scrollToRow(index);
+            scrollToRow(index, centre);
             if (cursor.item._group || !cursor.key) return;
             var em = parseFloat(window.getComputedStyle(table).fontSize) || 14;
             var left = STATUS_WIDTH * em;
@@ -947,12 +953,16 @@ FCT.grid = (function () {
             }
         }
 
-        // Scrolls so that a row is visible and renders immediately.
-        function scrollToRow(index) {
+        // Scrolls so that a row is visible and renders immediately. With centre, the row
+        // stands in the middle of the visible rows (feedback on 2.0.5.0: moving with the
+        // keyboard keeps the active row centred, downwards as upwards); near the start and the
+        // end of the list the browser limits it.
+        function scrollToRow(index, centre) {
             var top = index * rowHeight;
             var visible = scroller.clientHeight - table.tHead.offsetHeight - rowHeight;
             scrollWatch.own = Date.now();
-            if (top < scroller.scrollTop) scroller.scrollTop = top;
+            if (centre) scroller.scrollTop = Math.max(0, Math.round(top - visible / 2));
+            else if (top < scroller.scrollTop) scroller.scrollTop = top;
             else if (top > scroller.scrollTop + visible) scroller.scrollTop = top - visible;
             render();
         }
@@ -1082,7 +1092,8 @@ FCT.grid = (function () {
          * Keyboard, as in a spreadsheet:
          *   arrows, Tab / Shift+Tab, Home / End, Ctrl+Home / Ctrl+End, Page Up / Page Down
          *   typing starts editing (replacing the value), F2 edits the value, Delete clears it
-         *   Enter moves down; Shift+Up / Shift+Down add or remove one of a quantity
+         *   Enter moves down; + / - and Shift+Up / Shift+Down add or remove one of a quantity
+         *   (+ and - only in quantity columns; elsewhere they are typed as usual)
          *   on a group header: Enter / Space toggles, Right opens, Left closes
          */
         scroller.addEventListener('keydown', function (e) {
@@ -1100,6 +1111,9 @@ FCT.grid = (function () {
                 setGroupOpen(item, false);
             } else if (e.shiftKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
                 if (column && column.step) step(item, column, key === 'ArrowUp' ? 1 : -1);
+            } else if ((key === '+' || key === '-') && column && column.step &&
+                !e.ctrlKey && !e.metaKey && !e.altKey) {
+                step(item, column, key === '+' ? 1 : -1);
             } else if (key === 'ArrowUp') {
                 moveCursor(-1, 0);
             } else if (key === 'ArrowDown' || key === 'Enter') {

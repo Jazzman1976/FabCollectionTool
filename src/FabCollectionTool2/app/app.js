@@ -52,6 +52,15 @@ FCT.app = (function () {
         Peculiarity: 7, 'Art Treatment': 8.5, Note: 15
     };
     var STEP_WIDTH = 5.5;
+
+    // Explanations shown when hovering over a column title (feedback on 2.0.5.0).
+    var HINTS = {
+        ST: 'Standard: die regulären (Regular) Printings – bei Cardmarket heißen sie ' +
+            '„Standard“',
+        RF: 'Rainbow Foil',
+        CF: 'Cold Foil',
+        GF: 'Gold Cold Foil'
+    };
     var CALC_WIDTH = 5.5;
 
     function calc(key) {
@@ -82,7 +91,7 @@ FCT.app = (function () {
             return {
                 key: key, label: key, numeric: numeric, kind: model.columnKind(key),
                 step: numeric, width: numeric ? STEP_WIDTH : WIDTHS[key] || 7,
-                list: model.choices(key) !== null
+                list: model.choices(key) !== null, hint: HINTS[key] || ''
             };
         });
 
@@ -189,7 +198,7 @@ FCT.app = (function () {
         $('status-file').className = state.dirty ? 'dirty' : '';
         $('status-rows').textContent = totals.rows.toLocaleString('de-DE') +
             ' Zeilen im Bestand · ' + totals.cards.toLocaleString('de-DE') + ' Karten · ' +
-            Math.max(0, gaps).toLocaleString('de-DE') + ' fehlende Drucke · ' +
+            Math.max(0, gaps).toLocaleString('de-DE') + ' fehlende Varianten · ' +
             grid.viewCount().toLocaleString('de-DE') + ' angezeigt';
         updateSaveStatus();
         $('status-clipboard').textContent = state.clipboard
@@ -504,10 +513,159 @@ FCT.app = (function () {
     /*
      * File actions
      */
-    function newCollection() {
-        if (!confirmDiscard()) return;
-        setCollection(model.create(), null, false);
-        FCT.log.info('file', 'Neuer leerer Bestand');
+    /*
+     * New collection (feedback on 2.0.5.0): a dialog of its own that can be cancelled. It
+     * asks for the name and the place of the new file (the working folder, or the folder of
+     * the file opened last) and explains that the current collection stays a file that
+     * "Öffnen" loads again. Only after confirming does the current collection give way.
+     * options.thenAddSets: open "Sets aufnehmen" afterwards (first set of an empty folder).
+     */
+    function newCollection(options) {
+        options = options && !options.type ? options : {};
+        return ensureFolder().then(function () {
+            return askNewCollection(options);
+        });
+    }
+
+    function askNewCollection(options) {
+        var input = el('input', { type: 'text', size: '30' });
+        var folder = hasFolder() ? state.folder : null;
+        var place = el('span');
+        var done = null;
+        input.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            done('create');
+        });
+
+        // Where the new file goes; another folder can be chosen right here.
+        function showPlace() {
+            place.textContent = folder ? 'Arbeitsordner „' + folder.name + '“'
+                : FCT.storage.canWriteBack ? 'wählst du nach „Anlegen“ im Dialog „Speichern ' +
+                    'unter“ (er startet im Ordner des zuletzt geöffneten Bestands)'
+                : 'Dieser Browser speichert als Download – siehe Hinweis beim ersten Speichern';
+        }
+        showPlace();
+        var otherFolder = FCT.storage.canUseFolder ? el('button', { type: 'button',
+            text: 'Anderen Ordner …', onclick: guarded(function () {
+                return FCT.storage.chooseFolder().then(function (handle) {
+                    if (!handle) return null;
+                    folder = handle;
+                    showPlace();
+                    return suggestName(folder).then(function (name) { input.value = name; });
+                });
+            }) }) : null;
+
+        var current = state.file ? state.file.name : '';
+        var unsaved = state.dirty && !canAutosave();
+        var body = el('div', {}, [
+            el('p', { text: current
+                ? 'Der aktuelle Bestand „' + current + '“ bleibt als Datei erhalten und lässt ' +
+                    'sich jederzeit über „Öffnen“ wieder laden.'
+                : state.collection.rows.length
+                    ? 'Der aktuelle Bestand ist noch nicht als Datei gespeichert.'
+                    : 'Es wird ein leerer Bestand angelegt.' }),
+            unsaved ? el('p', { className: 'warn', text: 'Achtung: Der aktuelle Bestand hat ' +
+                'ungespeicherte Änderungen. „Erst speichern“ sichert sie vorher.' }) : null,
+            el('table', { className: 'info' }, [
+                el('tr', {}, [el('th', { text: 'Name' }), el('td', {}, [input])]),
+                el('tr', {}, [el('th', { text: 'Ort' }), el('td', {}, [place, ' ',
+                    otherFolder])])
+            ])
+        ]);
+        return suggestName(folder).then(function (name) {
+            input.value = name;
+            return openDialog({
+                title: 'Neuer Bestand',
+                body: body,
+                setup: function (finish) { done = finish; },
+                hint: 'Abbrechen lässt alles, wie es ist – du arbeitest im aktuellen Bestand ' +
+                    'weiter.',
+                buttons: [
+                    { label: 'Erst speichern', value: 'save', left: true, disabled: !unsaved },
+                    { label: 'Abbrechen', value: 'cancel' },
+                    { label: 'Anlegen', value: 'create', primary: true }
+                ]
+            });
+        }).then(function (value) {
+            if (value === 'save') {
+                return save().then(function () { return askNewCollection(options); });
+            }
+            if (value !== 'create') return null;
+            var name = input.value.trim() || 'bestand.csv';
+            if (!/\.csv$/i.test(name)) name += '.csv';
+            return createCollectionFile(name, folder).then(function (created) {
+                if (created === false) return askNewCollection(options);
+                if (!created) return null;
+                return startNewCollection(created, options);
+            });
+        });
+    }
+
+    // A file name for a new collection that does not exist in the folder yet.
+    function suggestName(folder) {
+        if (!folder) return Promise.resolve('bestand.csv');
+        return FCT.storage.listFolder(folder).then(function (names) {
+            var lower = names.map(function (n) { return n.toLowerCase(); });
+            var name = 'bestand.csv';
+            for (var i = 2; lower.indexOf(name) >= 0; i++) name = 'bestand-' + i + '.csv';
+            return name;
+        }, function () { return 'bestand.csv'; });
+    }
+
+    /*
+     * Creates the file of a new, empty collection: in the folder (which becomes the working
+     * folder), with "Speichern unter" (Chrome/Edge without working folder), or - in browsers
+     * that cannot write files - only by name (saved as a download later). Resolves with
+     * { name, handle, inFolder }, null if cancelled, or false if the name exists already.
+     */
+    function createCollectionFile(name, folder) {
+        var text = '﻿' + model.toCsv(model.create());
+        if (folder) {
+            return FCT.storage.folderFile(folder, name, false).then(function () {
+                showMessage('Neuer Bestand', name + ' gibt es im Ordner ' + folder.name +
+                    ' schon. Bitte einen anderen Namen wählen – ein vorhandener Bestand wird ' +
+                    'nie überschrieben.');
+                return false;
+            }, function () {
+                if (folder !== state.folder) {
+                    FCT.storage.rememberFolder(folder);
+                    setFolder(folder, true);
+                    FCT.log.info('folder', 'Arbeitsordner gewählt', folder.name);
+                }
+                return FCT.storage.writeFolderFile(folder, name, text).then(function (handle) {
+                    return { name: name, handle: handle, inFolder: true };
+                });
+            });
+        }
+        if (FCT.storage.canWriteBack) {
+            var start = state.file && state.file.handle ? state.file.handle : null;
+            return FCT.storage.saveAs(name, text, start).then(function (result) {
+                return result ? placeFile({ name: result.name, handle: result.handle }) : null;
+            });
+        }
+        return Promise.resolve({ name: name, handle: null, inFolder: false });
+    }
+
+    // Shows the new, empty collection of a created file.
+    function startNewCollection(created, options) {
+        FCT.notices.clear('restore');
+        setCollection(model.create(), { name: created.name, handle: created.handle,
+            inFolder: !!created.inFolder }, false);
+        if (created.handle) {
+            state.fileText = model.toCsv(model.create());
+            state.openedText = state.fileText;
+        }
+        FCT.log.info('file', 'Neuer leerer Bestand', { name: created.name,
+            inFolder: !!created.inFolder });
+        rememberCurrent();
+        updateStatus();
+        showMessage('Neuer Bestand', created.name + ' ist angelegt und noch leer. Zeilen ' +
+            'kommen über „Sets aufnehmen …“ (Gruppe Bestand), einen Import oder ＋ dazu.');
+        var asked = created.handle ? askAutosave(created.handle, null) : null;
+        return Promise.resolve(asked).then(function () {
+            return options.thenAddSets ? addSets() : null;
+        });
     }
 
     // Shows a collection read from a file ({ name, text, handle, inFolder }). Resolves true
@@ -614,15 +772,27 @@ FCT.app = (function () {
         return openDialog({
             title: 'Arbeitsordner festlegen',
             body: el('div', {}, [
+                el('h3', { text: 'Mit Arbeitsordner (empfohlen)' }),
                 el('p', { text: 'Bestand, Änderungsprotokoll, Backups und Diagnose-Log liegen ' +
-                    'künftig zusammen in einem Ordner, z. B. in deinem OneDrive. Du wählst ' +
-                    'ihn einmal; danach fragt die Anwendung nicht mehr nach einzelnen Dateien.' }),
-                el('p', { text: 'Der Browser fragt anschließend, ob die Anwendung Dateien in ' +
-                    'diesem Ordner ansehen und bearbeiten darf – bitte erlauben.' })
+                    'zusammen in einem Ordner, z. B. in deinem OneDrive. Du wählst ihn einmal; ' +
+                    'danach fragt die Anwendung nicht mehr nach einzelnen Dateien, und nach ' +
+                    'einem Neustart genügt eine Erlaubnis für den ganzen Ordner. Der Browser ' +
+                    'fragt gleich, ob die Anwendung Dateien in diesem Ordner ansehen und ' +
+                    'bearbeiten darf – bitte erlauben.' }),
+                el('h3', { text: 'Ohne Arbeitsordner (Dateien einzeln)' }),
+                el('ul', {}, [
+                    el('li', { text: 'Jede Datei wählst du selbst im Dateidialog: den Bestand ' +
+                        'beim Öffnen und Speichern, jedes Backup einzeln.' }),
+                    el('li', { text: 'Die Protokolldatei fragt die Anwendung beim ersten ' +
+                        'Speichern gesondert ab.' }),
+                    el('li', { text: 'Nach jedem Start fragt der Browser für jede Datei ' +
+                        'einzeln nach der Erlaubnis.' }),
+                    el('li', { text: 'Das Diagnose-Log kommt als Download.' })
+                ])
             ]),
-            hint: 'Der Ordner lässt sich jederzeit über „Ordner …“ (Gruppe Bestand) ändern.',
+            hint: 'Beides lässt sich jederzeit über „Ordner …“ (Gruppe Bestand) ändern.',
             buttons: [
-                { label: 'Ohne Arbeitsordner', value: 'skip' },
+                { label: 'Ohne Arbeitsordner (Dateien einzeln)', value: 'skip' },
                 { label: 'Ordner wählen …', value: 'choose', primary: true }
             ]
         }).then(function (value) {
@@ -698,8 +868,15 @@ FCT.app = (function () {
         });
     }
 
-    // The collections in the working folder, to open with one click; others via the dialog.
+    /*
+     * The collections in the working folder, to open with one click. An empty folder offers
+     * the ways to a first collection instead (feedback on 2.0.5.0): import the 1.0 spreadsheet
+     * or a Fabrary export, or take a first set from the reference data. Another working folder
+     * can be chosen right here. Resolves with { name, text, handle, inFolder } of a collection
+     * to open, or null (cancelled, or another way was taken).
+     */
     function pickFromFolder() {
+        var START = '\u0001';   // prefix of the values of the ways to a first collection
         return FCT.storage.listFolder(state.folder).then(function (names) {
             var files = names.filter(function (name) {
                 return /\.csv$/i.test(name) && !/-log\.csv$/i.test(name) &&
@@ -710,21 +887,45 @@ FCT.app = (function () {
                 return el('li', {}, [el('button', { type: 'button', text: name,
                     onclick: function () { choose(name); } })]);
             }));
+            function way(value, label, what) {
+                return el('li', {}, [el('button', { type: 'button', text: label,
+                    onclick: function () { choose(START + value); } }),
+                    el('span', { className: 'what', text: ' ' + what })]);
+            }
+            var empty = el('div', {}, [
+                el('p', { text: 'Im Arbeitsordner liegt noch kein Bestand. Möchtest du einen ' +
+                    'Bestand importieren?' }),
+                el('ul', { className: 'folder-files' }, [
+                    way('ods', '1.0-Tabelle importieren …', '(.ods-Datei des alten Tools)'),
+                    way('fabrary', 'Fabrary-Export importieren …', '(CSV-Export von Fabrary)'),
+                    way('set', 'Erstes Set aus den Stammdaten übernehmen …',
+                        '(neuer Bestand in diesem Ordner, danach Sets auswählen)')
+                ])
+            ]);
             return openDialog({
                 title: 'Bestand öffnen – Ordner ' + state.folder.name,
-                body: files.length ? list
-                    : el('p', { text: 'Im Arbeitsordner liegt noch kein Bestand.' }),
+                body: files.length ? list : empty,
                 setup: function (done) { choose = done; },
-                hint: 'Eine Datei außerhalb des Arbeitsordners öffnet „Andere Datei …“; ihr ' +
-                    'Protokoll wird dann beim ersten Speichern gesondert gefragt.',
+                hint: 'Ein Bestand in einem anderen Ordner: „Anderen Arbeitsordner auswählen …“.',
                 buttons: [
                     { label: 'Abbrechen', value: 'cancel' },
-                    { label: 'Andere Datei …', value: 'other' }
+                    { label: 'Anderen Arbeitsordner auswählen …', value: 'folder' }
                 ]
             });
         }).then(function (value) {
             if (value === 'cancel') return null;
-            if (value === 'other') return FCT.storage.openCollection();
+            if (value === 'folder') {
+                return chooseFolder().then(function (handle) {
+                    return handle ? pickFromFolder() : null;
+                });
+            }
+            if (value === START + 'ods') return importOds(true).then(function () { return null; });
+            if (value === START + 'fabrary') {
+                return importFabrary(true).then(function () { return null; });
+            }
+            if (value === START + 'set') {
+                return newCollection({ thenAddSets: true }).then(function () { return null; });
+            }
             return FCT.storage.folderFile(state.folder, value, false)
                 .then(FCT.storage.readHandle).then(function (result) {
                     result.inFolder = true;
@@ -1181,6 +1382,10 @@ FCT.app = (function () {
         var target = state.file && state.file.handle ? Promise.resolve(null)
             : ensureFolder().then(function () { return hasFolder() ? askFileName() : null; });
         return target.then(function (name) {
+            return name === false ? false : explainDownload().then(function (go) {
+                return go ? name : false;
+            });
+        }).then(function (name) {
             if (name === false) return null;
             if (name) {
                 return FCT.storage.writeFolderFile(state.folder, name, text)
@@ -1212,8 +1417,48 @@ FCT.app = (function () {
                 ? result.name + ' wurde gespeichert.' + (canAutosave()
                     ? ' Weitere Änderungen werden automatisch gespeichert (abschaltbar in ' +
                         'der Statuszeile).' : '')
-                : result.name + ' wurde als Download gespeichert (Download-Ordner des Browsers).');
+                : result.name + ' wurde als Download gespeichert. Damit die alte Datei ersetzt ' +
+                    'wird statt eine neue anzulegen: ' + DOWNLOAD_HINT);
             return saveLog(true);
+        });
+    }
+
+    /*
+     * Browsers that cannot write files (e.g. Firefox; feedback on 2.0.5.0): saving is a
+     * download, which the browser never writes over an existing file by itself. The app always
+     * uses the same file names, and explains once how the browser can ask where to save - then
+     * the user picks the file and confirms replacing it. Resolves false if cancelled.
+     */
+    var DOWNLOAD_HINT = 'Firefox: Einstellungen → Allgemein → Dateien und Anwendungen → ' +
+        'Downloads → „Jedes Mal nachfragen, wo Dateien gespeichert werden sollen“ einschalten.';
+
+    function explainDownload() {
+        if (FCT.storage.canWriteBack || settings.get('downloadHint2060', false)) {
+            return Promise.resolve(true);
+        }
+        return openDialog({
+            title: 'Speichern in diesem Browser',
+            body: el('div', {}, [
+                el('p', { text: 'Dieser Browser kann nicht direkt in eine Datei schreiben. ' +
+                    'Gespeichert wird als Download – immer unter demselben Namen (Bestand, ' +
+                    'Protokoll <bestand>-log.csv, Diagnose fct-diagnose.log).' }),
+                el('p', { text: 'Damit es bei einer einzigen Datei bleibt, lass den Browser ' +
+                    'fragen, wo er speichern soll. Dann wählst du Ordner und Datei selbst und ' +
+                    'bestätigst das Ersetzen der alten Datei. Ohne diese Einstellung legt der ' +
+                    'Browser jedes Mal eine neue Datei im Download-Ordner an (z. B. ' +
+                    '„collection(1).csv“) – automatisch überschreiben lässt er nicht zu.' }),
+                el('p', { text: DOWNLOAD_HINT })
+            ]),
+            hint: 'Dieser Hinweis erscheint nur einmal; er steht auch in der Dokumentation ' +
+                '(Abschnitt Speichern).',
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Verstanden, speichern', value: 'save', primary: true }
+            ]
+        }).then(function (value) {
+            if (value !== 'save') return false;
+            settings.set('downloadHint2060', true);
+            return true;
         });
     }
 
@@ -1277,7 +1522,8 @@ FCT.app = (function () {
         var cls = '';
         if (!FCT.storage.canWriteBack) {
             text = 'Automatisches Speichern ist in diesem Browser nicht möglich – Strg+S ' +
-                'speichert (als Download).';
+                'speichert als Download unter demselben Namen (Tipp: den Browser fragen ' +
+                'lassen, wo er speichert – siehe Dokumentation).';
         } else if (auto.error) {
             text = 'Automatisches Speichern fehlgeschlagen: ' + auto.error + ' – Strg+S';
             cls = 'dirty';
@@ -1360,7 +1606,10 @@ FCT.app = (function () {
         function makeText(existing) {
             return logText(existing, records, 'Die gewählte Datei');
         }
-        var newOnly = '﻿' + FCT.csv.stringify([header].concat(records));
+        // Browsers that can only download get the complete log (from the copy in the
+        // browser), so that one file under one name always holds everything.
+        var full = '﻿' + FCT.csv.stringify([header].concat(
+            changelog.fileRecords([], changelog.toRecords(changelog.entries()))));
 
         var ask = Promise.resolve('choose');
         if (!interactive && !state.logHandle) return null;
@@ -1380,7 +1629,7 @@ FCT.app = (function () {
         }
         return ask.then(function (choice) {
             if (choice !== 'choose') return null;
-            return FCT.storage.appendLog(base + '-log.csv', state.logHandle, makeText, newOnly);
+            return FCT.storage.appendLog(base + '-log.csv', state.logHandle, makeText, full);
         }).then(function (result) {
             if (!result) {
                 showMessage('Protokoll', 'Das Änderungsprotokoll wurde nicht gespeichert; ' +
@@ -1457,9 +1706,10 @@ FCT.app = (function () {
         });
     }
 
-    // Common flow of both imports: pick file, convert, preview, accept.
-    function runImport(accept, convert) {
-        if (!confirmDiscard()) return null;
+    // Common flow of both imports: pick file, convert, preview, accept. confirmed: the user
+    // already agreed to leave unsaved changes (e.g. in "Öffnen").
+    function runImport(accept, convert, confirmed) {
+        if (!confirmed && !confirmDiscard()) return Promise.resolve(null);
         return FCT.storage.pickFile(accept).then(function (file) {
             if (!file) return null;
             $('busy').hidden = false;
@@ -1492,16 +1742,16 @@ FCT.app = (function () {
         });
     }
 
-    function importOds() {
+    function importOds(confirmed) {
         return runImport('.ods', function (file) {
             return file.arrayBuffer().then(FCT.importOds.importOds);
-        });
+        }, confirmed === true);
     }
 
-    function importFabrary() {
+    function importFabrary(confirmed) {
         return runImport('.csv,text/csv', function (file) {
             return file.text().then(FCT.importFabrary.importFabrary);
-        });
+        }, confirmed === true);
     }
 
     function exportFabrary() {
@@ -1580,7 +1830,7 @@ FCT.app = (function () {
     function rowStatus(row) {
         if (row._reference) {
             return { symbol: '○', className: 'gap', title: 'Noch nicht im Bestand. ' +
-                'Eine Menge eintragen, − / + oder ＋ nimmt den Druck in den Bestand auf.' };
+                'Eine Menge eintragen, − / + oder ＋ nimmt die Variante in den Bestand auf.' };
         }
         if (row._unknownId) {
             return { symbol: '?', className: 'unknown',
@@ -1640,19 +1890,20 @@ FCT.app = (function () {
         updateStatus();
     }
 
-    // A reference row becomes a real row as soon as it is edited. It is placed after the
-    // last row of the same set, so that the file keeps its order.
+    // Index in the collection where a row with this card number belongs: after the last row
+    // of the same set with a number up to it (or at the end), so that the file keeps its order.
+    function placeInSet(id) {
+        var rows = state.collection.rows;
+        for (var i = rows.length - 1; i >= 0; i--) {
+            if (rows[i].Id.slice(0, 3) === id.slice(0, 3) && rows[i].Id <= id) return i + 1;
+        }
+        return rows.length;
+    }
+
+    // A reference row becomes a real row as soon as it is edited.
     function adoptReferenceRow(row) {
         delete row._reference;
-        var rows = state.collection.rows;
-        var at = -1;
-        for (var i = rows.length - 1; i >= 0; i--) {
-            if (rows[i].Id.slice(0, 3) === row.Id.slice(0, 3) && rows[i].Id <= row.Id) {
-                at = i;
-                break;
-            }
-        }
-        rows.splice(at + 1 || rows.length, 0, row);
+        state.collection.rows.splice(placeInSet(row.Id), 0, row);
         changelog.add('Übernommen', row, '', '', 'aus den Stammdaten in den Bestand');
     }
 
@@ -1660,32 +1911,58 @@ FCT.app = (function () {
      * Row actions at the end of each row
      */
     function rowActions(row) {
+        var copied = state.clipboard;
+        var paste = { action: 'paste', icon: 'paste', disabled: !copied,
+            title: copied ? 'Kopie von ' + copied.Id + ' ' + copied.Name +
+                ' darunter einfügen (ohne Mengen)' : 'Erst eine Zeile kopieren' };
+
+        // A row not yet in the collection can be taken over and also get a new row below
+        // (feedback on 2.0.5.0: both at the same time, with clearly different symbols).
         if (row._reference) {
             return [
-                { action: 'edit', icon: 'edit', title: 'Bearbeiten und in den Bestand übernehmen' },
-                { action: 'adopt', icon: 'insert', title: 'In den Bestand übernehmen' }
+                { action: 'edit', icon: 'edit', title: 'Bearbeiten und in den Bestand aufnehmen' },
+                { action: 'adopt', icon: 'adopt', title: 'In den Bestand aufnehmen' },
+                { action: 'insert', icon: 'insert', title: 'Neue Zeile darunter einfügen' },
+                paste
             ];
         }
-        var copied = state.clipboard;
         return [
             { action: 'edit', icon: 'edit', title: 'Zeile bearbeiten (alle Felder)' },
             { action: 'insert', icon: 'insert', title: 'Neue Zeile darunter einfügen' },
             { action: 'copy', icon: 'copy', title: 'Zeile kopieren' },
-            { action: 'paste', icon: 'paste', disabled: !copied,
-                title: copied ? 'Kopie von ' + copied.Id + ' ' + copied.Name +
-                    ' darunter einfügen (ohne Mengen)' : 'Erst eine Zeile kopieren' },
+            paste,
             { action: 'remove', icon: 'remove', title: 'Zeile löschen' }
         ];
     }
 
-    // Inserts a row directly below another one and shows it.
+    // Inserts a row directly below another one and shows it. Below a row that is not in the
+    // collection yet, the new row goes where that row would belong.
     function insertBelow(row, newRow, action) {
         var rows = state.collection.rows;
-        rows.splice(rows.indexOf(row) + 1, 0, newRow);
+        var at = row._reference ? placeInSet(row.Id) : rows.indexOf(row) + 1;
+        rows.splice(at, 0, newRow);
         changelog.add(action, newRow, '', '', 'unter ' + [row.Id, row.Name].join(' '));
         setDirty(true);
         rebuild();
         grid.select(newRow);
+    }
+
+    /*
+     * Values of a new row below another one (feedback on 2.0.5.0): set and edition of the
+     * row above and the next card number. If the reference data know that number, every
+     * value shared by all its variants is filled in; values that differ between the variants
+     * stay empty, since only the user knows which one is meant. Otherwise the row keeps
+     * metatype, talents, classes and playset of the row above, so it stays in the same group.
+     */
+    function newRowValues(row) {
+        var id = model.nextId(row.Id);
+        var values = { Set: row.Set, Edition: row.Edition, Id: id };
+        var common = id ? model.commonValues(id) : null;
+        var copied = common || { Metatype: row.Metatype, Talent1: row.Talent1,
+            Talent2: row.Talent2, Class1: row.Class1, Class2: row.Class2,
+            Playset: row.Playset };
+        Object.keys(copied).forEach(function (key) { values[key] = copied[key]; });
+        return values;
     }
 
     // A full copy of a row, including extra columns of the file.
@@ -1704,11 +1981,7 @@ FCT.app = (function () {
             rebuild();
             grid.select(row);
         } else if (action === 'insert') {
-            // The new row keeps set, metatype, talents and classes, so it stays in the same
-            // group.
-            insertBelow(row, model.newRow({ Set: row.Set, Metatype: row.Metatype,
-                Talent1: row.Talent1, Talent2: row.Talent2, Class1: row.Class1,
-                Class2: row.Class2, Playset: row.Playset }), 'Eingefügt');
+            insertBelow(row, model.newRow(newRowValues(row)), 'Eingefügt');
         } else if (action === 'copy') {
             state.clipboard = copyRow(row);
             updateStatus();
@@ -1723,17 +1996,45 @@ FCT.app = (function () {
         }
     }
 
+    /*
+     * Deleting a row (feedback on 2.0.5.0): a set always stays complete. If the variant of
+     * the row (card number, edition, art treatment) is in the reference data and no other row
+     * covers it, the row leaves the collection and shows up again at its place as ○ - empty
+     * and greyed, as a variant not yet in the collection. Only rows whose variant is not in
+     * the reference data, or is covered by another row, disappear completely.
+     */
     function removeRow(row) {
         var label = [row.Id, row.Name].filter(Boolean).join(' ') || '(leere Zeile)';
-        if (!window.confirm('Zeile „' + label + '“ löschen?')) return;
+        var key = model.variantKey(row.Id, row.Edition, row['Art Treatment']);
+        var known = !!row.Id && FCT.reference.printings(row.Id).some(function (p) {
+            return model.variantKey(p.id, p.edition, p.art) === key;
+        });
         var rows = state.collection.rows;
+        var other = rows.filter(function (r) {
+            return r !== row && model.variantKey(r.Id, r.Edition, r['Art Treatment']) === key;
+        })[0];
+        var toGap = known && !other;
+        if (!window.confirm(toGap
+            ? 'Zeile „' + label + '“ leeren? Mengen und Notiz werden entfernt; die Variante ' +
+                'bleibt als ○ (noch nicht im Bestand) in der Liste des Sets.'
+            : 'Zeile „' + label + '“ vollständig löschen?')) return;
         rows.splice(rows.indexOf(row), 1);
         var quantities = model.QUANTITIES.map(function (q) {
             return q + '=' + (row[q] || 0);
         }).join(' ');
-        changelog.add('Gelöscht', row, '', quantities, '');
+        changelog.add(toGap ? 'Geleert' : 'Gelöscht', row, '', quantities, '');
         setDirty(true);
         rebuild();
+        if (toGap) {
+            var gap = state.shownRows.filter(function (r) {
+                return r._reference &&
+                    model.variantKey(r.Id, r.Edition, r['Art Treatment']) === key;
+            })[0];
+            if (gap) grid.select(gap);
+        } else if (other) {
+            showMessage('Zeile gelöscht', label + ' ist weiter im Bestand: ' + [other.Id,
+                other.Name, other.Edition, other['Art Treatment']].filter(Boolean).join(' · '));
+        }
     }
 
     // Input element of the row dialog: a drop-down for columns with a value list (the
@@ -1890,7 +2191,7 @@ FCT.app = (function () {
             box._item = el('li', {}, [el('label', {}, [box, ' ',
                 el('strong', { text: set.name + ' (' + set.code + ')' }),
                 el('span', { className: 'what', text: ' ' + date + ' · ' +
-                    set.printings.toLocaleString('de-DE') + ' Drucke' })])]);
+                    set.printings.toLocaleString('de-DE') + ' Varianten' })])]);
             list.appendChild(box._item);
         });
 
@@ -1908,9 +2209,9 @@ FCT.app = (function () {
         return openDialog({
             title: 'Sets aufnehmen – ' + sets.length + ' Sets noch nicht im Bestand',
             body: el('div', { className: 'report take-over' }, [search, list]),
-            hint: 'Alle Drucke der angehakten Sets werden als Zeilen mit leeren Mengen in den ' +
+            hint: 'Alle Varianten der angehakten Sets werden als Zeilen mit leeren Mengen in den ' +
                 'Bestand aufgenommen – so lassen sie sich wie in der 1.0-Tabelle ausfüllen. ' +
-                'Später erscheinende Drucke eines Sets tauchen automatisch als ○ auf.',
+                'Später erscheinende Varianten eines Sets tauchen automatisch als ○ auf.',
             wide: true,
             buttons: [
                 { label: 'Abbrechen', value: 'cancel' },
@@ -1967,11 +2268,17 @@ FCT.app = (function () {
         $('reference-status').textContent = text;
         $('reference-status').className = 'badge' + (preview ? ' warn' : r.online ? ' ok'
             : r.error ? ' warn' : '');
-        $('reference-status').title = (preview ? 'Vorschau: Daten dieses Branches können sich ' +
-            'noch ändern. ' : '') + (r.error ? 'Letzter Fehler: ' + r.error : '');
+        $('reference-status').title = [preview ? 'Vorschau: Daten dieses Branches können sich ' +
+            'noch ändern.' : '', r.error ? 'Letzter Fehler: ' + r.error : '', BADGE_LEGEND]
+            .filter(Boolean).join('\n\n');
         $('btn-reference-update').disabled = r.loading;
         $('reference-branch').disabled = r.loading;
     }
+
+    // Meaning of the colours of the reference data status (feedback on 2.0.5.0).
+    var BADGE_LEGEND = 'Farben: grün = online geladen, Standard-Branch (aktuell) · orange = ' +
+        'Vorschau-Branch, oder online nicht erreichbar (es gelten die mitgelieferten Daten) · ' +
+        'grau = mitgelieferte Daten oder wird gerade geladen.';
 
     // Name of a set in reference tables that are not installed yet (falls back to the code).
     function setLabel(data, code) {
@@ -2059,9 +2366,9 @@ FCT.app = (function () {
                     ? added.length + ' neue Sets (' + added.map(function (s) {
                         return s[1];
                     }).join(', ') + '), ' : '') + (more ? (more > 0 ? '+' : '') + more +
-                    ' Drucke gegenüber vorher, ' : '') + result.data.sets.length + ' Sets, ' +
+                    ' Varianten gegenüber vorher, ' : '') + result.data.sets.length + ' Sets, ' +
                     result.data.cards.length + ' Karten, ' + result.data.printings.length +
-                    ' Drucke. ' + (count
+                    ' Varianten. ' + (count
                         ? count + ' Zeilen weichen ab (≠) – „Übernehmen …“ zeigt sie.'
                         : 'Der Bestand stimmt mit den Stammdaten überein.'));
             }
@@ -2109,6 +2416,23 @@ FCT.app = (function () {
     // Lists every differing row with its differences; the ticked rows take over the
     // reference values. Grouped by set; nothing is ticked beforehand.
     function applyReference() {
+        // An empty collection has nothing to take reference data over to.
+        if (!state.collection.rows.length) {
+            return openDialog({
+                title: 'Stammdaten übernehmen',
+                body: el('p', { text: 'Der Bestand ist gerade leer. Übernehmen gleicht die ' +
+                    'Zeilen des Bestands mit den Stammdaten ab – ohne Zeilen gibt es nichts, ' +
+                    'worauf Stammdaten übernommen werden können.' }),
+                hint: 'Zuerst Zeilen anlegen: „Sets aufnehmen …“ (Gruppe Bestand) oder die ' +
+                    '1.0-Tabelle bzw. einen Fabrary-Export importieren.',
+                buttons: [
+                    { label: 'Schließen', value: 'cancel' },
+                    { label: 'Sets aufnehmen …', value: 'sets', primary: true }
+                ]
+            }).then(function (value) {
+                return value === 'sets' ? addSets() : null;
+            });
+        }
         var items = differingRows();
         if (!items.length) {
             showMessage('Stammdaten übernehmen', 'Keine Abweichungen – der Bestand stimmt ' +
@@ -2144,7 +2468,8 @@ FCT.app = (function () {
             setBox.addEventListener('change', function () {
                 memberBoxes.forEach(function (b) { b.checked = setBox.checked; });
             });
-            return el('details', { className: 'group', open: true }, [
+            // All sets start collapsed (feedback on 2.0.5.0).
+            return el('details', { className: 'group' }, [
                 el('summary', {}, [el('label', {}, [setBox, ' ' + set + ' (' +
                     members.length + ')'])]),
                 el('ul', { className: 'cards' }, lines)
@@ -2194,8 +2519,9 @@ FCT.app = (function () {
             ['Geladen', info.loadedAt ? info.loadedAt.toLocaleString('de-DE')
                 : 'Erstellt ' + (info.built || 'unbekannt')],
             ['Umfang', data.sets.length + ' Sets, ' + data.cards.length + ' Karten, ' +
-                data.printings.length + ' Drucke'],
-            ['Letzter Fehler', r.error || '–']
+                data.printings.length + ' Varianten'],
+            ['Letzter Fehler', r.error || '–'],
+            ['Farben', BADGE_LEGEND.replace(/^Farben: /, '')]
         ];
         return openDialog({
             title: 'Stammdaten',
@@ -2257,7 +2583,8 @@ FCT.app = (function () {
             FCT.notices.show('edit', 'info', 'Editiermodus: alle Spalten sind bearbeitbar ' +
                 '(Doppelklick, Klick auf die aktive Zelle oder einfach tippen), feste Werte per ' +
                 'Auswahlliste. Werte, die von den Stammdaten abweichen, sind erlaubt und werden ' +
-                'mit einer violetten Ecke (✱) markiert.', { buttons: [{ label: 'Beenden',
+                'mit einer violetten Ecke (✱) markiert. Mengen: Tasten + / − oder Shift+↑ / ' +
+                'Shift+↓ (kein Tabellen-Standard).', { buttons: [{ label: 'Beenden',
                     onClick: function () { setEditMode(false); } }] });
         } else {
             FCT.notices.clear('edit');
@@ -2278,7 +2605,8 @@ FCT.app = (function () {
                 grid.setColumnHidden(column.key, !box.checked);
                 rememberColumns();
             });
-            list.appendChild(el('label', {}, [box, ' ' + column.label]));
+            list.appendChild(el('label', { title: column.hint || '' },
+                [box, ' ' + column.label]));
         });
     }
 

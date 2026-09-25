@@ -522,6 +522,83 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     check('Reference branch URL', ok);
 }
 
+// New row below another (2.0.6.0): the next card number keeps its digits; the values shared by
+// all variants of that number are filled in, those that differ stay out.
+{
+    const m = FCT.model;
+    const ids = m.nextId('MON062') === 'MON063' && m.nextId('WTR009') === 'WTR010' &&
+        m.nextId('DYN999') === 'DYN1000' && m.nextId('ABC') === '' && m.nextId('') === '';
+    const byId = new Map();
+    FCT.reference.allPrintings().forEach((p) => {
+        if (!byId.has(p[0])) byId.set(p[0], new Set());
+        byId.get(p[0]).add(p[2] + '|' + p[3]);
+    });
+    const arts = (id) => new Set([...byId.get(id)].map((v) => v.split('|')[1]));
+    const multi = [...byId.keys()].find((id) => arts(id).size > 1);
+    const single = [...byId.keys()].find((id) => byId.get(id).size === 1 &&
+        FCT.reference.printings(id).length === 1);
+    const mv = m.commonValues(multi);
+    const sv = m.commonValues(single);
+    const want = FCT.reference.expected({ Id: single, Edition: '', 'Art Treatment': '',
+        Name: '' });
+    const multiOk = !!mv && !('Art Treatment' in mv) && !!mv.Name && !('Set' in mv);
+    const singleOk = !!sv && sv.Name === want.Name && sv.Type1 === want.Type1 &&
+        sv.Playset === want.Playset && 'Art Treatment' in sv;
+    check('New row values', ids && multiOk && singleOk && m.commonValues('XXX999') === null,
+        `next id ${ids}, ${multi}: ${multiOk}, ${single}: ${singleOk}`);
+}
+
+// Deleting a row (2.0.6.0): a variant of the reference data comes back as ○ at the same place
+// (at its card number, in card number order as the accordion shows it; next to other rows of
+// the same number it may change places), unless another row covers it. Checked on a sample of
+// the rows of the old spreadsheet.
+{
+    const m = FCT.model;
+    const key = (row) => m.variantKey(row.Id, row.Edition, row['Art Treatment']);
+    const known = new Set(FCT.reference.allPrintings().map((p) => m.variantKey(p[0], p[2],
+        p[3])));
+    const rows = ods.collection.rows;
+    const counts = new Map();
+    rows.forEach((row) => counts.set(key(row), (counts.get(key(row)) || 0) + 1));
+    const candidates = rows.filter((row) => row.Id && known.has(key(row)) &&
+        counts.get(key(row)) === 1);
+    const step = Math.max(1, Math.floor(candidates.length / 40));
+    const lost = [];
+    const moved = [];
+    const collection = { rows: rows.slice(), extraColumns: ods.collection.extraColumns };
+    const shown = (list) => list.map((r) => r.Id).sort().join('\n');
+    const before = shown(m.withGaps(collection));
+    for (let i = 0; i < candidates.length; i += step) {
+        const row = candidates[i];
+        const at = collection.rows.indexOf(row);
+        collection.rows.splice(at, 1);
+        const after = m.withGaps(collection);
+        const gapAt = after.findIndex((r) => r._reference && key(r) === key(row));
+        if (gapAt < 0) lost.push(row.Id);
+        else if (shown(after) !== before) moved.push(row.Id);
+        collection.rows.splice(at, 0, row);
+    }
+    check('Delete becomes a gap', !lost.length && !moved.length,
+        `${Math.ceil(candidates.length / step)} rows, lost ${lost.join(' ') || '-'}, ` +
+        `moved ${moved.join(' ') || '-'}`);
+}
+
+// Firefox and other browsers without file access (2.0.6.0): downloads of collection, change
+// log and diagnosis log always keep the same name; the word "Druck" is gone from the texts.
+{
+    const read = (file) => fs.readFileSync(path.join(appRoot, file), 'utf8');
+    const storage = read('app/storage.js');
+    const appendLog = storage.slice(storage.indexOf('function appendLog'),
+        storage.indexOf('/*', storage.indexOf('function appendLog')));
+    const fixed = !/timestamp/.test(appendLog) && !/timestamp/.test(read('app/diagnosis.js'));
+    const texts = ['index.html', 'doku.html', 'README.md', 'app/app.js', 'app/tour.js',
+        'app/grid.js', 'app/reference-update.js'];
+    const wording = texts.filter((file) => /druck(?!en\b|t\b)/i.test(read(file).replace(
+        /Ausdruck|drucken|gedruckt/gi, '')));
+    check('Download names and wording', fixed && !wording.length,
+        `fixed names ${fixed}, "Druck" in ${wording.join(', ') || '-'}`);
+}
+
 // Line length of hand-written source files (generated data files are exempt). Only source
 // files count; a collection the user saved into the app folder is not checked.
 {

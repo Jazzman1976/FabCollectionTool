@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css?v=2.0.5.0">
+    <link rel="stylesheet" href="app/style.css?v=2.0.6.0">
     <!-- Design (System, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
@@ -79,6 +79,10 @@
         }
         .doc th {
             background: var(--head);
+        }
+        /* A table row that must not be overlooked (e.g. a key that is no standard) */
+        .doc tr.highlight td {
+            background: var(--notice-bg);
         }
         .doc kbd {
             padding: 0 5px;
@@ -169,8 +173,8 @@
             <li><strong>Du hast einen Fabrary-Export:</strong> <em>Import → Fabrary</em>.</li>
             <li><strong>Du hast schon eine <code>collection.csv</code>:</strong>
                 <em>Öffnen</em>.</li>
-            <li><strong>Du fängst neu an:</strong> <em>Neu</em> und dann über
-                <em>Sets aufnehmen …</em> die Sets holen, die du sammelst.</li>
+            <li><strong>Du fängst neu an:</strong> <em>Neu</em> (Name und Ort festlegen) und
+                dann über <em>Sets aufnehmen …</em> die Sets holen, die du sammelst.</li>
         </ul>
         <p>Beim Start lädt die Anwendung automatisch die aktuellen Kartendaten (die
             „Stammdaten“) aus dem Internet. Ohne Internet arbeitet sie mit den mitgelieferten
@@ -201,14 +205,30 @@
             Ordner; nach einem Neustart fragt der Browser höchstens einmal nach.</p>
         <p><strong>Ordner …</strong> (Gruppe Bestand) zeigt und ändert den Arbeitsordner. Die
             Statuszeile unten links nennt ihn, mit dem Zusatz „nicht verbunden“, solange der
-            Browser den Zugriff noch nicht wieder erlaubt hat. Wer keinen Arbeitsordner möchte,
-            wählt <em>Ohne Arbeitsordner</em>; dann funktioniert alles wie mit einzelnen
-            Dateien, nur das Protokoll wird beim ersten Speichern gesondert gefragt.</p>
+            Browser den Zugriff noch nicht wieder erlaubt hat.</p>
+        <p>Wer keinen Arbeitsordner möchte, wählt <em>Ohne Arbeitsordner (Dateien
+            einzeln)</em>. Dann wählst du jede Datei selbst im Dateidialog (den Bestand beim
+            Öffnen und Speichern, jedes Backup einzeln), das Protokoll wird beim ersten
+            Speichern gesondert gefragt, der Browser fragt nach jedem Start für jede Datei
+            einzeln nach der Erlaubnis, und das Diagnose-Log kommt als Download.</p>
+
+        <h3>Neu</h3>
+        <p><em>Neu</em> öffnet einen eigenen Dialog: Name der neuen Datei und Ort – der
+            Arbeitsordner (mit <em>Anderen Ordner …</em> änderbar) oder, ohne Arbeitsordner,
+            der Dialog „Speichern unter“, der im Ordner des zuletzt geöffneten Bestands
+            beginnt. Der aktuelle Bestand bleibt als Datei erhalten und lässt sich jederzeit
+            über <em>Öffnen</em> wieder laden; er verschwindet erst nach <em>Anlegen</em>.
+            <em>Abbrechen</em> lässt alles, wie es ist. Hat der aktuelle Bestand
+            ungespeicherte Änderungen, sichert <em>Erst speichern</em> sie vorher. Ein
+            vorhandener Bestand wird nie überschrieben.</p>
 
         <h3>Öffnen</h3>
-        <p><em>Öffnen</em> zeigt die Bestände im Arbeitsordner zum Anklicken. Eine Datei an
-            einem anderen Ort öffnet <em>Andere Datei …</em>. Das Protokoll des Bestands wird
-            mitgeladen, so dass du auch die Änderungen der letzten Tage siehst.</p>
+        <p><em>Öffnen</em> zeigt die Bestände im Arbeitsordner zum Anklicken. Liegt dort noch
+            keiner, bietet der Dialog an, die 1.0-Tabelle oder einen Fabrary-Export zu
+            importieren oder ein erstes Set aus den Stammdaten zu übernehmen. Ein Bestand in
+            einem anderen Ordner: <em>Anderen Arbeitsordner auswählen …</em>. Das Protokoll des
+            Bestands wird mitgeladen, so dass du auch die Änderungen der letzten Tage
+            siehst.</p>
 
         <h3>Speichern und automatisches Speichern</h3>
         <ul>
@@ -231,18 +251,41 @@
         </ul>
         <h3>Firefox</h3>
         <p>Firefox kann weder in Dateien zurückschreiben noch Ordner verwenden.
-            <em>Speichern</em> legt den Bestand als Download ab, das Protokoll ebenfalls als
-            eigene Datei mit Zeitstempel. Tipp: In den Firefox-Einstellungen „Jedes Mal
-            nachfragen, wo gespeichert werden soll“ einschalten, dann lässt sich der Ort
-            wählen.</p>
+            <em>Speichern</em> legt den Bestand als Download ab, das Protokoll ebenfalls –
+            immer <strong>unter demselben Namen</strong> (<code>collection.csv</code>,
+            <code>collection-log.csv</code> mit dem vollständigen Protokoll,
+            <code>fct-diagnose.log</code>). Automatisch überschreiben lässt Firefox nicht zu;
+            ohne weitere Einstellung legt er jedes Mal eine neue Datei im Download-Ordner an
+            (<code>collection(1).csv</code> …). So bleibt es bei einer einzigen Datei:</p>
+        <ol>
+            <li>Firefox-Einstellungen öffnen (Menü ☰ → <em>Einstellungen</em>).</li>
+            <li><em>Allgemein</em> → <em>Dateien und Anwendungen</em> → <em>Downloads</em>.</li>
+            <li><em>Jedes Mal nachfragen, wo Dateien gespeichert werden sollen</em>
+                einschalten.</li>
+            <li>Beim nächsten <kbd>Strg</kbd>+<kbd>S</kbd> den Ordner des Bestands wählen,
+                dieselbe Datei anklicken und „Ersetzen“ bestätigen.</li>
+        </ol>
+        <p>Beim ersten Speichern in Firefox erklärt ein Hinweis das einmal.</p>
 
         <!-- 3 -->
         <h2 id="tabelle">3. Die Tabelle und ihre Spalten</h2>
-        <p>Jede Zeile ist eine <strong>Druckvariante</strong> einer Karte: dieselbe
-            Kartennummer in anderer Edition, Sprache oder Art Treatment ist eine eigene Zeile.
+        <p>Jede Zeile ist eine <strong>Variante</strong> einer Karte: dieselbe Kartennummer
+            in anderer Edition (auch Sprache) oder Art Treatment ist eine eigene Zeile.
             Die Mengen stehen nebeneinander je Foiling – wie in der 1.0-Tabelle. Die Spalten
             stehen in derselben Reihenfolge wie in der gespeicherten <code>collection.csv</code>,
             damit du die Datei auch in anderen Programmen wiedererkennst.</p>
+        <h3>Karte, Variante, Printing</h3>
+        <ul>
+            <li><strong>Karte:</strong> eine Kartennummer wie <code>MON062</code> mit Name,
+                Typen und Kartentext.</li>
+            <li><strong>Variante:</strong> eine Karte in einer Edition (bzw. Sprache) und einem
+                Art Treatment – das ist <strong>eine Zeile</strong>. Vorder- und Rückseite
+                gehören zur selben Zeile. Weitere eigene Zeilen derselben Variante sind erlaubt
+                (z. B. mit einer Peculiarity).</li>
+            <li><strong>Printing:</strong> eine Variante in einem Foiling. Die Printings einer
+                Zeile sind ihre Mengenspalten <em>ST</em> (Standard), <em>RF</em> (Rainbow Foil),
+                <em>CF</em> (Cold Foil) und <em>GF</em> (Gold Cold Foil).</li>
+        </ul>
         <table>
             <tr><th>Spalte</th><th>Bedeutung</th></tr>
             <tr><td>Set</td><td>Name des Sets, z. B. „Monarch“</td></tr>
@@ -263,13 +306,15 @@
             <tr><td>Backside Name</td><td>Rückseite doppelseitiger Karten</td></tr>
             <tr><td>Translated Name, Translated Backside Name</td><td>bei Sprachvarianten die
                 Übersetzung von Vorder- und Rückseite</td></tr>
-            <tr><td>Peculiarity</td><td>Besonderheit des Drucks</td></tr>
+            <tr><td>Peculiarity</td><td>Besonderheit dieser Zeile</td></tr>
             <tr><td>Art Treatment</td><td>Extended Art, Alternate Art, Full Art, …</td></tr>
             <tr><td>Pitch</td><td>Red, Yellow, Blue</td></tr>
             <tr><td>Playset</td><td>wie viele Exemplare ein vollständiges Set für ein Deck sind
                 (siehe unten)</td></tr>
-            <tr><td>ST, RF, CF, GF</td><td>deine Mengen: Standard, Rainbow Foil, Cold Foil, Gold
-                Foil</td></tr>
+            <tr><td>ST, RF, CF, GF</td><td>deine Mengen je Foiling: <em>ST</em> = Standard,
+                die regulären (Regular) Printings – bei Cardmarket heißen sie „Standard“;
+                <em>RF</em> = Rainbow Foil, <em>CF</em> = Cold Foil, <em>GF</em> = Gold Cold
+                Foil. Der Spaltentitel erklärt das auch beim Überfahren.</td></tr>
             <tr><td>Have / Need / Left (set, total)</td><td>berechnet, siehe unten; als Block
                 einklappbar</td></tr>
             <tr><td>Note</td><td>deine Notiz</td></tr>
@@ -311,7 +356,8 @@
         <p>Der Block von <em>Have (set)</em> bis <em>Left (total)</em> lässt sich mit ◂ in
             seiner ersten Überschrift zu einer schmalen Spalte <strong>Σ ▸</strong>
             zusammenklappen; ein Klick darauf klappt ihn wieder auf. Die Einstellung bleibt
-            gemerkt. Alle Spaltenüberschriften sind immer ganz lesbar, wo nötig in zwei Zeilen.
+            gemerkt. Spaltenüberschriften brechen nie um; die Spalte wird dafür breiter. Der
+            Titel von ST, RF, CF und GF erklärt beim Überfahren, welches Foiling gemeint ist.
         </p>
         <ul>
             <li><strong>Have / Need / Left (set):</strong> bezogen auf dieselbe Kartennummer –
@@ -321,10 +367,29 @@
         </ul>
         <h3>Zeilenaktionen</h3>
         <p>Am Ende jeder Zeile (auch beim seitlichen Scrollen sichtbar): ✎ alle Felder
-            bearbeiten, ＋ neue Zeile darunter (übernimmt Set, Metatyp, Talente und Klassen),
-            Kopieren, Kopie darunter einfügen (ohne Mengen – z. B. für eine weitere Sprache),
-            Löschen.
-        </p>
+            bearbeiten, ＋ neue Zeile darunter, Kopieren, Kopie darunter einfügen (ohne Mengen –
+            z. B. für eine weitere Sprache), Löschen. Zeilen, die noch nicht im Bestand sind
+            (<span class="sym gap">○</span>), haben statt Kopieren und Löschen das Symbol
+            <strong>In den Bestand aufnehmen</strong> (Pfeil in eine Ablage) – und ebenso ＋
+            für eine neue Zeile darunter.</p>
+        <ul>
+            <li><strong>＋ Neue Zeile darunter</strong> übernimmt Set und Edition der Zeile
+                darüber und zählt die Kartennummer um eins hoch (<code>MON062</code> →
+                <code>MON063</code>). Kennen die Stammdaten diese Nummer, sind alle Felder
+                schon ausgefüllt, die in allen Varianten der Karte gleich sind (Name, Pitch,
+                Typen, Playset …). Felder, in denen sich die Varianten unterscheiden (z. B. Art
+                Treatment), bleiben leer – welche Variante du meinst, weißt nur du. Kennen die
+                Stammdaten die Nummer nicht, übernimmt die Zeile Metatyp, Talente, Klassen und
+                Playset von oben.</li>
+            <li><strong>Löschen:</strong> Die Liste eines Sets bleibt immer vollständig. Steht
+                die Variante der Zeile (Kartennummer, Edition, Art Treatment) in den
+                Stammdaten, wird die Zeile nur <em>geleert</em>: Mengen und Notiz verschwinden,
+                und die Variante steht grau als <span class="sym gap">○</span> an derselben
+                Stelle. Ganz entfernt wird eine Zeile nur, wenn ihre Variante nicht in den
+                Stammdaten steht oder eine andere Zeile sie schon abdeckt. Wird die letzte
+                Zeile eines Sets gelöscht, verschwindet das Set; <em>Sets aufnehmen</em> holt es
+                zurück.</li>
+        </ul>
         <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus;
             <em>Standard wiederherstellen</em> stellt die Grundansicht her. In der Gruppe
             <em>Ansicht</em> stellst du das <strong>Design</strong> (<em>System</em> wie im
@@ -345,7 +410,7 @@
             <li>Im <strong>Editiermodus</strong> bearbeitet ein Klick auf die Kartennummer wie
                 gewohnt die Zelle; das Bild öffnet dann nur das Bildsymbol.</li>
         </ul>
-        <p>Gezeigt wird das Bild genau dieses Drucks (Edition, Art Treatment, bei
+        <p>Gezeigt wird das Bild genau dieser Variante (Edition, Art Treatment, bei
             doppelseitigen Karten die Seite zum Namen). Gibt es je Foiling eigene Bilder,
             erscheint das des einfachsten Foilings. Die Bilder kommen aus dem Internet; ohne
             Verbindung steht „Kein Bild verfügbar“.</p>
@@ -353,9 +418,10 @@
         <!-- 4 -->
         <h2 id="bearbeiten">5. Bearbeiten und Tastatur</h2>
         <p>Die Tabelle funktioniert wie eine Tabellenkalkulation. Ein Klick setzt den
-            <strong>Zellcursor</strong> (blauer Rahmen). Ein weiterer Klick auf die aktive Zelle
-            oder ein Doppelklick bearbeitet sie; Spalten mit festen Werten öffnen dabei direkt
-            ihre Auswahlliste.</p>
+            <strong>Zellcursor</strong> (blauer Rahmen). Bewegst du dich mit der Tastatur, bleibt
+            die aktive Zeile in der Mitte des sichtbaren Bereichs, und die Liste scrollt mit.
+            Ein weiterer Klick auf die aktive Zelle oder ein Doppelklick bearbeitet sie; Spalten
+            mit festen Werten öffnen dabei direkt ihre Auswahlliste.</p>
         <table>
             <tr><th>Taste</th><th>Wirkung</th></tr>
             <tr><td>Pfeiltasten, <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td>
@@ -373,8 +439,13 @@
             <tr><td><kbd>Enter</kbd></td><td>Wert übernehmen und eine Zeile nach unten</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Bearbeiten abbrechen</td></tr>
             <tr><td><kbd>Entf</kbd> / <kbd>Rück</kbd></td><td>Zelle leeren</td></tr>
-            <tr><td><kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>Shift</kbd>+<kbd>↓</kbd></td>
-                <td>Menge +1 / −1 (nie unter 0)</td></tr>
+            <tr class="highlight"><td><kbd>+</kbd> / <kbd>−</kbd> <em>oder</em>
+                <kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>Shift</kbd>+<kbd>↓</kbd></td>
+                <td><strong>Menge +1 / −1</strong> (nie unter 0) in den Spalten ST, RF, CF, GF
+                und Playset. Beide Wege gehen gleichwertig, auch <kbd>+</kbd> / <kbd>−</kbd> am
+                Ziffernblock. Achtung: Das ist in Tabellenprogrammen <em>kein</em> Standard,
+                sondern eine Besonderheit dieser Anwendung; in anderen Spalten tippen
+                <kbd>+</kbd> und <kbd>−</kbd> ganz normal.</td></tr>
             <tr><td>auf einer Gruppenzeile: <kbd>Enter</kbd> / <kbd>Leertaste</kbd>,
                 <kbd>→</kbd> / <kbd>←</kbd></td><td>auf- oder zuklappen, öffnen,
                 schließen</td></tr>
@@ -398,7 +469,7 @@
                 Stammdaten ab, z. B. „Rarity: Majestic → Marvel“.</td></tr>
             <tr><td><span class="sym override">✱</span></td><td>Du hast einen Stammdatenwert
                 bewusst geändert (lokale Änderung). Er bleibt, bis du ihn zurücksetzt.</td></tr>
-            <tr><td><span class="sym gap">○</span></td><td>Diesen Druck hast du noch nicht im
+            <tr><td><span class="sym gap">○</span></td><td>Diese Variante hast du noch nicht im
                 Bestand (siehe <a href="#sets">Vollständige Sets</a>).</td></tr>
             <tr><td><span class="sym unknown">?</span></td><td>Die Kartennummer ist in den
                 Stammdaten unbekannt.</td></tr>
@@ -457,7 +528,7 @@
             Feld passen.</p>
         <h3>Schnellfilter</h3>
         <p>Das Auswahlfeld neben der Suche beantwortet häufige Fragen: nur Bestand (ohne fehlende
-            Drucke), im Besitz, fehlt zum Playset (gesamt oder in diesem Set), überzählig, noch
+            Varianten), im Besitz, fehlt zum Playset (gesamt oder in diesem Set), überzählig, noch
             nicht im Bestand, weicht von den Stammdaten ab, auffällige Zeilen (unbekannte
             Kartennummer, ungültige Zahl).</p>
         <p>Ein aktiver Filter zeigt rechts ein <strong>×</strong>, das ihn mit einem Klick
@@ -493,15 +564,15 @@
         <!-- 8 -->
         <h2 id="sets">9. Vollständige Sets und Sets aufnehmen</h2>
         <h3>Vollständige Sets</h3>
-        <p>Jedes Set in deinem Bestand wird <strong>vollständig</strong> angezeigt: Drucke, die
+        <p>Jedes Set in deinem Bestand wird <strong>vollständig</strong> angezeigt: Varianten, die
             du noch nicht hast, stehen als Zeile mit <span class="sym gap">○</span> an ihrer
             Stelle. Sobald du dort eine Menge einträgst oder ＋ drückst, gehören sie zu deinem
-            Bestand. Erscheinen später neue Drucke eines Sets, tauchen sie ebenfalls so auf.</p>
+            Bestand. Erscheinen später neue Varianten eines Sets, tauchen sie ebenfalls so auf.</p>
         <h3>Sets aufnehmen</h3>
         <p><em>Sets aufnehmen …</em> (Gruppe Bestand) listet alle Sets der Stammdaten, die noch
             nicht in deinem Bestand sind – die neuesten zuerst, mit Erscheinungsdatum und Zahl
-            der Drucke. Das Suchfeld grenzt die Liste ein (auch mit Platzhaltern). Die
-            angehakten Sets werden mit <strong>allen Drucken als Zeilen mit leeren
+            der Varianten. Das Suchfeld grenzt die Liste ein (auch mit Platzhaltern). Die
+            angehakten Sets werden mit <strong>allen Varianten als Zeilen mit leeren
             Mengen</strong> aufgenommen – so kannst du sie ausfüllen wie früher in der
             1.0-Tabelle, auch
             wenn du noch keine einzige Karte davon hast. Welche Sets du sammelst, entscheidest
@@ -509,8 +580,8 @@
 
         <!-- 9 -->
         <h2 id="stammdaten">10. Stammdaten</h2>
-        <p>Die Stammdaten sind die Kartendaten aller Drucke: Namen, Seltenheit, Typen, Pitch,
-            Sets. Sie stammen aus dem offenen Datensatz
+        <p>Die Stammdaten sind die Kartendaten aller Karten und Varianten: Namen, Seltenheit,
+            Typen, Pitch, Sets. Sie stammen aus dem offenen Datensatz
             <a href="https://github.com/the-fab-cube/flesh-and-blood-cards">the-fab-cube</a> und
             werden bei jedem Start automatisch online geladen. Die Gruppe
             <em>Stammdaten</em> zeigt, welche gerade gelten (online oder mitgeliefert, Stand,
@@ -524,15 +595,35 @@
                 Branch des Datensatzes die Stammdaten kommen. Standard ist <em>develop</em>.
                 Neue Sets erscheinen oft zuerst in einem eigenen Branch (z. B.
                 <em>usurp-the-shadow-throne</em>); wählst du ihn, lädt die Anwendung sofort neu
-                und meldet neue Sets und zusätzliche Drucke. Die Wahl wird gemerkt. Ein anderer
-                Branch als <em>develop</em> ist gelb markiert: Seine Daten sind eine Vorschau und
+                und meldet neue Sets und zusätzliche Varianten. Die Wahl wird gemerkt. Ein
+                anderer Branch als <em>develop</em> ist orange markiert: Seine Daten sind eine
+                Vorschau und
                 können sich noch ändern. Lässt er sich nicht laden (z. B. inzwischen gelöscht),
                 gelten die bisherigen Stammdaten, und ein roter Hinweis bietet
                 <em>Zurück zu develop</em> an.</li>
             <li><strong>Übernehmen …</strong> listet jede Karte, die von den Stammdaten
-                abweicht, nach Set gruppiert, mit ihren Abweichungen. Angehakte Karten
-                übernehmen alle ihre abweichenden Werte; vorausgewählt ist nichts.</li>
+                abweicht, nach Set gruppiert (alle Sets zunächst zugeklappt), mit ihren
+                Abweichungen. Angehakte Karten übernehmen alle ihre abweichenden Werte;
+                vorausgewählt ist nichts. Ist der Bestand leer, erklärt ein Hinweis, dass es
+                noch nichts zu übernehmen gibt, und bietet <em>Sets aufnehmen</em> an.</li>
         </ul>
+        <h3>Farben des Stammdaten-Stands</h3>
+        <table>
+            <tr><th>Farbe</th><th>Bedeutung</th></tr>
+            <tr><td><span style="color: var(--surplus)">grün</span></td><td>online geladen aus
+                dem Standard-Branch <em>develop</em> – aktuell</td></tr>
+            <tr><td><span style="color: var(--stale)">orange</span></td><td>ein anderer Branch
+                (Vorschau), oder die Stammdaten waren online nicht erreichbar; dann gelten die
+                mitgelieferten</td></tr>
+            <tr><td><span style="color: var(--muted)">grau</span></td><td>die mitgelieferten
+                Stammdaten gelten, oder sie werden gerade geladen</td></tr>
+        </table>
+        <p>Der Tooltip des Stands und der Dialog <em>Info</em> nennen diese Bedeutung ebenfalls.
+            Die Farben in der Tabelle: <span class="sym differs">≠</span> orange = weicht von den
+            Stammdaten ab, <span class="sym override">✱</span> violett = lokal geändert,
+            <span class="sym gap">○</span> grau = noch nicht im Bestand, roter Balken am
+            Zeilenanfang = fehlt zum Playset, grüner Balken = überzählig (siehe
+            <a href="#status">Status</a>).</p>
         <p class="tip">Übernehmen verändert nie deine Sammlung selbst: Mengen, Notiz,
             Kartennummer, Edition und Art Treatment werden vorher und nachher verglichen; bei
             einer Abweichung wird alles zurückgenommen. Lokal geänderte Werte (✱) bleiben
@@ -590,7 +681,7 @@
                 werden zum Bestand, die Foilings werden zu ST/RF/CF/GF zusammengefasst.</li>
             <li><strong>Export:</strong> erzeugt eine Importdatei für Fabrary. Sprachvarianten
                 werden zusammengezählt, „Micro Text Box“ wird zu „Extended Art“, „Extra for
-                trade“ wird nach den Regeln des alten Tools berechnet. Drucke, die Fabrary nicht
+                trade“ wird nach den Regeln des alten Tools berechnet. Varianten, die Fabrary nicht
                 kennt, werden gemeldet und nicht geraten.</li>
         </ul>
         <p>Ein Import <strong>ersetzt</strong> den geöffneten Bestand; er wird nicht
