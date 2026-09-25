@@ -505,6 +505,18 @@ FCT.model = (function () {
         return row;
     }
 
+    // A file name that is not among the given ones (compared without case): the wanted name,
+    // otherwise with "-2", "-3", ... before ".csv" ("collection.csv" -> "collection-2.csv").
+    function freeName(wanted, names) {
+        var lower = (names || []).map(function (n) { return String(n).toLowerCase(); });
+        var base = wanted.replace(/\.csv$/i, '');
+        var name = wanted;
+        for (var i = 2; lower.indexOf(name.toLowerCase()) >= 0; i++) {
+            name = base + '-' + i + '.csv';
+        }
+        return name;
+    }
+
     // The next card number: the number at the end counted up by one, with the same number of
     // digits ("MON062" -> "MON063", "WTR009" -> "WTR010"); '' if there is no number at the end.
     function nextId(id) {
@@ -1096,6 +1108,7 @@ FCT.model = (function () {
         create: create,
         newRow: newRow,
         nextId: nextId,
+        freeName: freeName,
         commonValues: commonValues,
         fromCsv: fromCsv,
         toCsv: toCsv,

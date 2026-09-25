@@ -137,11 +137,6 @@ FCT.storage = (function () {
         return Promise.resolve({ name: suggestedName, handle: null, method: 'download' });
     }
 
-    // Backup: a copy with a time stamp in the name, e.g. collection-backup-20260923-1615.csv.
-    function backup(text, baseName) {
-        var base = String(baseName || 'collection.csv').replace(/\.csv$/i, '');
-        return saveAs(base + '-backup-' + FCT.util.timestamp() + '.csv', text);
-    }
 
     // Appends lines to the log file next to the collection.
     // Chrome/Edge: the first call asks where the log file is (or should be); the handle is
@@ -407,7 +402,7 @@ FCT.storage = (function () {
         openCollection: openCollection,
         saveCollection: saveCollection,
         saveAs: saveAs,
-        backup: backup,
+
         download: download
     };
 })();

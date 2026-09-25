@@ -27,8 +27,8 @@ FCT.tour = (function () {
                 'geht nach unten. Mengen zählst du mit den Tasten + / − hoch oder runter – ' +
                 'oder gleichwertig mit Shift+↑ / Shift+↓ (eine Besonderheit dieser App, kein ' +
                 'Tabellen-Standard). Sets und Talent/Class-Gruppen lassen sich auf- und ' +
-                'zuklappen. Eine Kartennummer ' +
-                'mit Bildsymbol zeigt beim Überfahren die Karte, ein Klick zeigt sie groß.' },
+                'zuklappen. Das Bildsymbol neben der Kartennummer zeigt beim Überfahren die ' +
+                'Karte, ein Klick zeigt sie groß.' },
         { target: '.grid thead th.status', title: 'Status jeder Zeile',
             text: '≠ weicht von den Stammdaten ab, ✱ hast du bewusst geändert, ○ ist eine ' +
                 'Variante, die du noch nicht im Bestand hast, ? eine unbekannte Kartennummer. ' +
@@ -55,8 +55,9 @@ FCT.tour = (function () {
                 'eine Zahl schon erhöht hast, springst zur Zeile oder machst eine Änderung ' +
                 'rückgängig.' },
         { target: '#group-help', title: 'Hilfe',
-            text: 'Hier startest du die Tour erneut. Die Dokumentation erklärt alles bis ins ' +
-                'Detail. „Diagnose“ lädt ein Log für die Fehlersuche herunter. Viel Spaß!' }
+            text: '„Einrichtung“ startet den Assistenten für einen neuen Bestand, „Tutorial“ ' +
+                'diese Tour. Die Dokumentation erklärt alles bis ins Detail. „Diagnose“ lädt ' +
+                'ein Log für die Fehlersuche herunter. Viel Spaß!' }
     ];
 
     var tour = null;          // { index, block, spot, popup, onKey, onResize }

@@ -1,4 +1,4 @@
-# FabCollectionTool 2.0.6.3
+# FabCollectionTool 2.0.7.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -6,8 +6,9 @@ keine Abhängigkeiten.
 ## Start
 
 `index.html` in diesem Ordner per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox).
-Das funktioniert direkt aus dem Repository-Checkout über `file://`. Beim ersten Besuch startet
-eine kurze Tour (wiederholbar über *Hilfe → Tutorial*).
+Das funktioniert direkt aus dem Repository-Checkout über `file://`. Beim ersten Besuch ohne
+Bestand startet der Einrichtungs-Assistent, danach eine kurze Tour (wiederholbar über
+*Hilfe → Einrichtung* und *Hilfe → Tutorial*).
 
 **Die ausführliche Anleitung für Anwender steht in [`doku.html`](doku.html)** (in der App:
 *Hilfe → Dokumentation*): Arbeitsordner und Speichern, Spalten, Tastatur, Status und
@@ -22,12 +23,13 @@ häufige Fragen.
 | **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets aufnehmen …* |
 | **Import / Export** | ODS (die FabCollectionTool-1.0-Tabelle), Fabrary |
 | **Stammdaten** | Branch des Datensatzes, Stand, *Aktualisieren*, *Übernehmen …* (je Karte), *Info* |
-| **Ansicht** | Design (System, Hell, Dunkel), Schriftgröße, Lage der Meldungen, *Editiermodus* |
-| **Hilfe** | *Tutorial*, *Dokumentation*, *Diagnose* (Log herunterladen) |
+| **Ansicht** | Design (Auto, Hell, Dunkel), Schriftgröße, Lage der Meldungen, *Editiermodus* |
+| **Hilfe** | *Einrichtung* (Assistent), *Tutorial*, *Dokumentation*, *Diagnose* (Log herunterladen) |
 | **Filter** | Suche, Schnellfilter, *Spalten*, *Filter zurücksetzen*; in der Tabelle Häkchen- und Textfilter je Spalte |
 | **Gliederung** | Gruppierung, Reihenfolge der Sets, Ebenen **1** / **2** / **3** |
 
-In der Tabelle: Kartenbilder an der Kartennummer (Vorschau beim Überfahren, groß per Klick; die
+In der Tabelle: Kartenbilder in einer eigenen Spalte nach der Kartennummer (Vorschau beim
+Überfahren, groß per Klick; die
 Bilder lädt der Browser aus dem Internet), einklappbarer Block der Rechenspalten, × zum Löschen
 eines Filters.
 
@@ -45,7 +47,8 @@ ohne Internet gelten die mitgelieferten in `reference/`.
   und Ordner, die Autosave-Entscheidung und die letzten 2.000 Diagnose-Einträge. Die Datei
   bleibt das Original.
 - **Browser** (localStorage): nur Ansichtseinstellungen (Design, Spalten, eingeklappter
-  Rechenblock, Branch der Stammdaten, Schrift, Gliederung, Tutorial gesehen).
+  Rechenblock, Branch der Stammdaten, Schrift, Gliederung, Tutorial/Assistent gesehen) und je
+  Bestand die aufgeklappten Gruppen, die Position und den Zellcursor.
 - **Firefox** speichert Bestand und Protokoll als Download, immer unter demselben Namen; mit
   der Firefox-Einstellung „Jedes Mal nachfragen, wo gespeichert werden soll“ ersetzt man so
   die alte Datei (siehe Dokumentation, Abschnitt Firefox).
@@ -116,7 +119,8 @@ Stammdatenabgleich, Berechnung),
 `changelog.js`, `storage.js` (Dateien, Arbeitsordner, IndexedDB), `diagnosis.js` (Log-Datei
 mit Rotation), `grid-filter.js`, `card-image.js` (Kartenbilder) und `grid.js` (Tabelle),
 Importe/Exporte,
-`reference-update.js`, `tour.js` (Tutorial), `app.js` (Oberfläche).
+`reference-update.js`, `tour.js` (Tutorial), `onboarding.js` (Einrichtungs-Assistent),
+`app.js` (Oberfläche).
 
 ## Wartung
 

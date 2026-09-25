@@ -604,6 +604,23 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         `variant columns ${m.VARIANT_COLUMNS.join(', ')}`);
 }
 
+// Version 2.0.7.0: a new collection is called "collection.csv" (or "collection-2.csv" if the
+// folder has one); the picture column is only shown, never part of collection.csv; the setup
+// assistant is loaded by the page.
+{
+    const m = FCT.model;
+    const names = m.freeName('collection.csv', []) === 'collection.csv' &&
+        m.freeName('collection.csv', ['Collection.CSV']) === 'collection-2.csv' &&
+        m.freeName('collection.csv', ['collection.csv', 'collection-2.csv']) ===
+            'collection-3.csv';
+    const csv = m.toCsv(m.create()).split(/\r?\n/)[0];
+    const picture = m.COLUMNS.indexOf('_image') < 0 && !/_image|Kartenbild/.test(csv);
+    const page = fs.readFileSync(path.join(appRoot, 'index.html'), 'utf8');
+    const loaded = /app\/onboarding\.js/.test(page) && /id="btn-onboarding"/.test(page);
+    check('Names, picture column, assistant', names && picture && loaded,
+        `names ${names}, picture only shown ${picture}, assistant loaded ${loaded}`);
+}
+
 // Firefox and other browsers without file access (2.0.6.0): downloads of collection, change
 // log and diagnosis log always keep the same name; the word "Druck" is gone from the texts.
 {

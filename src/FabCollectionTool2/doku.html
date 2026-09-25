@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css?v=2.0.6.3">
-    <!-- Design (System, Hell, Dunkel) before the first paint, so that nothing flashes -->
+    <link rel="stylesheet" href="app/style.css?v=2.0.7.0">
+    <!-- Design (Auto, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
             var theme = JSON.parse(localStorage.getItem('fct2.theme') || '"system"');
@@ -161,9 +161,13 @@
         <!-- 1 -->
         <h2 id="start">1. Erste Schritte</h2>
         <p>Die Anwendung braucht keine Installation. <code>index.html</code> per Doppelklick in
-            Chrome, Edge oder Firefox öffnen – fertig. Beim ersten Besuch startet eine kurze
-            Tour; sie lässt sich mit <kbd>Esc</kbd> beenden und über <em>Hilfe → Tutorial</em>
-            wiederholen.</p>
+            Chrome, Edge oder Firefox öffnen – fertig. Hast du noch keinen Bestand, startet beim
+            ersten Besuch der <strong>Einrichtungs-Assistent</strong>: Er fragt, womit du
+            beginnst (neu anfangen, 1.0-Tabelle oder Fabrary-Export importieren, vorhandenen
+            Bestand öffnen), führt durch Ablageort, Anlegen und „Sets aufnehmen“ und bietet am
+            Ende die kurze <strong>Tour</strong> durch die Seite an. Beides lässt sich
+            jederzeit wiederholen: <em>Hilfe → Einrichtung</em> und <em>Hilfe → Tutorial</em>;
+            die Tour endet mit <kbd>Esc</kbd>.</p>
         <p>So kommt dein Bestand in die Anwendung:</p>
         <ul>
             <li><strong>Du hast die FabCollectionTool-1.0-Tabelle:</strong> <em>Import →
@@ -292,8 +296,10 @@
             <tr><td>Edition</td><td>Sammler-Edition (Alpha, First, Unlimited) oder Sprache (EN,
                 DE, …)</td></tr>
             <tr><td>Id</td><td>Kartennummer, z. B. <code>MON062</code>; die ersten drei Zeichen
-                sind der Set-Code. Mit Bildsymbol: zeigt das Kartenbild (siehe
-                <a href="#bilder">Kartenbilder</a>)</td></tr>
+                sind der Set-Code</td></tr>
+            <tr><td>Bild-Symbol</td><td>Spalte „Kartenbild“ direkt nach Id: zeigt das
+                Kartenbild (siehe <a href="#bilder">Kartenbilder</a>); ausblendbar, nie in
+                <code>collection.csv</code></td></tr>
             <tr><td>First In</td><td>Set, in dem die Karte zuerst erschien (für Reprints)</td>
             </tr>
             <tr><td>Rarity</td><td>Seltenheit (Common, Rare, Majestic, …)</td></tr>
@@ -399,23 +405,22 @@
         <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus – außer Id,
             Edition und Art Treatment, die eine Variante ausmachen und immer sichtbar sind;
             <em>Standard wiederherstellen</em> stellt die Grundansicht her. In der Gruppe
-            <em>Ansicht</em> stellst du das <strong>Design</strong> (<em>System</em> wie im
+            <em>Ansicht</em> stellst du das <strong>Design</strong> (<em>Auto</em> wie im
             Betriebssystem eingestellt, <em>Hell</em> oder <em>Dunkel</em>), die Schriftgröße und
             die Lage der Meldungen ein. Das Design gilt auch für diese Dokumentation.</p>
 
         <!-- 3b -->
         <h2 id="bilder">4. Kartenbilder</h2>
-        <p>Kartennummern mit einem kleinen <strong>Bildsymbol</strong> und gepunkteter
-            Unterstreichung haben ein Kartenbild:</p>
+        <p>Die schmale Spalte <strong>Kartenbild</strong> direkt nach der Kartennummer (im
+            Spaltenkopf ein Bild-Symbol) zeigt ein Symbol, wenn es ein Kartenbild gibt. Über
+            <em>Spalten</em> lässt sie sich ausblenden.</p>
         <ul>
-            <li><strong>Überfahren</strong> mit der Maus zeigt nach einem kurzen Moment eine
+            <li><strong>Überfahren</strong> des Symbols zeigt nach einem kurzen Moment eine
                 Vorschau neben der Zelle, groß genug, um den Kartentitel zu lesen.</li>
-            <li><strong>Klicken</strong> auf die Kartennummer oder das Bildsymbol öffnet das
-                Bild groß – so groß, dass auch der Kartentext lesbar ist. Darunter stehen
-                Kartennummer, Name und Variante sowie ein Link, um das Bild in einem neuen Tab
-                zu öffnen. <kbd>Esc</kbd>, ein Klick daneben oder × schließt es.</li>
-            <li>Im <strong>Editiermodus</strong> bearbeitet ein Klick auf die Kartennummer wie
-                gewohnt die Zelle; das Bild öffnet dann nur das Bildsymbol.</li>
+            <li><strong>Klicken</strong> öffnet das Bild groß – so groß, dass auch der
+                Kartentext lesbar ist. Darunter stehen Kartennummer, Name und Variante sowie
+                ein Link, um das Bild in einem neuen Tab zu öffnen. <kbd>Esc</kbd>, ein Klick
+                daneben oder × schließt es.</li>
         </ul>
         <p>Gezeigt wird das Bild genau dieser Variante (Edition, Art Treatment, bei
             doppelseitigen Karten die Seite zum Namen). Gibt es je Foiling eigene Bilder,
@@ -713,8 +718,12 @@
         <!-- 13 -->
         <h2 id="kopie">14. Backup und Kopie im Browser</h2>
         <ul>
-            <li><strong>Backup</strong> legt eine Kopie mit Zeitstempel an – im Arbeitsordner
-                ohne Rückfrage, sonst über den Speichern-Dialog.</li>
+            <li><strong>Backup</strong> öffnet einen eigenen Dialog: Der Dateiname ist mit
+                Zeitstempel vorgeschlagen (<code>collection-backup-JJJJMMTT-HHMMSS.csv</code>)
+                und änderbar, <em>Abbrechen</em> legt nichts an. Das Backup landet im
+                Arbeitsordner (eine vorhandene Datei wird nie überschrieben), sonst im
+                Speichern-Dialog des Browsers bzw. als Download. Auch „Stand beim Öffnen als
+                Backup sichern“ läuft über diesen Dialog.</li>
             <li><strong>Kopie im Browser:</strong> Nach jedem Laden, Speichern und jeder
                 Änderung legt die Anwendung eine Kopie des Bestands (und seines Protokolls) im
                 Browser ab. Beim nächsten Start ist der Bestand dadurch sofort da – auch mit
@@ -763,8 +772,10 @@
         <h3>Wo sind meine Einstellungen?</h3>
         <p>Design, sichtbare Spalten, eingeklappter Rechenblock, Branch der Stammdaten,
             Schriftgröße, Lage der Meldungen, Gruppierung und Reihenfolge
-            der Sets merkt sich der Browser. Das sind nur Ansichtseinstellungen, keine
-            Bestandsdaten.</p>
+            der Sets merkt sich der Browser. Außerdem je Bestand (für die letzten zehn), welche
+            Gruppen aufgeklappt sind, wo du in der Tabelle stehst und wo der Zellcursor ist –
+            beim nächsten Start geht es genau dort weiter. Das sind nur
+            Ansichtseinstellungen, keine Bestandsdaten.</p>
         <h3>Ich habe aus Versehen etwas geändert.</h3>
         <p>Im <em>Protokoll</em> den Eintrag suchen und <em>↶ Rückgängig</em> wählen.</p>
     </main>

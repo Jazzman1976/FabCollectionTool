@@ -40,13 +40,13 @@ FCT.app = (function () {
      * after the quantities. The default view shows the columns asked for in the feedback.
      * Widths are in em, so they follow the font size.
      */
-    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Id', 'Rarity', 'Metatype', 'Talent1',
+    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Id', '_image', 'Rarity', 'Metatype', 'Talent1',
         'Talent2', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name',
         'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
         '_leftTotal'];
     var WIDTHS = {
-        Set: 12, Edition: 5.5, Id: 6.5, 'First In': 5, Rarity: 6.5, Metatype: 5, Talent1: 6.5,
+        Set: 12, Edition: 5.5, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5, Talent1: 6.5,
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
         'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 4.5,
@@ -139,11 +139,19 @@ FCT.app = (function () {
             return c;
         });
 
+        // Card picture in a column of its own right after the card number (since 2.0.7.0):
+        // only a symbol, hovering shows a preview, a click the large picture.
+        var picture = { key: '_image', label: 'Kartenbild', icon: 'picture', width: 2.4,
+            kind: 'calc', noFilter: true, noSort: true,
+            hint: 'überfahren = Vorschau, Klick = groß',
+            value: function () { return ''; } };
+
         var keys = columns.map(function (c) { return c.key; });
+        var id = keys.indexOf('Id') + 1;
         var at = keys.indexOf('GF') + 1;
         var note = keys.indexOf('Note');
-        var all = columns.slice(0, at).concat(calculated, columns.slice(at, note),
-            columns.slice(note), [types], shown);
+        var all = columns.slice(0, id).concat([picture], columns.slice(id, at), calculated,
+            columns.slice(at, note), columns.slice(note), [types], shown);
 
         // Visibility: as last chosen by the user, otherwise the default view. Art Treatment
         // belongs to the default view since 2.0.4.0, Metatype, Talent1 and Talent2 replace
@@ -163,6 +171,11 @@ FCT.app = (function () {
                 });
             }
             settings.set('columns2050', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
+        if (!settings.get('columns2070', false)) {
+            if (visible.indexOf('_image') < 0) visible = visible.concat(['_image']);
+            settings.set('columns2070', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
         // The columns of a variant are always shown (since 2.0.6.3).
@@ -253,6 +266,55 @@ FCT.app = (function () {
         state.dirty = !!dirty;
         changelog.clear();
         rebuild();
+    }
+
+    /*
+     * Remembered view (feedback on 2.0.6.3): which groups are open and where the user is in
+     * the table survive a restart. Kept in the view settings (localStorage) per file name,
+     * for the last VIEW_FILES collections; applied when the same collection is shown again.
+     * While a search or filter is active, the position is not saved (it would be the
+     * filtered one).
+     */
+    var VIEW_DELAY = 500;
+    var VIEW_FILES = 10;
+    var viewTimer = null;
+    var viewReady = false;       // false while a collection is loaded and its view not applied
+
+    function scheduleViewSave() {
+        if (!viewReady) return;
+        clearTimeout(viewTimer);
+        viewTimer = setTimeout(saveView, VIEW_DELAY);
+    }
+
+    function saveView() {
+        viewTimer = null;
+        if (!viewReady) return;
+        var file = state.file ? state.file.name : '';
+        var views = settings.get('views', null) || {};
+        var old = views[file] || {};
+        views[file] = {
+            open: grid.openState(),
+            position: grid.filtering() ? old.position : grid.viewPosition(),
+            saved: Date.now()
+        };
+        // Only the latest collections are kept.
+        Object.keys(views).sort(function (a, b) {
+            return (views[b].saved || 0) - (views[a].saved || 0);
+        }).slice(VIEW_FILES).forEach(function (name) { delete views[name]; });
+        settings.set('views', views);
+    }
+
+    // Applies the remembered view of the collection now shown (if there is one).
+    function restoreView() {
+        var views = settings.get('views', null) || {};
+        var file = state.file ? state.file.name : '';
+        var view = views[file];
+        if (view && state.collection.rows.length) {
+            grid.setOpenState(view.open);
+            grid.restorePosition(view.position);
+            FCT.log.debug('view', 'Ansicht wiederhergestellt', file);
+        }
+        viewReady = true;
     }
 
     /*
@@ -602,7 +664,7 @@ FCT.app = (function () {
                 return save().then(function () { return askNewCollection(options); });
             }
             if (value !== 'create') return null;
-            var name = input.value.trim() || 'bestand.csv';
+            var name = input.value.trim() || DEFAULT_NAME;
             if (!/\.csv$/i.test(name)) name += '.csv';
             return createCollectionFile(name, folder).then(function (created) {
                 if (created === false) return askNewCollection(options);
@@ -612,15 +674,15 @@ FCT.app = (function () {
         });
     }
 
-    // A file name for a new collection that does not exist in the folder yet.
+    // A file name for a new collection (feedback on 2.0.6.3: always "collection.csv"); if the
+    // folder has one already, "collection-2.csv" and so on, since nothing is overwritten.
+    var DEFAULT_NAME = 'collection.csv';
+
     function suggestName(folder) {
-        if (!folder) return Promise.resolve('bestand.csv');
+        if (!folder) return Promise.resolve(DEFAULT_NAME);
         return FCT.storage.listFolder(folder).then(function (names) {
-            var lower = names.map(function (n) { return n.toLowerCase(); });
-            var name = 'bestand.csv';
-            for (var i = 2; lower.indexOf(name) >= 0; i++) name = 'bestand-' + i + '.csv';
-            return name;
-        }, function () { return 'bestand.csv'; });
+            return model.freeName(DEFAULT_NAME, names);
+        }, function () { return DEFAULT_NAME; });
     }
 
     /*
@@ -713,7 +775,9 @@ FCT.app = (function () {
 
     function openResult(result) {
         return placeFile(result).then(function (placed) {
-            if (!loadCollection(placed)) return null;
+            viewReady = false;
+            if (!loadCollection(placed)) { viewReady = true; return null; }
+            restoreView();
             FCT.notices.clear('restore');
             return FCT.storage.recallFile().then(function (last) {
                 return last ? FCT.storage.sameFile(last.handle, placed.handle)
@@ -1574,7 +1638,9 @@ FCT.app = (function () {
         var name = state.file.name;
         var button = el('button', { type: 'button', text: 'Stand beim Öffnen als Backup sichern',
             onclick: guarded(function () {
-                return writeBackup(text, name).then(function (result) {
+                var what = 'Gesichert wird der Stand von ' + name + ' beim Öffnen, also vor ' +
+                    'den Änderungen dieser Sitzung.';
+                return writeBackup(text, name, what).then(function (result) {
                     if (result) showMessage('Backup erstellt', result.name);
                 });
             }) });
@@ -1699,13 +1765,60 @@ FCT.app = (function () {
     }
 
     // Writes a backup: into the working folder without a dialog, otherwise as before.
-    function writeBackup(text, name) {
-        if (!hasFolder()) return FCT.storage.backup(text, name);
-        var file = String(name || 'collection.csv').replace(/\.csv$/i, '') + '-backup-' +
-            util.timestamp() + '.csv';
-        return FCT.storage.writeFolderFile(state.folder, file, text).then(function () {
-            FCT.log.info('file', 'Backup im Arbeitsordner', file);
-            return { name: file + ' (im Arbeitsordner ' + state.folder.name + ')' };
+    /*
+     * Backup (feedback on 2.0.6.3): a dialog of its own asks for the file name (proposed:
+     * <collection>-backup-<time>.csv) and can be cancelled. The backup goes into the working
+     * folder without a further dialog (an existing file is never overwritten), otherwise into
+     * the "Speichern unter" dialog of the browser, or - without file access - as a download.
+     * what: text above the name, e.g. that the state as opened is saved. Resolves with
+     * { name } of the backup, or null if cancelled.
+     */
+    function writeBackup(text, name, what) {
+        var base = String(name || DEFAULT_NAME).replace(/\.csv$/i, '');
+        var input = el('input', { type: 'text', size: '40' });
+        input.value = base + '-backup-' + util.timestamp() + '.csv';
+        var done = null;
+        input.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            done('save');
+        });
+        var place = hasFolder() ? 'Arbeitsordner „' + state.folder.name + '“'
+            : FCT.storage.canWriteBack ? 'wählst du danach im Dialog „Speichern unter“'
+            : 'Download (Download-Ordner bzw. Nachfrage des Browsers)';
+        return openDialog({
+            title: 'Backup anlegen',
+            body: el('div', {}, [
+                el('p', { text: what || 'Eine Kopie des aktuellen Bestands wird als eigene ' +
+                    'Datei gesichert; der Bestand selbst bleibt unverändert.' }),
+                el('table', { className: 'info' }, [
+                    el('tr', {}, [el('th', { text: 'Dateiname' }), el('td', {}, [input])]),
+                    el('tr', {}, [el('th', { text: 'Ort' }), el('td', { text: place })])
+                ])
+            ]),
+            setup: function (finish) {
+                done = finish;
+                setTimeout(function () { input.focus(); input.select(); }, 0);
+            },
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Backup anlegen', value: 'save', primary: true }
+            ]
+        }).then(function (value) {
+            var file = input.value.trim();
+            if (value !== 'save' || !file) return null;
+            if (!/\.csv$/i.test(file)) file += '.csv';
+            if (!hasFolder()) return FCT.storage.saveAs(file, text);
+            return FCT.storage.folderFile(state.folder, file, false).then(function () {
+                showMessage('Backup', file + ' gibt es im Arbeitsordner schon. Bitte einen ' +
+                    'anderen Namen wählen – eine vorhandene Datei wird nie überschrieben.');
+                return writeBackup(text, name, what);
+            }, function () {
+                return FCT.storage.writeFolderFile(state.folder, file, text).then(function () {
+                    FCT.log.info('file', 'Backup im Arbeitsordner', file);
+                    return { name: file + ' (im Arbeitsordner ' + state.folder.name + ')' };
+                });
+            });
         });
     }
 
@@ -2710,6 +2823,7 @@ FCT.app = (function () {
             writeBack: FCT.storage.canWriteBack, folder: FCT.storage.canUseFolder });
         FCT.diagnosis.start(function () { return hasFolder() ? state.folder : null; });
         installBundledReference();
+        FCT.onboarding.init(onboardingActions());
         setFontSize(settings.get('fontSize', 'M'));
 
         grid = FCT.grid.create($('grid'), {
@@ -2739,7 +2853,12 @@ FCT.app = (function () {
                 guarded(function () { return onAction(action, row); })();
             },
             onView: function () { if ($('status-rows')) updateStatus(); },
-            imageColumn: 'Id',
+            rowKey: function (row) {
+                return model.variantKey(row.Id, row.Edition, row['Art Treatment']) + '|' +
+                    (row.Name || '') + (row._reference ? '|○' : '');
+            },
+            onViewChange: scheduleViewSave,
+            imageColumn: '_image',
             hasImage: function (row) { return !!FCT.reference.image(row, 'normal'); },
             onImage: showCardImage,
             collapsed: { calc: settings.get('calcCollapsed', false) },
@@ -2759,6 +2878,7 @@ FCT.app = (function () {
             'btn-log-file': chooseLogFile, 'btn-autosave': toggleAutosave,
             'btn-folder': chooseFolder, 'btn-diagnose': FCT.diagnosis.download,
             'btn-tour': function () { FCT.tour.start(); },
+            'btn-onboarding': function () { return runOnboarding(false); },
             'btn-docs': function () { window.open('doku.html', '_blank'); }
         };
         Object.keys(actions).forEach(function (id) {
@@ -2867,8 +2987,50 @@ FCT.app = (function () {
                 setFolder(folder, access === 'granted');
             });
         }).then(restoreLast).then(function () {
-            if (!settings.get('tourDone', false)) FCT.tour.start();
+            restoreView();
+            return firstVisit();
         });
+    }
+
+    /*
+     * First visit (feedback on 2.0.6.3): without a collection, the setup assistant starts
+     * first and offers the tutorial at its end; the tutorial also starts by itself afterwards
+     * if it was never seen. Someone who already has a collection does not get the assistant.
+     */
+    function firstVisit() {
+        var fresh = !state.file && !state.collection.rows.length;
+        if (settings.get('onboardingDone', false) || !fresh) {
+            settings.set('onboardingDone', true);
+            if (!settings.get('tourDone', false)) FCT.tour.start();
+            return null;
+        }
+        return runOnboarding(true);
+    }
+
+    // Runs the setup assistant; the tutorial follows if asked for (or at the first visit).
+    function runOnboarding(first) {
+        return FCT.onboarding.start().then(function (result) {
+            if (result.tour || (first && !settings.get('tourDone', false))) FCT.tour.start();
+        });
+    }
+
+    // Actions the setup assistant uses (see onboarding.js).
+    function onboardingActions() {
+        return {
+            openDialog: openDialog,
+            ensureFolder: ensureFolder,
+            canUseFolder: function () { return FCT.storage.canUseFolder; },
+            hasFolder: function () { return !!state.folder; },
+            canWriteBack: function () { return FCT.storage.canWriteBack; },
+            newCollection: newCollection,
+            importOds: function () { return importOds(); },
+            importFabrary: function () { return importFabrary(); },
+            open: open,
+            save: save,
+            rowCount: function () { return state.collection.rows.length; },
+            fileName: function () { return state.file ? state.file.name : ''; },
+            dirty: function () { return state.dirty; }
+        };
     }
 
     return { init: init };

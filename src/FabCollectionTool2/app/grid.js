@@ -51,8 +51,9 @@ FCT.grid = (function () {
     //               group can be collapsed into one narrow column; sparse = numbers that
     //               may be missing (an empty value matches no number comparison); hint =
     //               explanation shown when hovering over the title; fixed = always shown,
-    //               never hidden. Titles never wrap; a column is widened where its title
-    //               would not fit.
+    //               never hidden; icon = symbol (see ICONS) instead of the title text;
+    //               noFilter / noSort = no filter, no sorting. Titles never wrap; a column
+    //               is widened where its title would not fit.
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
     //   searchKeys  keys searched by the free text search, or functions (row) -> text
@@ -69,10 +70,12 @@ FCT.grid = (function () {
     //   sections(rows)            level 2 sections of all rows, see model.sections
     //   setInfo(name, rows)       { label, date } of a level 1 group (title and release date)
     //   matchesMode(row, mode)    extra quick filters of the application
-    //   imageColumn               key of the column that shows card pictures (e.g. 'Id')
+    //   imageColumn               key of the column that shows card pictures (a symbol)
     //   hasImage(row)             whether a row has a card picture
     //   onImage(action, row, td)  'hover' (show preview), 'leave' (hide it), 'open' (large)
     //   onEdit(row, key, text), onAction(action, row), onView(count)
+    //   rowKey(row)               stable key of a row, to find it again (remembered view)
+    //   onViewChange()            groups opened or closed, or scrolled (to remember the view)
     function create(container, options) {
         var columns = options.columns;
         var allRows = [];
@@ -109,6 +112,7 @@ FCT.grid = (function () {
         scroller.addEventListener('scroll', function () {
             watchScroll();
             scheduleScroll();
+            viewChanged();
             if (options.onImage) options.onImage('leave');
         });
 
@@ -143,7 +147,7 @@ FCT.grid = (function () {
         var measure = null;
 
         function widthOf(column) {
-            if (column.placeholder) return column.width;
+            if (column.placeholder || column.icon) return column.width;
             if (fitted[column.key] == null) {
                 if (!measure) measure = document.createElement('canvas').getContext('2d');
                 var style = window.getComputedStyle(headRow.cells[0] || table);
@@ -240,14 +244,23 @@ FCT.grid = (function () {
                             setCollapsed(column.group, true);
                         } });
                 }
+                // A column with a symbol shows it in the colour of the title text.
+                var label = column.icon ? icon(column.icon)
+                    : el('span', { className: 'label', text: column.label });
+                if (column.icon) label.classList.add('head-icon');
                 headRow.appendChild(el('th', {
                     title: column.label + (column.hint ? ': ' + column.hint : '') +
-                        '\nKlicken zum Sortieren (auf, ab, aus)',
-                    className: 'sortable ' + (column.numeric ? 'num' : '') +
-                        (toggle ? ' has-toggle' : ''),
+                        (column.noSort ? '' : '\nKlicken zum Sortieren (auf, ab, aus)'),
+                    className: (column.noSort ? 'icon-head' : 'sortable ') +
+                        (column.numeric ? ' num' : '') + (toggle ? ' has-toggle' : ''),
                     'data-key': column.key,
-                    onclick: function () { toggleSort(column.key); }
-                }, [toggle, el('span', { className: 'label', text: column.label }), marker]));
+                    onclick: column.noSort ? null : function () { toggleSort(column.key); }
+                }, [toggle, label, column.noSort ? null : marker]));
+
+                if (column.noFilter) {
+                    filterRow.appendChild(el('th'));
+                    return;
+                }
 
                 if (column.list) {
                     filterRow.appendChild(el('th', { className: checks[column.key]
@@ -678,6 +691,57 @@ FCT.grid = (function () {
             var states = filtering() ? filterOpen : groupOpen;
             states.set(group.key, open);
             applyView();
+            viewChanged();
+        }
+
+        // Tells the application that the view changed (it remembers it across sessions).
+        function viewChanged() {
+            if (options.onViewChange) options.onViewChange();
+        }
+
+        /*
+         * Remembered view (feedback on 2.0.6.3): the open/closed state of the groups and the
+         * position - the row at the top of the visible area and the cursor cell. Rows and
+         * group headers are identified by keys, so the view is found again after a restart.
+         */
+        function itemKey(item) {
+            if (!item) return null;
+            if (item._group) return 'G:' + item.key;
+            return 'R:' + (options.rowKey ? options.rowKey(item) : item.Id);
+        }
+
+        function indexOfKey(key) {
+            for (var i = 0; i < viewRows.length; i++) {
+                if (itemKey(viewRows[i]) === key) return i;
+            }
+            return -1;
+        }
+
+        function viewPosition() {
+            var first = Math.min(viewRows.length - 1, Math.floor(scroller.scrollTop / rowHeight));
+            return {
+                top: first >= 0 ? itemKey(viewRows[first]) : null,
+                offset: first >= 0 ? scroller.scrollTop - first * rowHeight : 0,
+                cursor: itemKey(cursor.item),
+                column: cursor.key
+            };
+        }
+
+        function restorePosition(position) {
+            if (!position) return;
+            var index = position.top ? indexOfKey(position.top) : -1;
+            var at = position.cursor ? indexOfKey(position.cursor) : -1;
+            if (at >= 0) {
+                cursor.item = viewRows[at];
+                if (position.column && columnByKey(position.column)) {
+                    cursor.key = position.column;
+                }
+            }
+            if (index >= 0) {
+                scrollWatch.own = Date.now();
+                scroller.scrollTop = index * rowHeight + (position.offset || 0);
+            }
+            render();
         }
 
         // Outline levels as in the spreadsheet: 1 = sets only, 2 = sets with their
@@ -689,6 +753,7 @@ FCT.grid = (function () {
                 states.set(key, sub ? level >= 3 : level >= 2);
             });
             applyView();
+            viewChanged();
         }
 
         function toggleSort(key) {
@@ -898,9 +963,10 @@ FCT.grid = (function () {
         function keepCursor() {
             var item = cursor.item;
             if (!item || viewRows.indexOf(item) >= 0) return;
-            cursor.item = item._group ? viewRows.filter(function (r) {
-                return r._group && r.key === item.key;
-            })[0] || null : null;
+            // Rows not yet in the collection are made anew with every rebuild (e.g. after
+            // the reference data were loaded), so rows are found again by their key too.
+            var at = indexOfKey(itemKey(item));
+            cursor.item = at >= 0 ? viewRows[at] : null;
         }
 
         function setCursor(item, key, scroll) {
@@ -909,6 +975,7 @@ FCT.grid = (function () {
             if (!cursor.key) cursor.key = (cursorColumns()[0] || {}).key || null;
             if (scroll) scrollToCursor(true);
             render();
+            viewChanged();
         }
 
         // Moves the cursor by rows and columns; columns wrap into the next or previous row.
@@ -1321,7 +1388,24 @@ FCT.grid = (function () {
                 setCursor(row, null, true);
             },
             // Number of rows matching search and filters, including those in closed groups.
-            viewCount: function () { return matchCount; }
+            viewCount: function () { return matchCount; },
+            // Remembered view: open/closed state of the groups ({ key: true/false }, without
+            // the temporary state of a search or filter) and position (see viewPosition).
+            openState: function () {
+                var result = {};
+                groupOpen.forEach(function (open, key) { result[key] = open; });
+                return result;
+            },
+            setOpenState: function (states) {
+                groupOpen.clear();
+                Object.keys(states || {}).forEach(function (key) {
+                    groupOpen.set(key, !!states[key]);
+                });
+                applyView();
+            },
+            viewPosition: viewPosition,
+            restorePosition: restorePosition,
+            filtering: filtering
         };
     }
 

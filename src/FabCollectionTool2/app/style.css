@@ -1140,30 +1140,37 @@ table.row-form button.reset {
     top: -18px;
     border-bottom-color: var(--notice-line);
 }
+/* Column title shown as a symbol, in the colour of the title text */
+.grid thead th.icon-head {
+    text-align: center;
+    cursor: default;
+}
+.grid thead th .head-icon svg {
+    width: 1.1em;
+    height: 1.1em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.3;
+    vertical-align: middle;
+}
 .tour-popup.above::before {
     bottom: -18px;
     border-top-color: var(--notice-line);
 }
 
-/* Card pictures (card-image.js): the card number shows a symbol, hovering shows a preview
-   with a readable title, a click opens the picture large enough to read the card text */
-/* The picture symbol stands at the right edge, in the same line as the card number: space is
-   kept free for it, so the row never grows (the virtual scrolling needs fixed row heights). */
+/* Card pictures (card-image.js): a column of its own shows a symbol, hovering shows a preview
+   with a readable title, a click opens the picture large enough to read the card text. The
+   symbol is centred and positioned, so the row never grows (virtual scrolling). */
 .grid td.has-image {
     position: relative;
-    padding-right: calc(5px + 1.4em);
+    padding: 0;
     cursor: zoom-in;
-    text-decoration: underline dotted var(--accent);
-    text-underline-offset: 3px;
-}
-body.edit-mode .grid td.has-image {
-    cursor: text;
 }
 .grid td.has-image .card-icon {
     position: absolute;
-    right: 4px;
+    left: 50%;
     top: 50%;
-    transform: translateY(-50%);
+    transform: translate(-50%, -50%);
     width: 1.1em;
     height: 1.1em;
     color: var(--accent);
