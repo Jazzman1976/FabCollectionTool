@@ -72,11 +72,10 @@ FCT.onboarding = (function () {
                 el('p', { text: 'Im nächsten Dialog wählst du den Ordner (oder arbeitest ohne ' +
                     'Arbeitsordner mit einzelnen Dateien).' })
             ] : [
-                el('p', { text: 'Dieser Browser kann nicht direkt in Dateien schreiben. ' +
-                    'Gespeichert wird als Download, immer unter demselben Namen.' }),
-                el('p', { text: 'Tipp für Firefox: In den Einstellungen „Jedes Mal nachfragen, ' +
-                    'wo Dateien gespeichert werden sollen“ einschalten – dann wählst du den ' +
-                    'Ort selbst und ersetzt beim Speichern die alte Datei.' })
+                el('p', { text: 'Dieser Browser wird nicht unterstützt: Er kann nicht direkt ' +
+                    'in Dateien schreiben, gespeichert wird nur als Download. Für die volle ' +
+                    'Funktion (Arbeitsordner, automatisches Speichern) bitte Google Chrome ' +
+                    'oder Microsoft Edge verwenden.' })
             ]),
             buttons: [
                 { label: 'Abbrechen', value: 'cancel' },

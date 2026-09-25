@@ -1,12 +1,22 @@
-# FabCollectionTool 2.0.7.0
+# FabCollectionTool 2.1.0.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
 
 ## Start
 
-`index.html` in diesem Ordner per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox).
-Das funktioniert direkt aus dem Repository-Checkout über `file://`. Beim ersten Besuch ohne
+**Online:** <https://jazzman1976.github.io/FabCollectionTool/> – die GitHub Page wird bei jedem
+Push auf `main` automatisch neu veröffentlicht (`.github/workflows/pages.yml`: erst der
+Selbsttest, dann das Deployment dieses Ordners).
+
+**Lokal:** `index.html` in diesem Ordner per Doppelklick öffnen; das funktioniert direkt aus
+dem Repository-Checkout über `file://`.
+
+**Browser:** unterstützt wird Google Chrome (Microsoft Edge beruht auf derselben Technik).
+Firefox und Safari können nicht in Dateien schreiben und werden nicht unterstützt; die App
+zeigt dort einen Hinweis und speichert nur als Download. Apple-Geräte sind ungetestet.
+
+Beim ersten Besuch ohne
 Bestand startet der Einrichtungs-Assistent, danach eine kurze Tour (wiederholbar über
 *Hilfe → Einrichtung* und *Hilfe → Tutorial*).
 
@@ -49,9 +59,7 @@ ohne Internet gelten die mitgelieferten in `reference/`.
 - **Browser** (localStorage): nur Ansichtseinstellungen (Design, Spalten, eingeklappter
   Rechenblock, Branch der Stammdaten, Schrift, Gliederung, Tutorial/Assistent gesehen) und je
   Bestand die aufgeklappten Gruppen, die Position und den Zellcursor.
-- **Firefox** speichert Bestand und Protokoll als Download, immer unter demselben Namen; mit
-  der Firefox-Einstellung „Jedes Mal nachfragen, wo gespeichert werden soll“ ersetzt man so
-  die alte Datei (siehe Dokumentation, Abschnitt Firefox).
+
 
 **Nutzerdaten gehören nicht ins Repository.** Die `.gitignore` in diesem Ordner schließt `*.csv`
 und `*.ods` aus; den Arbeitsordner am besten ganz außerhalb des Checkouts anlegen.
@@ -104,7 +112,8 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
 
 - Imports ersetzen den geöffneten Bestand (kein Zusammenführen).
 - Cost, Power, Defense, Keywords, Artist, Legalität und Kartentext werden nur angezeigt,
-  nicht in `collection.csv` gespeichert (Grundlage: `docs/Recherche-Spalten-2.0.4.0.md`).
+  nicht in `collection.csv` gespeichert (Grundlage:
+  `docs/konzept/Recherche-Spalten-2.0.4.0.md`).
 - Das Fabrary-Skelett wird mitgeliefert und nicht online aktualisiert. Ganz neue Varianten
   exportiert erst eine neuere Fassung des Skeletts (siehe `reference/README.md`).
 - Cardmarket, Dragon Shield und TCGplayer folgen später.

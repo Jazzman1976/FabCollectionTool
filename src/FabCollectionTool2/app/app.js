@@ -1456,10 +1456,6 @@ FCT.app = (function () {
         var target = state.file && state.file.handle ? Promise.resolve(null)
             : ensureFolder().then(function () { return hasFolder() ? askFileName() : null; });
         return target.then(function (name) {
-            return name === false ? false : explainDownload().then(function (go) {
-                return go ? name : false;
-            });
-        }).then(function (name) {
             if (name === false) return null;
             if (name) {
                 return FCT.storage.writeFolderFile(state.folder, name, text)
@@ -1491,49 +1487,23 @@ FCT.app = (function () {
                 ? result.name + ' wurde gespeichert.' + (canAutosave()
                     ? ' Weitere Änderungen werden automatisch gespeichert (abschaltbar in ' +
                         'der Statuszeile).' : '')
-                : result.name + ' wurde als Download gespeichert. Damit die alte Datei ersetzt ' +
-                    'wird statt eine neue anzulegen: ' + DOWNLOAD_HINT);
+                : result.name + ' wurde als Download gespeichert (Download-Ordner des ' +
+                    'Browsers).');
             return saveLog(true);
         });
     }
 
     /*
-     * Browsers that cannot write files (e.g. Firefox; feedback on 2.0.5.0): saving is a
-     * download, which the browser never writes over an existing file by itself. The app always
-     * uses the same file names, and explains once how the browser can ask where to save - then
-     * the user picks the file and confirms replacing it. Resolves false if cancelled.
+     * Supported browser (feedback on 2.0.7.0): Chrome, and Edge on the same basis. Browsers
+     * without file access (e.g. Firefox, Safari) are not supported any more; they can only
+     * save as a download (kept as it is, no longer maintained). A notice says so at the start.
      */
-    var DOWNLOAD_HINT = 'Firefox: Einstellungen → Allgemein → Dateien und Anwendungen → ' +
-        'Downloads → „Jedes Mal nachfragen, wo Dateien gespeichert werden sollen“ einschalten.';
-
-    function explainDownload() {
-        if (FCT.storage.canWriteBack || settings.get('downloadHint2060', false)) {
-            return Promise.resolve(true);
-        }
-        return openDialog({
-            title: 'Speichern in diesem Browser',
-            body: el('div', {}, [
-                el('p', { text: 'Dieser Browser kann nicht direkt in eine Datei schreiben. ' +
-                    'Gespeichert wird als Download – immer unter demselben Namen (Bestand, ' +
-                    'Protokoll <bestand>-log.csv, Diagnose fct-diagnose.log).' }),
-                el('p', { text: 'Damit es bei einer einzigen Datei bleibt, lass den Browser ' +
-                    'fragen, wo er speichern soll. Dann wählst du Ordner und Datei selbst und ' +
-                    'bestätigst das Ersetzen der alten Datei. Ohne diese Einstellung legt der ' +
-                    'Browser jedes Mal eine neue Datei im Download-Ordner an (z. B. ' +
-                    '„collection(1).csv“) – automatisch überschreiben lässt er nicht zu.' }),
-                el('p', { text: DOWNLOAD_HINT })
-            ]),
-            hint: 'Dieser Hinweis erscheint nur einmal; er steht auch in der Dokumentation ' +
-                '(Abschnitt Speichern).',
-            buttons: [
-                { label: 'Abbrechen', value: 'cancel' },
-                { label: 'Verstanden, speichern', value: 'save', primary: true }
-            ]
-        }).then(function (value) {
-            if (value !== 'save') return false;
-            settings.set('downloadHint2060', true);
-            return true;
-        });
+    function showBrowserNotice() {
+        if (FCT.storage.canWriteBack) return;
+        FCT.notices.show('browser', 'warn', 'Dieser Browser wird nicht unterstützt: Er kann ' +
+            'nicht direkt in Dateien schreiben, Speichern geht hier nur als Download. ' +
+            'Empfohlen: Google Chrome (oder Microsoft Edge).', { closable: true });
+        FCT.log.info('app', 'Browser ohne Dateizugriff (nicht unterstützt)');
     }
 
     /*
@@ -1595,9 +1565,8 @@ FCT.app = (function () {
         var text = '';
         var cls = '';
         if (!FCT.storage.canWriteBack) {
-            text = 'Automatisches Speichern ist in diesem Browser nicht möglich – Strg+S ' +
-                'speichert als Download unter demselben Namen (Tipp: den Browser fragen ' +
-                'lassen, wo er speichert – siehe Dokumentation).';
+            text = 'Dieser Browser wird nicht unterstützt – Strg+S speichert nur als Download. ' +
+                'Empfohlen: Chrome.';
         } else if (auto.error) {
             text = 'Automatisches Speichern fehlgeschlagen: ' + auto.error + ' – Strg+S';
             cls = 'dirty';
@@ -2988,6 +2957,7 @@ FCT.app = (function () {
             });
         }).then(restoreLast).then(function () {
             restoreView();
+            showBrowserNotice();
             return firstVisit();
         });
     }

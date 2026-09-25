@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css?v=2.0.7.0">
+    <link rel="stylesheet" href="app/style.css?v=2.1.0.0">
     <!-- Design (Auto, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
@@ -160,8 +160,12 @@
 
         <!-- 1 -->
         <h2 id="start">1. Erste Schritte</h2>
-        <p>Die Anwendung braucht keine Installation. <code>index.html</code> per Doppelklick in
-            Chrome, Edge oder Firefox öffnen – fertig. Hast du noch keinen Bestand, startet beim
+        <p>Die Anwendung braucht keine Installation: Sie läuft als Webseite unter
+            <a href="https://jazzman1976.github.io/FabCollectionTool/"
+                >jazzman1976.github.io/FabCollectionTool</a>
+            oder aus einem Checkout per Doppelklick auf <code>index.html</code> – in
+            <strong>Google Chrome</strong> (oder Microsoft Edge). Hast du noch keinen Bestand,
+            startet beim
             ersten Besuch der <strong>Einrichtungs-Assistent</strong>: Er fragt, womit du
             beginnst (neu anfangen, 1.0-Tabelle oder Fabrary-Export importieren, vorhandenen
             Bestand öffnen), führt durch Ablageort, Anlegen und „Sets aufnehmen“ und bietet am
@@ -183,9 +187,9 @@
         <p>Beim Start lädt die Anwendung automatisch die aktuellen Kartendaten (die
             „Stammdaten“) aus dem Internet. Ohne Internet arbeitet sie mit den mitgelieferten
             weiter. Beim nächsten Start ist dein Bestand sofort wieder da.</p>
-        <p class="tip">Chrome oder Edge sind die beste Wahl: nur dort gibt es den Arbeitsordner
-            und das automatische Speichern. Firefox funktioniert auch, speichert aber als
-            Download.</p>
+        <p class="tip">Unterstützt wird Chrome (Edge beruht auf derselben Technik): Nur dort
+            kann die Anwendung direkt in deine Dateien schreiben – Arbeitsordner und
+            automatisches Speichern. Siehe <a href="#browser">Unterstützte Browser</a>.</p>
 
         <!-- 2 -->
         <h2 id="ordner">2. Arbeitsordner und Speichern</h2>
@@ -253,23 +257,15 @@
                 („Save changes?“). Das ist nur die Erlaubnis für das automatische Speichern –
                 es wird dabei noch nichts gespeichert. Ein gelber Hinweis erklärt das.</li>
         </ul>
-        <h3>Firefox</h3>
-        <p>Firefox kann weder in Dateien zurückschreiben noch Ordner verwenden.
-            <em>Speichern</em> legt den Bestand als Download ab, das Protokoll ebenfalls –
-            immer <strong>unter demselben Namen</strong> (<code>collection.csv</code>,
-            <code>collection-log.csv</code> mit dem vollständigen Protokoll,
-            <code>fct-diagnose.log</code>). Automatisch überschreiben lässt Firefox nicht zu;
-            ohne weitere Einstellung legt er jedes Mal eine neue Datei im Download-Ordner an
-            (<code>collection(1).csv</code> …). So bleibt es bei einer einzigen Datei:</p>
-        <ol>
-            <li>Firefox-Einstellungen öffnen (Menü ☰ → <em>Einstellungen</em>).</li>
-            <li><em>Allgemein</em> → <em>Dateien und Anwendungen</em> → <em>Downloads</em>.</li>
-            <li><em>Jedes Mal nachfragen, wo Dateien gespeichert werden sollen</em>
-                einschalten.</li>
-            <li>Beim nächsten <kbd>Strg</kbd>+<kbd>S</kbd> den Ordner des Bestands wählen,
-                dieselbe Datei anklicken und „Ersetzen“ bestätigen.</li>
-        </ol>
-        <p>Beim ersten Speichern in Firefox erklärt ein Hinweis das einmal.</p>
+        <h3 id="browser">Unterstützte Browser</h3>
+        <p>Die Anwendung ist für <strong>Google Chrome</strong> gemacht; Microsoft Edge beruht
+            auf derselben Technik und funktioniert genauso. Nur diese Browser erlauben einer
+            Webseite, Dateien und Ordner zu öffnen und wieder zu speichern – ohne Server, direkt
+            aus dem Dateisystem oder als GitHub Page.</p>
+        <p><strong>Firefox und Safari werden nicht unterstützt.</strong> Sie können nicht in
+            Dateien schreiben; die Anwendung zeigt dort beim Start einen Hinweis, und
+            Speichern geht nur als Download. Auf Apple-Geräten ist die Anwendung nicht
+            getestet.</p>
 
         <!-- 3 -->
         <h2 id="tabelle">3. Die Tabelle und ihre Spalten</h2>
@@ -743,9 +739,8 @@
             Änderungen (die stehen im Protokoll). Es liegt als <code>fct-diagnose.log</code> im
             Arbeitsordner; wird es größer als 512 KB, wird es zu <code>fct-diagnose.1.log</code>
             und ein neues beginnt. Mehr als etwa 1 MB entsteht so nie.</p>
-        <p><em>Hilfe → Diagnose</em> lädt das Log der letzten Sitzungen herunter (auch in
-            Firefox). Bei einem Problem diese Datei mitschicken – sie enthält keine
-            Mengen und keine Notizen.</p>
+        <p><em>Hilfe → Diagnose</em> lädt das Log der letzten Sitzungen herunter. Bei einem
+            Problem diese Datei mitschicken – sie enthält keine Mengen und keine Notizen.</p>
 
         <!-- 15 -->
         <h2 id="fragen">16. Häufige Fragen</h2>

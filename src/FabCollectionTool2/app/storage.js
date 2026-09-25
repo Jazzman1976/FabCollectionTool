@@ -5,7 +5,8 @@
  * Where the browser supports it (Chrome, Edge), the opened file is written back in place, and
  * a working folder can be chosen once: collection, change log and diagnosis log then lie
  * together in it, and one permission of the browser covers all of them. Otherwise (e.g.
- * Firefox) saving works as a download.
+ * Firefox, not supported since 2.1.0.0) saving works as a download; this fallback is kept as
+ * it is but no longer maintained.
  */
 FCT.storage = (function () {
 
