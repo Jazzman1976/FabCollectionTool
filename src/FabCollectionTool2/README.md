@@ -1,4 +1,4 @@
-# FabCollectionTool 2.0.6.0
+# FabCollectionTool 2.0.6.1
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
