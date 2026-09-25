@@ -50,12 +50,14 @@ FCT.grid = (function () {
     //               filter (fixed values) instead of a text filter; columns with the same
     //               group can be collapsed into one narrow column; sparse = numbers that
     //               may be missing (an empty value matches no number comparison); hint =
-    //               explanation shown when hovering over the title. Titles never wrap; a
-    //               column is widened where its title would not fit.
+    //               explanation shown when hovering over the title; fixed = always shown,
+    //               never hidden. Titles never wrap; a column is widened where its title
+    //               would not fit.
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
     //   searchKeys  keys searched by the free text search, or functions (row) -> text
     //   isEditable(column, row)   whether a cell may be edited
+
     //   choices(column)           value list for a drop-down editor, or null for free text
     //   referenceValue(column, row)  value of the reference data, offered first in drop-downs
     //   rowMarks(row)             { key: { className, title } } extra marks per cell
@@ -1078,6 +1080,7 @@ FCT.grid = (function () {
                 return;
             }
 
+
             // A click on the active cell edits it (as in the spreadsheet); a click on another
             // cell moves the cursor there.
             if (event.detail === 1 && tr._row === cursor.item && td._column.key === cursor.key &&
@@ -1275,7 +1278,9 @@ FCT.grid = (function () {
                 applyView();
             },
             setColumnHidden: function (key, hidden) {
-                columns.forEach(function (c) { if (c.key === key) c.hidden = hidden; });
+                columns.forEach(function (c) {
+                    if (c.key === key) c.hidden = hidden && !c.fixed;
+                });
                 fitted = {};    // the first column of a group may have changed
                 buildHeader();
                 render();

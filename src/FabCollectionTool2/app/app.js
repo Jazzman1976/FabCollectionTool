@@ -19,6 +19,7 @@ FCT.app = (function () {
         logCandidate: null,    // remembered log file handle, access not yet checked
         dirty: false,
         shownRows: [],         // collection plus gap rows, as passed to the grid
+        rowsById: new Map(),   // rows of the collection per card number (see rebuild)
         editMode: false,
         writable: false,       // the opened file may be written without asking (autosave)
         openedText: null,      // file content when opened, offered as backup
@@ -164,7 +165,11 @@ FCT.app = (function () {
             settings.set('columns2050', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
-        all.forEach(function (c) { c.hidden = visible.indexOf(c.key) < 0; });
+        // The columns of a variant are always shown (since 2.0.6.3).
+        all.forEach(function (c) {
+            c.fixed = model.VARIANT_COLUMNS.indexOf(c.key) >= 0;
+            c.hidden = !c.fixed && visible.indexOf(c.key) < 0;
+        });
         return all;
     }
 
@@ -175,6 +180,11 @@ FCT.app = (function () {
     // Recalculates everything and shows the current rows. Sets that occur in the collection
     // are shown complete: missing printings appear as gap rows at their place.
     function rebuild() {
+        state.rowsById = new Map();
+        state.collection.rows.forEach(function (row) {
+            if (!state.rowsById.has(row.Id)) state.rowsById.set(row.Id, []);
+            state.rowsById.get(row.Id).push(row);
+        });
         var rows = model.withGaps(state.collection);
         state.shownRows = rows;
         model.calculate(rows);
@@ -1795,6 +1805,35 @@ FCT.app = (function () {
         return model.isEditable(row, column.key, state.editMode);
     }
 
+
+    /*
+     * What sets a row not yet in the collection apart from the rows of the same card number
+     * that are (since 2.0.6.3; e.g. edition "Alpha" where the collection has "Unlimited"):
+     * [{ column, value, own: [values in the collection] }]; a column counts if no row of the
+     * collection has the same value. null if the card is not in the collection at all.
+     */
+    var DIFF_COLUMNS = ['Edition', 'Art Treatment', 'Rarity', 'Name', 'Backside Name', 'Pitch'];
+
+    function variantDiff(row) {
+        var own = state.rowsById.get(row.Id);
+        if (!own || !own.length) return null;
+        return DIFF_COLUMNS.map(function (column) {
+            var values = own.map(function (r) { return r[column] || ''; })
+                .filter(function (v, i, all) { return all.indexOf(v) === i; });
+            return { column: column, value: row[column] || '', own: values };
+        }).filter(function (d) { return d.own.indexOf(d.value) < 0; });
+    }
+
+    // "Edition „Alpha“ (bei dir „Unlimited“)" for the tooltips.
+    function diffText(d) {
+        return d.column + ' „' + (d.value || '–') + '“ (bei dir ' + d.own.map(function (v) {
+            return '„' + (v || '–') + '“';
+        }).join(', ') + ')';
+    }
+
+    var FOIL_NAMES = { ST: 'Standard', RF: 'Rainbow Foil', CF: 'Cold Foil',
+        GF: 'Gold Cold Foil' };
+
     // Value of the reference data for a cell, offered first in its drop-down (or null).
     function referenceValue(column, row) {
         if (model.columnKind(column.key) !== 'reference') return null;
@@ -1809,7 +1848,28 @@ FCT.app = (function () {
         if (row._unknownId) {
             marks.Id = { className: 'unknown', title: 'Kartennummer nicht in den Stammdaten' };
         }
-        if (row._reference) return marks;
+
+        // Foilings that do not exist for this variant.
+        model.QUANTITIES.forEach(function (q) {
+            if (!model.noPrinting(row, q)) return;
+            var filled = util.toInt(row[q]) > 0;
+            marks[q] = { className: 'no-printing' + (filled ? ' filled' : ''),
+                title: 'Diese Variante gibt es laut Stammdaten nicht als ' + FOIL_NAMES[q] +
+                    (filled ? ' – trotzdem eingetragen, bitte im Editiermodus prüfen'
+                        : ' (nur im Editiermodus bearbeitbar)') };
+        });
+
+        // A row not yet in the collection: where it differs from the rows that are - only as
+        // a tooltip; the variant columns are always shown, so no highlighting is needed.
+        if (row._reference) {
+            (variantDiff(row) || []).forEach(function (d) {
+                marks[d.column] = { className: '', title: 'Unterschied zu deinen ' +
+                    'Zeilen ' + row.Id + ': bei dir ' + d.own.map(function (v) {
+                        return '„' + (v || '–') + '“';
+                    }).join(', ') };
+            });
+            return marks;
+        }
         var expected = FCT.reference.expected(row);
         var overridden = model.overrides(row);
         model.REFERENCE_COLUMNS.forEach(function (column) {
@@ -1829,8 +1889,16 @@ FCT.app = (function () {
     // Status symbol at the row start: what is special about this row, in one character.
     function rowStatus(row) {
         if (row._reference) {
-            return { symbol: '○', className: 'gap', title: 'Noch nicht im Bestand. ' +
-                'Eine Menge eintragen, − / + oder ＋ nimmt die Variante in den Bestand auf.' };
+            var diffs = variantDiff(row);
+            var existing = FCT.reference.foilings(row);
+            return { symbol: '○', className: 'gap', title: ['Noch nicht im Bestand.',
+                diffs === null ? 'Diese Karte hast du noch in keiner Variante.'
+                    : diffs.length ? 'Unterschied zu deinen Zeilen dieser Karte: ' +
+                        diffs.map(diffText).join(', ') + '.' : '',
+                existing ? 'Printings laut Stammdaten: ' + (existing.join(', ') || '–') + '.'
+                    : '',
+                'Eine Menge eintragen, − / + oder ＋ nimmt die Variante in den Bestand auf.']
+                .filter(Boolean).join('\n') };
         }
         if (row._unknownId) {
             return { symbol: '?', className: 'unknown',
@@ -2599,14 +2667,15 @@ FCT.app = (function () {
         var list = $('columns-list');
         list.textContent = '';
         grid.columns().forEach(function (column) {
-            var box = el('input', { type: 'checkbox' });
+            var box = el('input', { type: 'checkbox', disabled: !!column.fixed });
             box.checked = !column.hidden;
             box.addEventListener('change', function () {
                 grid.setColumnHidden(column.key, !box.checked);
                 rememberColumns();
             });
-            list.appendChild(el('label', { title: column.hint || '' },
-                [box, ' ' + column.label]));
+            list.appendChild(el('label', { title: column.fixed
+                ? 'Immer sichtbar – diese Spalte unterscheidet die Varianten'
+                : column.hint || '' }, [box, ' ' + column.label]));
         });
     }
 
@@ -2618,7 +2687,7 @@ FCT.app = (function () {
 
     function restoreDefaultColumns() {
         grid.columns().forEach(function (c) {
-            grid.setColumnHidden(c.key, DEFAULT_COLUMNS.indexOf(c.key) < 0);
+            grid.setColumnHidden(c.key, DEFAULT_COLUMNS.indexOf(c.key) < 0 && !c.fixed);
         });
         settings.remove('columns');
         buildColumnChooser();
@@ -2648,6 +2717,7 @@ FCT.app = (function () {
             searchKeys: ['Id', 'Name', 'Translated Name', 'Backside Name',
                 'Translated Backside Name', 'Set', 'Note', cardText],
             isEditable: isEditable,
+
             choices: choices,
             referenceValue: referenceValue,
             rowMarks: rowMarks,
@@ -2705,6 +2775,7 @@ FCT.app = (function () {
             $('search').focus();
         });
         $('mode').addEventListener('change', function (e) { grid.setMode(e.target.value); });
+
         $('btn-reset').addEventListener('click', function () {
             $('search').value = '';
             $('search-clear').hidden = true;

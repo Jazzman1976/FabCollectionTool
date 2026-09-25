@@ -588,6 +588,22 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         `moved ${moved.join(' ') || '-'}`);
 }
 
+// Variants not yet in the collection (2.0.6.3): foilings of exactly the variant; quantity cells
+// of foilings that do not exist are locked outside edit mode; the columns of a variant.
+{
+    const m = FCT.model;
+    const alpha = { Id: 'WTR000', Edition: 'Alpha', 'Art Treatment': '' };
+    const foils = JSON.stringify(FCT.reference.foilings(alpha));
+    const language = FCT.reference.foilings({ Id: 'WTR000', Edition: 'DE',
+        'Art Treatment': '' });
+    const locked = !m.isEditable(alpha, 'ST', false) && m.isEditable(alpha, 'CF', false) &&
+        m.isEditable(alpha, 'ST', true) && !m.noPrinting(alpha, 'Note');
+    const columns = m.VARIANT_COLUMNS.join(',') === 'Id,Edition,Art Treatment';
+    check('Variants: foilings and columns', foils === '["CF"]' && language === null &&
+        locked && columns, `WTR000 Alpha ${foils}, DE ${language}, locked ${locked}, ` +
+        `variant columns ${m.VARIANT_COLUMNS.join(', ')}`);
+}
+
 // Firefox and other browsers without file access (2.0.6.0): downloads of collection, change
 // log and diagnosis log always keep the same name; the word "Druck" is gone from the texts.
 {

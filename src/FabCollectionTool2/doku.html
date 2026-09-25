@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css?v=2.0.6.2">
+    <link rel="stylesheet" href="app/style.css?v=2.0.6.3">
     <!-- Design (System, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
@@ -338,6 +338,12 @@
         <ul>
             <li><strong>Weiß mit blauem Rahmen:</strong> deine Eingaben – Mengen und Notiz.</li>
             <li><strong>Grau:</strong> aus den Stammdaten, normalerweise gesperrt.</li>
+            <li><strong>Schraffiert:</strong> Mengenzelle eines Foilings, das es von dieser
+                Variante laut Stammdaten nicht gibt (z. B. WTR000 Alpha nur als Cold Foil). Sie
+                ist gesperrt: Der Zellcursor kann sie erreichen (auch zum Durchwandern mit der
+                Tastatur), bearbeiten lässt sie sich aber nur im Editiermodus. Steht trotzdem
+                eine Menge darin, ist
+                sie <strong>orange umrandet</strong> – bitte prüfen.</li>
             <li><strong>Dunkler grau:</strong> berechnet.</li>
             <li><strong>Gelb hinterlegt:</strong> im Editiermodus bearbeitbar.</li>
             <li><strong>Rot getönt</strong> (Balken am Zeilenanfang und Rechenspalten): zum
@@ -390,7 +396,8 @@
                 Zeile eines Sets gelöscht, verschwindet das Set; <em>Sets aufnehmen</em> holt es
                 zurück.</li>
         </ul>
-        <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus;
+        <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus – außer Id,
+            Edition und Art Treatment, die eine Variante ausmachen und immer sichtbar sind;
             <em>Standard wiederherstellen</em> stellt die Grundansicht her. In der Gruppe
             <em>Ansicht</em> stellst du das <strong>Design</strong> (<em>System</em> wie im
             Betriebssystem eingestellt, <em>Hell</em> oder <em>Dunkel</em>), die Schriftgröße und
@@ -569,6 +576,21 @@
             du noch nicht hast, stehen als Zeile mit <span class="sym gap">○</span> an ihrer
             Stelle. Sobald du dort eine Menge einträgst oder ＋ drückst, gehören sie zu deinem
             Bestand. Erscheinen später neue Varianten eines Sets, tauchen sie ebenfalls so auf.</p>
+        <p>Manche Sets gibt es in mehreren <strong>Editionen</strong>, z. B. „Welcome to Rathe“
+            als Alpha und Unlimited. Hast du nur Unlimited-Zeilen, erscheint jede Karte
+            zusätzlich als Alpha-○. Damit der Unterschied sofort auffällt:</p>
+        <ul>
+            <li>Überfährst du in einer ○-Zeile eine Zelle, in der sie sich von deinen Zeilen
+                derselben Kartennummer unterscheidet (z. B. Edition „Alpha“), nennt der Tooltip
+                deinen Wert („bei dir „Unlimited““).</li>
+            <li>Der Tooltip am <span class="sym gap">○</span> nennt den Unterschied auch dann,
+                wenn die Spalte ausgeblendet ist, dazu die Printings dieser Variante laut
+                Stammdaten (z. B. „CF“).</li>
+            <li>Die Spalten, die eine Variante ausmachen – <strong>Id, Edition und Art
+                Treatment</strong> – sind immer sichtbar und lassen sich nicht ausblenden. Wer
+                eine Edition nicht sammelt, nimmt im Häkchenfilter der Spalte
+                <em>Edition</em> das Häkchen bei ihr heraus (z. B. „Alpha“).</li>
+        </ul>
         <h3>Sets aufnehmen</h3>
         <p><em>Sets aufnehmen …</em> (Gruppe Bestand) listet alle Sets der Stammdaten, die noch
             nicht in deinem Bestand sind – die neuesten zuerst, mit Erscheinungsdatum und Zahl

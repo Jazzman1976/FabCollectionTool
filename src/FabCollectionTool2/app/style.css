@@ -645,6 +645,21 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
 .grid tr.ref td {
     color: var(--ref);
 }
+
+
+/* Quantity cells of foilings that do not exist for the variant: dimmed and locked */
+.grid td.no-printing {
+    background: repeating-linear-gradient(135deg, var(--calc) 0 4px, transparent 4px 8px);
+    color: var(--muted);
+    cursor: not-allowed;
+}
+.grid td.no-printing.filled {
+    box-shadow: inset 0 0 0 2px var(--stale);
+    color: var(--stale);
+}
+body.edit-mode .grid td.no-printing {
+    cursor: text;
+}
 .grid tr.selected td.k-reference, .grid tr.selected td.k-identity,
 .grid tr.selected td.k-calc, .grid tr.selected td.actions, .grid tr.selected td.status {
     background: var(--selected);

@@ -197,6 +197,32 @@ FCT.reference = (function () {
         return { front: front, back: back || null };
     }
 
+    /*
+     * Quantity columns that exist for exactly the variant of a row (since 2.0.6.3): the
+     * foilings of its printings ("S", "R", "C", "G") as ['ST', 'RF', 'CF', 'GF']. null if the
+     * variant is not in the reference data as such (e.g. a language edition), so nothing can
+     * be said about it.
+     */
+    var FOILING_COLUMNS = { S: 'ST', R: 'RF', C: 'CF', G: 'GF' };
+
+    function foilings(row) {
+        if (!row || !row.Id) return null;
+        var vocab = FCT.DATA.vocab;
+        var edition = vocab.languageEditions.indexOf(row.Edition) >= 0 ? '' : row.Edition;
+        var matches = printings(row.Id).filter(function (p) {
+            return p.edition === edition && p.art === row['Art Treatment'];
+        });
+        if (!matches.length) return null;
+        var found = [];
+        matches.forEach(function (p) {
+            String(p.foilings || '').split('').forEach(function (letter) {
+                var column = FOILING_COLUMNS[letter];
+                if (column && found.indexOf(column) < 0) found.push(column);
+            });
+        });
+        return ['ST', 'RF', 'CF', 'GF'].filter(function (c) { return found.indexOf(c) >= 0; });
+    }
+
     // Printing of the front side of a row ({ card, artists, ... }), or null if unknown.
     function printingFor(row) {
         var found = row && row.Id ? printingOf(row) : null;
@@ -241,6 +267,7 @@ FCT.reference = (function () {
         splitTypes: splitTypes,
         playset: playset,
         expected: expected,
+        foilings: foilings,
         printingFor: printingFor,
         image: image,
         info: function () { return state ? state.info : null; },
@@ -364,12 +391,21 @@ FCT.model = (function () {
      */
     function isEditable(row, column, editMode) {
         var kind = columnKind(column);
+        if (!editMode && noPrinting(row, column)) return false;
         if (kind === 'input') return true;
         if (kind === 'internal') return false;
         if (editMode) return true;
         if (kind !== 'reference' || row._reference) return false;
         return overrides(row).indexOf(column) >= 0 ||
             deviates(row, column, FCT.reference.expected(row));
+    }
+
+    // True for a quantity column whose foiling does not exist for the variant of the row
+    // (since 2.0.6.3). Such cells are locked outside edit mode.
+    function noPrinting(row, column) {
+        if (QUANTITIES.indexOf(column) < 0) return false;
+        var existing = FCT.reference.foilings(row);
+        return !!existing && existing.indexOf(column) < 0;
     }
 
     // Accordion groups of a row: level 1 is the set, level 2 metatype, talents and classes.
@@ -521,6 +557,10 @@ FCT.model = (function () {
 
     // Key that identifies a printing variant for coverage checks. Language variants are
     // merged, and "Micro Text Box" counts as "Extended Art" (as in the reference data).
+    // Columns that make up a variant (see variantKey). They are always shown in the table
+    // (since 2.0.6.3), so that the difference of a row not yet in the collection is visible.
+    var VARIANT_COLUMNS = ['Id', 'Edition', 'Art Treatment'];
+
     function variantKey(id, edition, art) {
         var treatments = FCT.DATA.vocab.fabraryTreatments;
         return [id, fabraryEdition(edition), treatments[art] || art].join('|');
@@ -1049,6 +1089,7 @@ FCT.model = (function () {
         setOverride: setOverride,
         deviates: deviates,
         isEditable: isEditable,
+        noPrinting: noPrinting,
         groupNames: groupNames,
         sections: sections,
         SECTION_SEP: SECTION_SEP,
@@ -1074,6 +1115,7 @@ FCT.model = (function () {
         reportPlaysets: reportPlaysets,
         fabraryEdition: fabraryEdition,
         variantKey: variantKey,
+        VARIANT_COLUMNS: VARIANT_COLUMNS,
         identityKey: identityKey,
         defaultPlayset: defaultPlayset
     };
