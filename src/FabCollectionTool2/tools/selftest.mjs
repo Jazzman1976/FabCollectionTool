@@ -489,7 +489,12 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     const twice = omnLabels.some((l, i) => omnLabels.indexOf(l) !== i);
     const fabled = sec.of.get(sec.rowsOf.get(omn).find((r) => r.Id === 'OMN000')).label ===
         'Fabled' && labels(setOf('WTR'))[0] === 'Fabled';
-    const flat = sec.flat.has(setOf('AAZ')) && sec.flat.has(setOf('FAB')) &&
+    // Flat sets (2.0.6.2): one section "Gemischt" with all rows.
+    const mixed = [...sec.flat].every((set) => {
+        const names = labels(set);
+        return names.length === 1 && names[0] === 'Gemischt';
+    });
+    const flat = sec.flat.has(setOf('AAZ')) && sec.flat.has(setOf('FAB')) && mixed &&
         !['WTR', 'MON', 'OMN', 'ROS'].some((code) => sec.flat.has(setOf(code)));
     check('Accordion sections', !gaps && twice && fabled && flat,
         `${sec.rowsOf.size} sets, ${sec.flat.size} flat, gaps ${gaps}, a group twice in OMN ` +

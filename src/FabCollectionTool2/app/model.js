@@ -391,11 +391,14 @@ FCT.model = (function () {
      * no section has a gap in its card numbers. Sections are built from all rows, so that
      * filters do not move them. A section of Fabled cards only is called "Fabled". A set
      * whose groups fall apart too much (more than twice as many sections as groups, e.g.
-     * promo sets) gets no sections at all ("flat").
+     * promo sets) is "flat": all its rows form one section "Gemischt" (since 2.0.6.2), so that
+     * every set has at least one group below it and outline level 2 shows no rows.
      * allRows: all rows in the order of the table. Returns { of: Map row -> section, flat:
      * Set of flat set names, rowsOf: Map set name -> rows }; a section is { key, label,
      * index }, its key starts with the set name followed by SECTION_SEP.
      */
+    var MIXED = 'Gemischt';   // name of the one section of a flat set
+
     function sections(allRows) {
         var positions = new Map();
         var sortId = new Map();
@@ -434,12 +437,15 @@ FCT.model = (function () {
                 }
                 run.rows.push(row);
             });
-            if (runs.length > 2 * groups.size) flat.add(set);
+            if (runs.length > 2 * groups.size) {
+                flat.add(set);
+                runs = [{ name: MIXED, rows: ordered, mixed: true }];
+            }
             runs.forEach(function (run, index) {
                 var fabled = run.rows.every(function (row) {
                     return row.Rarity === 'Fabled';
                 });
-                var label = fabled ? 'Fabled' : run.name;
+                var label = fabled && !run.mixed ? 'Fabled' : run.name;
                 var first = sortId.get(run.rows[0]) || '';
                 var section = { key: set + SECTION_SEP + label + SECTION_SEP + first,
                     label: label, index: index };

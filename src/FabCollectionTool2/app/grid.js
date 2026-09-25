@@ -603,7 +603,7 @@ FCT.grid = (function () {
             allRows.forEach(function (row) {
                 var set = options.groupNames(row)[0];
                 keys.add(set);
-                if (levels === 2 && !sections.flat.has(set)) keys.add(sections.of.get(row).key);
+                if (levels === 2) keys.add(sections.of.get(row).key);
             });
             groupKeys = Array.from(keys);
 
@@ -621,7 +621,7 @@ FCT.grid = (function () {
                     sets.set(name, set);
                 }
                 set.rows.push(row);
-                if (levels === 1 || sections.flat.has(name)) return;
+                if (levels === 1) return;
                 var section = sections.of.get(row);
                 var sub = set.children.get(section.key);
                 if (!sub) {
@@ -646,7 +646,7 @@ FCT.grid = (function () {
             Array.from(sets.values()).sort(bySet).forEach(function (set) {
                 result.push(set);
                 if (!set.open) return;
-                if (levels === 1 || sections.flat.has(set.key)) {
+                if (levels === 1) {
                     Array.prototype.push.apply(result, set.rows);
                     return;
                 }
