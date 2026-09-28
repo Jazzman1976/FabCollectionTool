@@ -657,7 +657,7 @@ FCT.app = (function () {
         return suggestName(folder).then(function (name) {
             input.value = name;
             return openDialog({
-                title: 'Neuer Bestand',
+                title: options.title || 'Neuer Bestand',
                 body: body,
                 setup: function (finish) { done = finish; },
                 hint: 'Abbrechen lässt alles, wie es ist – du arbeitest im aktuellen Bestand ' +
@@ -1808,8 +1808,9 @@ FCT.app = (function () {
     }
 
     // Common flow of both imports: pick file, convert, preview, accept. confirmed: the user
-    // already agreed to leave unsaved changes (e.g. in "Öffnen").
-    function runImport(accept, convert, confirmed) {
+    // already agreed to leave unsaved changes (e.g. in "Öffnen"). options.assistant: the setup
+    // assistant saves right afterwards, so the hint to save is left out (issue #3).
+    function runImport(accept, convert, confirmed, options) {
         if (!confirmed && !confirmDiscard()) return Promise.resolve(null);
         return FCT.storage.pickFile(accept).then(function (file) {
             if (!file) return null;
@@ -1832,6 +1833,7 @@ FCT.app = (function () {
                     setCollection(result.collection, null, true);
                     changelog.add('Import', null, '', '', file.name + ' – ' +
                         result.collection.rows.length + ' Zeilen');
+                    if (options && options.assistant) return;
                     showMessage('Import übernommen', 'Der Bestand ist noch nicht gespeichert. ' +
                         'Bitte „Speichern“ wählen, um ihn als CSV-Datei abzulegen.');
                 });
@@ -1843,16 +1845,16 @@ FCT.app = (function () {
         });
     }
 
-    function importOds(confirmed) {
+    function importOds(confirmed, options) {
         return runImport('.ods', function (file) {
             return file.arrayBuffer().then(FCT.importOds.importOds);
-        }, confirmed === true);
+        }, confirmed === true, options);
     }
 
-    function importFabrary(confirmed) {
+    function importFabrary(confirmed, options) {
         return runImport('.csv,text/csv', function (file) {
             return file.text().then(FCT.importFabrary.importFabrary);
-        }, confirmed === true);
+        }, confirmed === true, options);
     }
 
     function exportFabrary() {
@@ -3189,10 +3191,11 @@ FCT.app = (function () {
             ensureFolder: ensureFolder,
             canUseFolder: function () { return FCT.storage.canUseFolder; },
             hasFolder: function () { return !!state.folder; },
+            folderName: function () { return state.folder ? state.folder.name : ''; },
             canWriteBack: function () { return FCT.storage.canWriteBack; },
             newCollection: newCollection,
-            importOds: function () { return importOds(); },
-            importFabrary: function () { return importFabrary(); },
+            importOds: function (options) { return importOds(false, options); },
+            importFabrary: function (options) { return importFabrary(false, options); },
             open: open,
             save: save,
             rowCount: function () { return state.collection.rows.length; },

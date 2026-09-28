@@ -1,8 +1,8 @@
 # Umsetzungsplan Issue #3 – Assistent kündigt die Dateiauswahl nicht an
 
 **Issue:** https://github.com/Jazzman1976/FabCollectionTool/issues/3
-**Branch:** `feature/3-assistent-dateiauswahl` · **Stand:** 28. September 2026
-**Status:** Plan, Ready
+**Branch:** `feature/3-assistent-dateiauswahl` · **Stand:** 29. September 2026
+**Status:** umgesetzt, PR nach `develop`
 
 ## Kontext
 Der Einrichtungsassistent (`app/onboarding.js`) hat drei Schritte:
@@ -44,3 +44,31 @@ fragt dafür nach einem Dateinamen. Diese Meldung passt im Assistenten also nich
   Änderung. Beim ODS-Import folgt nach der Vorschau die Namensabfrage, ohne die Meldung
   „Bitte ‚Speichern‘ wählen“.
 - Selbsttest grün.
+
+## Umsetzung
+- `app/onboarding.js`: `announce(way)` zeigt Schritt 3 vor dem Dateifenster (ODS, Fabrary,
+  Öffnen mit und ohne Arbeitsordner), `announceSave()` kündigt nach einem Import das Speichern
+  an („Jetzt legst du den Namen … fest“ bzw. ohne Arbeitsordner „Im nächsten Fenster wählst du
+  Ort und Namen …“). Abbrechen dort speichert nicht, der Import bleibt geladen. Beide nutzen
+  den gemeinsamen Dialog `explain()`.
+- `app/app.js`: `runImport`, `importOds`, `importFabrary` mit `options.assistant` (ohne die
+  Meldung „Bitte ‚Speichern‘ wählen“); `askNewCollection` übernimmt `options.title`; die
+  Aktionen des Assistenten haben jetzt `folderName`.
+- `doku.html`: Satz zur Ankündigung in „Erste Schritte“.
+
+## Ergebnis der Abnahme (29.09.2026)
+- Selbsttest grün, `node --check` für beide Skripte.
+- Chrome über localhost (Dateifenster und Speichern per Skript ersetzt, ohne Arbeitsordner):
+  - ODS: Schritt 1 → 2 → Ordnerdialog → „Schritt 3 von 3: Datei auswählen“ → Vorschau →
+    „Bestand speichern“ → gespeichert → „Einrichtung – geschafft“; keine Meldung „Bitte
+    ‚Speichern‘ wählen“.
+  - Fabrary: Text von Schritt 3 passt; Abbrechen öffnet kein Dateifenster, Bestand unverändert.
+  - Öffnen: „Schritt 3 von 3: Bestand auswählen“. Neu: Dialog heißt „Einrichtung – Schritt 3
+    von 3: Neuer Bestand“.
+  - Gegenprobe Import → ODS außerhalb des Assistenten: Meldung „Bitte ‚Speichern‘ wählen“ kommt
+    weiterhin.
+  - Keine Fehler im Diagnose-Log.
+- Nicht geprüft: Öffnen mit Arbeitsordner (braucht einen echten Ordner), nur der Text-Zweig.
+- Beobachtung außerhalb dieses Issues: Ohne Arbeitsordner fragt die App nach dem ersten
+  Speichern wie bisher nach der Datei für das Änderungsprotokoll. Im Assistenten ist das ein
+  weiterer unangekündigter Dialog.
