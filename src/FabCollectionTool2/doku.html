@@ -186,7 +186,8 @@
         </ul>
         <p>Beim Start lädt die Anwendung automatisch die aktuellen Kartendaten (die
             „Stammdaten“) aus dem Internet. Ohne Internet arbeitet sie mit den mitgelieferten
-            weiter. Beim nächsten Start ist dein Bestand sofort wieder da.</p>
+            weiter (siehe <a href="#mitgeliefert">Online geladen oder mitgeliefert</a>). Beim
+            nächsten Start ist dein Bestand sofort wieder da.</p>
         <p class="tip">Unterstützt wird Chrome (Edge beruht auf derselben Technik): Nur dort
             kann die Anwendung direkt in deine Dateien schreiben – Arbeitsordner und
             automatisches Speichern. Siehe <a href="#browser">Unterstützte Browser</a>.</p>
@@ -631,6 +632,29 @@
                 Abweichungen. Angehakte Karten übernehmen alle ihre abweichenden Werte;
                 vorausgewählt ist nichts. Ist der Bestand leer, erklärt ein Hinweis, dass es
                 noch nichts zu übernehmen gibt, und bietet <em>Sets aufnehmen</em> an.</li>
+        </ul>
+        <h3 id="mitgeliefert">Online geladen oder mitgeliefert</h3>
+        <p>Die Stammdaten beschreiben <strong>alle Karten, die es gibt</strong> – nicht deine
+            Sammlung. Was du besitzt (Mengen, Playset, Notizen), steht nur in deiner
+            <code>collection.csv</code> im Arbeitsordner. Beides ist getrennt.</p>
+        <ul>
+            <li><strong>Mitgeliefert:</strong> Die Anwendung bringt einen festen Stand der
+                Stammdaten mit, im Ordner <code>reference/</code> (Sets, Karten, Varianten und
+                das Fabrary-Format). Er wird nur mit einer neuen Version der Anwendung
+                erneuert. <em>Info</em> zeigt Herkunft und Stand der gerade geltenden
+                Stammdaten.</li>
+            <li><strong>Mit Internet</strong> lädt die Anwendung bei <strong>jedem
+                Start</strong> den aktuellen Stand des Datensatzes aus dem gewählten Branch und
+                verwendet ihn statt des mitgelieferten. Neue Karten und Sets bekommst du so ohne
+                Update der Anwendung.</li>
+            <li><strong>Ohne Internet</strong> – oder wenn das Laden zu lange dauert oder die
+                Daten unvollständig ankommen – gelten die mitgelieferten Stammdaten.</li>
+            <li>Online geladene Stammdaten werden <strong>nicht gespeichert</strong>. Ohne
+                Internet gilt also immer der mitgelieferte Stand, nicht der zuletzt online
+                geladene. Dein Bestand ist davon nicht betroffen: Zeilen mit Karten, die im
+                mitgelieferten Stand noch fehlen, bleiben mit deinen Werten erhalten und sind
+                mit <span class="sym unknown">?</span> markiert (Kartennummer nicht in den
+                Stammdaten).</li>
         </ul>
         <h3>Farben des Stammdaten-Stands</h3>
         <table>
