@@ -38,6 +38,24 @@ Versionsnummer wird erst im Release-Branch erhöht.
     Zellen („edit stale“)
   - keine Konsolenfehler
 
-## Befund am Rande
-In den Beispieldaten stehen zwei Zeilen mit Pitch „4“. Das ist ein Datenfehler und liegt
-außerhalb dieses Issues. Diese Zellen bekommen keinen Punkt.
+## Nachtrag: Pitch „4“ heißt „Purple“
+Elmar hat angemerkt, dass die Filterliste „4“ statt „Purple“ zeigte. Mit dem neuesten Set gibt
+es Karten mit lila Pitch-Balken, die für 4 Ressourcen pitchen.
+
+- **Ursache:** Die Code-Tabelle `pitchCodes` in `reference/vocab.js` kannte nur 1–3. Unbekannte
+  Codes der Stammdaten (the-fab-cube, `card.csv`) bleiben unverändert, deshalb kam „4“ in die
+  Stammdaten und von dort in den Bestand. Fabrary und `vocab.pitches` nennen den Wert schon
+  „Purple“.
+- `reference/vocab.js`: Die Tabelle enthält jetzt `4: 'Purple'`. Die Stammdaten werden bei jedem
+  Start online neu geladen und umgewandelt, deshalb wirkt das sofort.
+- `app/model.js`: `upgradePitch`/`reportPitchUpgrade`. Beim Laden eines Bestands, aus der Datei
+  oder aus der Kopie im Browser, wird „4“ zu „Purple“. Eine Info-Meldung weist darauf hin, und
+  beim nächsten Speichern steht der neue Wert in der Datei. Dasselbe passiert beim Import einer
+  1.0-Tabelle (`app/import-ods.js`).
+- `tools/selftest.mjs`: Die neue Prüfung „Purple pitch“ ist grün.
+- Chrome-Check: Die Filterliste zeigt jetzt Red, Yellow, Blue und Purple mit lila Punkt. Die
+  beiden Zeilen sind „Soul of Existence“ (IAR000, IAR666), sie stehen jetzt auf „Purple“.
+
+Andere Stellen mit Pitch-Codes gibt es nicht. Fabrary-Import und -Export und die 1.0-Tabelle
+verwenden Namen. Der Cardmarket-Export (#7) übernimmt den Wert aus dem Bestand, also
+„Purple“.

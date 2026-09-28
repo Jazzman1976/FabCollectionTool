@@ -177,6 +177,18 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     check('2.0.0.0 file without Overrides', old.collection.rows[0].Overrides === '' && !warned);
 }
 
+// Purple pitch: code 4 of the reference data is "Purple"; rows saved as "4" are converted.
+{
+    const code = FCT.DATA.vocab.pitchCodes[4] === 'Purple';
+    const loaded = FCT.model.fromCsv('"Id","Name","Pitch"\r\n"X001","A","4"\r\n' +
+        '"X002","B","Red"\r\n');
+    const rows = loaded.collection.rows;
+    const converted = rows[0].Pitch === 'Purple' && rows[1].Pitch === 'Red';
+    const noted = JSON.stringify(loaded.report).includes('Purple');
+    check('Purple pitch', code && converted && noted,
+        `code ${code}, converted ${converted}, noted ${noted}`);
+}
+
 // Expected reference values against the ODS rows: most rows must match. The deviations per
 // column are printed for information.
 {

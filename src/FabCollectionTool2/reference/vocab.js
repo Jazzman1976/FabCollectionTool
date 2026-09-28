@@ -30,7 +30,7 @@ FCT.DATA.vocab = {
         B: 'Basic', C: 'Common', R: 'Rare', S: 'Super Rare', M: 'Majestic', L: 'Legendary',
         F: 'Fabled', T: 'Token', V: 'Marvel', P: 'Promo'
     },
-    pitchCodes: { 1: 'Red', 2: 'Yellow', 3: 'Blue' },
+    pitchCodes: { 1: 'Red', 2: 'Yellow', 3: 'Blue', 4: 'Purple' },
 
     // Splitting the type line of card.csv ("Light, Illusionist, Action, Attack") into the
     // columns Metatype, Talent1/2, Class1/2, Type1/2 and Sub1-3, following the Comprehensive
