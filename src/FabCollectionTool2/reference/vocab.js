@@ -68,5 +68,13 @@ FCT.DATA.vocab = {
     fabraryTreatments: { 'Micro Text Box': 'Extended Art' },
 
     // Cards whose standard foiling is marked "Extended Art" here but listed as normal by Fabrary.
-    fabraryExtendedArtAsNormal: ['ROS002', 'ROS008']
+    fabraryExtendedArtAsNormal: ['ROS002', 'ROS008'],
+
+    // Card names that Cardmarket writes differently (wants list export, issue #7; taken from
+    // cardmarket-irregular-cardnames.json of the first tool). The key is the name, or
+    // "name // back side" for double-faced cards.
+    cardmarketNames: {
+        'Twelve Petal Kāṣāya': 'Twelve Petal Kasaya',
+        'Lyath Goldmane, Vile Savant // Lyath Goldmane': 'Lyath Goldmane, Vile Savant'
+    }
 };
