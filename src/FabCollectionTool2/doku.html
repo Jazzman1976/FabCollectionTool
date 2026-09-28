@@ -712,6 +712,32 @@
         <p>Ein Import <strong>ersetzt</strong> den geöffneten Bestand; er wird nicht
             zusammengeführt.</p>
 
+        <h3>Cardmarket</h3>
+        <p><em>Export → Cardmarket</em> erzeugt eine <strong>Wants-Liste</strong> der Karten,
+            die dir für ein Playset noch fehlen, als Textdatei
+            (<code>cardmarket-wants-&lt;Zeitstempel&gt;.txt</code>). Bei Cardmarket fügst du sie
+            unter <em>Wants</em> → „Add Deck List“ ein. Eine Zeile sieht aus wie im ersten Tool:
+            <code>2 Aftershock Red (Tales of Aria - Unlimited)</code>.</p>
+        <ul>
+            <li><strong>Sets:</strong> ein Set oder mehrere angehakte Sets zusammen; die Suche
+                kennt * und ?. Hinter jedem Set steht, wie viele Karten dort fehlen.</li>
+            <li><strong>Seltenheit:</strong> z. B. nur Rare, Majestic und Legendary; keine
+                angehakt heißt alle.</li>
+            <li><strong>Menge:</strong> <em>fehlend gesamt</em> zieht vom Playset alle
+                Exemplare der Karte über alle Sets ab (ein Reprint, den du schon hast, zählt mit);
+                <em>fehlend je Set</em> betrachtet jedes Set für sich – dann steht der Setname immer
+                am Zeilenende.</li>
+            <li><strong>Set am Zeilenende:</strong> nichts, Setname oder Setname und Edition.</li>
+            <li><strong>Nur Zeilen der aktuellen Ansicht:</strong> nimmt nur die Zeilen, die
+                Suche und Filter gerade zeigen (auch in zugeklappten Gruppen).</li>
+        </ul>
+        <p>Cardmarket kennt Karten am Namen: Zeilen mit gleichem Namen, gleicher Rückseite und
+            gleichem Pitch zählen zusammen, auch über Besonderheiten wie das CC Label hinweg;
+            gewünscht wird das größte Playset dieser Zeilen minus alle Exemplare. Den Pitch
+            schreibt der Export nur bei Karten, die es in mehreren Pitches gibt. Namen, die
+            Cardmarket anders schreibt (z. B. „Twelve Petal Kasaya“), werden angepasst und im
+            Bericht genannt. Die Auswahl außer den Sets merkt sich die Anwendung.</p>
+
         <!-- 13 -->
         <h2 id="kopie">14. Backup und Kopie im Browser</h2>
         <ul>

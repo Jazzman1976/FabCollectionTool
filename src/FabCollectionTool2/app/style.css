@@ -1037,6 +1037,30 @@ dialog menu .left + button:not(.left) {
     color: var(--muted);
     padding-left: 1.6em;
 }
+/* Cardmarket export dialog: the set list scrolls on its own, the options stay visible. */
+.cardmarket-export h3 {
+    margin: 10px 0 4px;
+    font-size: 1em;
+}
+.cardmarket-export .cm-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+}
+.cardmarket-export ul.set-list {
+    max-height: 30vh;
+    overflow: auto;
+    margin: 4px 0;
+    border: 1px solid var(--line);
+}
+.cardmarket-export ul.set-list li .what {
+    padding-left: 0;
+}
+.cardmarket-export .cm-preview {
+    margin: 10px 0 0;
+    font-weight: bold;
+}
 table.row-form select {
     width: 100%;
     box-sizing: border-box;
