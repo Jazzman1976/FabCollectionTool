@@ -10,8 +10,7 @@ dürfen länger als 100 Zeichen sein; die Zeilenlängen-Regel gilt für handgesc
 | `sets.js` | `[Set-Code, Name, Erscheinungsdatum]` | the-fab-cube `set.csv` und `set-printing.csv` (frühestes Datum je Set) |
 | `cards.js` | `[Karten-ID, Name, Pitch, Typzeile, L = Legendary, Cost, Power, Defense, Card Keywords, Kartentext, gedruckte Typzeile, nicht legal in]` | the-fab-cube `card.csv` (Legendary aus `Card Keywords`, „nicht legal in“ aus den Legal-Spalten) |
 | `printings.js` | `[Kartennummer, Set-Code, Edition, Art Treatment, Rarity, Foilings, Karten-ID, Bild, Artists]` | the-fab-cube `card-printing.csv` (Bild: Dateiname des üblichen Speicherorts oder volle URL, des einfachsten Foilings) |
-| `fabrary-skeleton.js` | Identitätsspalten jeder Fabrary-Zeile, **ohne Mengen** | Fabrary-Sammlungsexport |
-| `info.js` | Herkunft, Commit, Stand, Fabrary-Kopfzeile | Build-Skript |
+| `info.js` | Herkunft, Commit, Stand | Build-Skript |
 | `vocab.js` | Wertelisten und Code-Tabellen | von Hand gepflegt |
 
 **Aktueller Stand:** the-fab-cube/flesh-and-blood-cards, Branch `develop`, Commit
@@ -23,12 +22,16 @@ Beide Wege nutzen dieselbe Umwandlung (`app/reference-transform.js`).
 
 ## Erneuern
 
+the-fab-cube ist die Quelle der Wahrheit; auch der Fabrary-Export entsteht allein aus diesen
+Daten (Issue #17), ein Fabrary-Export wird dafür nicht gebraucht.
+
+**Wann:** vor jedem Release. Liegt der Commit oben hinter dem aktuellen Commit von
+the-fab-cube `develop`, werden die Dateien auf einem Feature-Branch erneuert und per PR nach
+`develop` gebracht, damit sie vor dem Release mitgetestet werden.
+
 1. Die vier Quelldateien aus `csvs/english/` des Datensatzes in einen Ordner **außerhalb** des
    Repositorys laden.
-2. Einen aktuellen Sammlungsexport aus Fabrary bereitstellen. Er enthält persönliche Mengen.
-   Das Build-Skript übernimmt davon nur die acht Identitätsspalten; die Mengen landen nie
-   im Repository.
-3. Im Ordner `src/FabCollectionTool2` ausführen:
-   `node tools/build-reference.mjs <Quellordner> <fabrary-export.csv> <Commit> <Datum>`
-4. Mit `node tools/selftest.mjs … <Quellordner>` prüfen und den Stand oben in dieser Datei
+2. Im Ordner `src/FabCollectionTool2` ausführen:
+   `node tools/build-reference.mjs <Quellordner> <Commit> <Datum>`
+3. Mit `node tools/selftest.mjs … <Quellordner>` prüfen und den Stand oben in dieser Datei
    anpassen.

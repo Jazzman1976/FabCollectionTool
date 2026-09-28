@@ -104,10 +104,14 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
 
 - **Import:** der Sammlungsexport aus Fabrary. Zeilen mit Menge werden zu Bestand; die
   Foilings werden zu `ST`/`RF`/`CF`/`GF` zusammengefasst.
-- **Export:** Fabrarys eigene Zeilen (das „Skelett“ in `reference/fabrary-skeleton.js`) werden
-  zeichengenau übernommen, nur die Mengen werden eingetragen. Sprachvarianten werden
-  zusammengezählt, „Micro Text Box“ wird zu „Extended Art“. „Extra for trade“ wird nach den
-  Regeln des alten Tools berechnet. Varianten, die das Skelett nicht kennt, werden gemeldet und
+- **Export:** Die Zeilen kommen aus den Stammdaten von the-fab-cube, der Quelle der Wahrheit:
+  jede Karte in jeder Variante und jedem Foiling, das es gibt, aus allen Sets. *Have* und
+  *Extra for trade* sind nie leer; fehlende Karten bekommen `0`, damit Fabrary sie als fehlend
+  zeigt. Identifier (Name + Pitch ohne Sonderzeichen), Name und Setname wie im alten Tool;
+  bei mehreren Art Treatments gilt Alternate Art vor Alternate Border vor Alternate Text vor
+  Full Art vor Extended Art, „Micro Text Box“ wird zu „Extended Art“. Sprachvarianten werden
+  zusammengezählt. „Extra for trade“ wird nach den Regeln des alten Tools berechnet.
+  Bestandszeilen, deren Variante oder Foiling die Stammdaten nicht kennen, werden gemeldet und
   nicht geraten.
 
 ## Grenzen dieser Fassung
@@ -116,8 +120,6 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
 - Cost, Power, Defense, Keywords, Artist, Legalität und Kartentext werden nur angezeigt,
   nicht in `collection.csv` gespeichert (Grundlage:
   `docs/konzept/Recherche-Spalten-2.0.4.0.md`).
-- Das Fabrary-Skelett wird mitgeliefert und nicht online aktualisiert. Ganz neue Varianten
-  exportiert erst eine neuere Fassung des Skeletts (siehe `reference/README.md`).
 - Cardmarket, Dragon Shield und TCGplayer folgen später.
 
 ## Aufbau
@@ -139,7 +141,7 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
 
 - `tools/build-reference.mjs`: erzeugt `reference/*.js` neu (siehe `reference/README.md`).
 - `tools/selftest.mjs`: automatische Prüfungen (CSV, ODS-Import, Fabrary-Import/-Export,
-  Round-Trip, Skelett ohne Mengen, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
+  Round-Trip, Fabrary-Zeilen aus den Stammdaten, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
   Gruppen, Änderungsprotokoll, Erscheinungsdaten, Lückenfüllung, Übernehmen ohne Änderung
   des Bestands, Wertelisten, Platzhalter, Sets aufnehmen, Playset, bearbeitbare Zellen,
   Grenzen von Protokoll und Diagnose-Log, Spaltenreihenfolge, Kartenbilder, Branch-URL,

@@ -639,8 +639,8 @@
             <code>collection.csv</code> im Arbeitsordner. Beides ist getrennt.</p>
         <ul>
             <li><strong>Mitgeliefert:</strong> Die Anwendung bringt einen festen Stand der
-                Stammdaten mit, im Ordner <code>reference/</code> (Sets, Karten, Varianten und
-                das Fabrary-Format). Er wird nur mit einer neuen Version der Anwendung
+                Stammdaten mit, im Ordner <code>reference/</code> (Sets, Karten und
+                Varianten). Er wird nur mit einer neuen Version der Anwendung
                 erneuert. <em>Info</em> zeigt Herkunft und Stand der gerade geltenden
                 Stammdaten.</li>
             <li><strong>Mit Internet</strong> lädt die Anwendung bei <strong>jedem
@@ -728,10 +728,14 @@
         <ul>
             <li><strong>Import:</strong> der Sammlungsexport aus Fabrary. Zeilen mit Menge
                 werden zum Bestand, die Foilings werden zu ST/RF/CF/GF zusammengefasst.</li>
-            <li><strong>Export:</strong> erzeugt eine Importdatei für Fabrary. Sprachvarianten
-                werden zusammengezählt, „Micro Text Box“ wird zu „Extended Art“, „Extra for
-                trade“ wird nach den Regeln des alten Tools berechnet. Varianten, die Fabrary nicht
-                kennt, werden gemeldet und nicht geraten.</li>
+            <li><strong>Export:</strong> erzeugt eine Importdatei für Fabrary mit
+                <strong>allen Karten</strong> aus den Stammdaten – jede Variante in jedem
+                Foiling, das es gibt, aus allen Sets. Karten, die du nicht hast, stehen mit
+                <strong>0</strong> darin, damit Fabrary sie als fehlend anzeigt.
+                Sprachvarianten werden zusammengezählt, „Micro Text Box“ wird zu „Extended
+                Art“, „Extra for trade“ wird nach den Regeln des alten Tools berechnet. Zeilen
+                deines Bestands, deren Variante oder Foiling die Stammdaten nicht kennen,
+                werden im Bericht genannt und nicht exportiert.</li>
         </ul>
         <p>Ein Import <strong>ersetzt</strong> den geöffneten Bestand; er wird nicht
             zusammengeführt.</p>

@@ -29,7 +29,7 @@ export function loadApp(options = {}) {
     const scripts = [...LOGIC_SCRIPTS];
     if (options.withReference) {
         scripts.push('reference/info.js', 'reference/sets.js', 'reference/cards.js',
-            'reference/printings.js', 'reference/fabrary-skeleton.js');
+            'reference/printings.js');
     }
     scripts.push(...(options.extra || []));
 

@@ -1,8 +1,8 @@
 # Umsetzungsplan Issue #17 – Fabrary-Export nur aus the-fab-cube, fehlende Karten mit 0
 
 **Issue:** https://github.com/Jazzman1976/FabCollectionTool/issues/17
-**Branch:** `feature/17-fabrary-export-thefabcube` · **Stand:** 28. September 2026
-**Status:** Plan, Ready
+**Branch:** `feature/17-fabrary-export-thefabcube` · **Stand:** 29. September 2026
+**Status:** umgesetzt, PR nach `develop`
 
 ## Kontext
 Heute kopiert der Fabrary-Export das mitgelieferte Skelett (`reference/fabrary-skeleton.js`,
@@ -79,3 +79,45 @@ wenn sich mehrere Karten eine Kartennummer teilen.
   Meldungen, keine Konsolenfehler.
 - **Elmar** importiert die Datei in Fabrary: Fehlende Karten erscheinen als fehlend, vorhandene
   mit der richtigen Menge.
+
+## Umsetzung und Abweichungen
+- **Mehrere Karten unter einer Kartennummer** (z. B. Engel und Figment, DTD005): Fabrary führt
+  sie als getrennte Zeilen (73 von 75 Fällen im Vergleich), der Export also auch – eine Zeile je
+  Karte, Variante und Foiling. Die Menge einer Bestandszeile geht wie bisher an die Karte mit
+  ihrem Namen (Vorderseite).
+- **Identifier** exakt nach `StringExtensions.cs` des alten Tools: erlaubt bleiben Buchstaben,
+  Ziffern, Leerzeichen, `.`, `_`, `-`, `|`. Damit wird „Arcane Seeds // Life“ zu
+  `arcane-seeds--life-red` wie bei Fabrary.
+- Zeilen, die Fabrary als gleich ansehen würde (z. B. Micro Text Box und Extended Art), werden
+  einmal geschrieben.
+- Der Bericht nennt zusätzlich die **Zahl der übersprungenen Exemplare**; `exportFabrary`
+  liefert sie als `skipped`.
+- **Release-Ablauf** steht in `reference/README.md` („Wann: vor jedem Release“), nicht in
+  `RELEASE-NOTES.md`: Release Notes werden nur auf dem Release-Branch geändert.
+- `reference/info.js` ohne `fabraryHeader`; die Kopfzeile ist jetzt eine Konstante im Export.
+  Das Build-Skript wurde mit den Quelldateien von Commit `e56071b` erneut ausgeführt:
+  `sets.js`, `cards.js`, `printings.js` sind inhaltlich identisch (nur Zeilenenden), deshalb
+  unverändert gelassen.
+- Rundlauf-Prüfung: Import → Export → Import ergibt denselben Bestand bis auf den **Setnamen**
+  (der Export schreibt die Namen von the-fab-cube, z. B. „Armory Deck - Gravy Bones“ statt
+  Fabrarys „Armory Deck: Gravy Bones“); ein zweiter Export ist identisch mit dem ersten.
+
+## Ergebnis der Abnahme (29.09.2026)
+- Selbsttest grün, neue Prüfungen:
+  - alle Varianten × Foilings der Stammdaten, keine anderen
+  - *Have* und *Extra for trade* nie leer
+  - Mengen: 24.283 exportiert + 276 übersprungen = 24.559 im Bestand von `docs/example.ods`
+  - Identifier- und Treatment-Regeln an Beispielen
+  - Rundlauf wie oben
+  - Info: 13.470 von 16.571 Zeilen aus Fabrarys eigenem Export sind zeichengleich (1.0-Datei:
+    rund 9.300)
+- Die 276 übersprungenen Exemplare (163 Bestandszeilen) sind Abweichungen des Bestands von
+  the-fab-cube, z. B. HER101 als Rainbow mit Extended Art (the-fab-cube: ohne Art Treatment),
+  LGS227 als Standard (gibt es nur als Rainbow), GEM070 als Standard (nur Cold). In der Tabelle
+  sind solche Zellen schraffiert bzw. mit ≠ markiert.
+- Chrome über localhost mit dem Bestand aus `docs/example.ods` (Download abgefangen):
+  - Kopfzeile wie bei Fabrary
+  - 16.599 Zeilen, 6.367 mit Menge, 10.232 mit `0`, keine leeren Felder
+  - Bericht mit 276 übersprungenen Exemplaren
+  - keine Fehler im Diagnose-Log
+- Offen: Import der Datei in Fabrary durch Elmar.
