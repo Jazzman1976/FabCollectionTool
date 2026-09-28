@@ -374,6 +374,24 @@ FCT.model = (function () {
             'neue Format in der Datei', count + ' Zeilen');
     }
 
+    /*
+     * Pitch "4" (purple cards, they pitch for 4 resources) came in as a bare code while the
+     * code table did not know it yet; it becomes "Purple", as Fabrary and the vocabulary
+     * name it. Returns true if the record was changed.
+     */
+    function upgradePitch(values) {
+        if (String(values.Pitch || '').trim() !== '4') return false;
+        values.Pitch = FCT.DATA.vocab.pitchCodes[4];
+        return true;
+    }
+
+    // Reports the conversion of pitch "4" (see upgradePitch).
+    function reportPitchUpgrade(report, count) {
+        if (!count) return;
+        report.add('info', 'Pitch "4" heißt jetzt "Purple" (lila Pitch, 4 Ressourcen). Beim ' +
+            'nächsten Speichern steht das so in der Datei', count + ' Zeilen');
+    }
+
     // True if a reference column of a row differs from the value the reference data expects.
     // The reference data often knows no back side (e.g. double sided tokens); an empty
     // expected back side is therefore no information and never a difference.
@@ -670,8 +688,10 @@ FCT.model = (function () {
 
         // Create one row per record; nothing is dropped.
         var upgraded = 0;
+        var purple = 0;
         table.rows.forEach(function (values) {
             if (legacy && upgradeValues(values)) upgraded++;
+            if (upgradePitch(values)) purple++;
             var row = newRow(values);
             collection.extraColumns.forEach(function (name) { row[name] = values[name]; });
             collection.rows.push(row);
@@ -679,6 +699,7 @@ FCT.model = (function () {
 
         report.summary.push(collection.rows.length + ' Zeilen gelesen');
         reportUpgrade(report, upgraded);
+        reportPitchUpgrade(report, purple);
         reportPlaysets(report, keepPlaysets(collection.rows));
         return { collection: collection, report: report };
     }
@@ -1091,6 +1112,8 @@ FCT.model = (function () {
         NEW_IN_2050: NEW_IN_2050,
         upgradeValues: upgradeValues,
         reportUpgrade: reportUpgrade,
+        upgradePitch: upgradePitch,
+        reportPitchUpgrade: reportPitchUpgrade,
         QUANTITIES: QUANTITIES,
         NUMBER_COLUMNS: NUMBER_COLUMNS,
         INPUT_COLUMNS: INPUT_COLUMNS,

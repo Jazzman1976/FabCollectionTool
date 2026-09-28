@@ -254,6 +254,7 @@ FCT.importOds = (function () {
         var rows = found.table.rows;
         var sections = 0;
         var upgraded = 0;
+        var purpleRows = 0;
         for (var r = found.rowIndex + 1; r < rows.length; r++) {
             var cells = rows[r].cells;
             if (!cells.some(function (v) { return String(v).trim() !== ''; })) continue;
@@ -276,8 +277,10 @@ FCT.importOds = (function () {
 
             // Repeated rows with content are materialized as often as they are repeated.
             var converted = legacy && model.upgradeValues(values);
+            var purple = model.upgradePitch(values);
             for (var n = 0; n < rows[r].repeat; n++) {
                 if (converted) upgraded++;
+                if (purple) purpleRows++;
                 var row = model.newRow(values);
                 collection.extraColumns.forEach(function (name) {
                     row[name] = values[name] || '';
@@ -289,6 +292,7 @@ FCT.importOds = (function () {
         report.summary.push(collection.rows.length + ' Zeilen übernommen, ' + sections +
             ' Zwischenüberschriften übersprungen');
         model.reportUpgrade(report, upgraded);
+        model.reportPitchUpgrade(report, purpleRows);
         return { collection: collection, report: report };
     }
 

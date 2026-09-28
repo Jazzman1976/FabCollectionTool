@@ -49,7 +49,7 @@ FCT.app = (function () {
         Set: 12, Edition: 5.5, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5, Talent1: 6.5,
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
-        'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 4.5,
+        'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
         Peculiarity: 7, 'Art Treatment': 8.5, Note: 15
     };
     var STEP_WIDTH = 5.5;
@@ -84,6 +84,14 @@ FCT.app = (function () {
             : '';
     }
 
+    // Pitch values get a coloured dot (issue #4); the text stays for filter, sort and search.
+    var PITCH_CLASSES = { Red: 'pitch-red', Yellow: 'pitch-yellow', Blue: 'pitch-blue',
+        Purple: 'pitch-purple' };
+
+    function pitchClass(value) {
+        return PITCH_CLASSES[value] || null;
+    }
+
     function buildColumns() {
         var columns = model.COLUMNS.filter(function (key) {
             return model.columnKind(key) !== 'internal';
@@ -92,7 +100,8 @@ FCT.app = (function () {
             return {
                 key: key, label: key, numeric: numeric, kind: model.columnKind(key),
                 step: numeric, width: numeric ? STEP_WIDTH : WIDTHS[key] || 7,
-                list: model.choices(key) !== null, hint: HINTS[key] || ''
+                list: model.choices(key) !== null, hint: HINTS[key] || '',
+                valueClass: key === 'Pitch' ? pitchClass : null
             };
         });
 
@@ -1854,6 +1863,194 @@ FCT.app = (function () {
     }
 
     /*
+     * Wants list for Cardmarket (issue #7): one set or several ticked sets together, as in the
+     * first tool; further options are the rarities, the basis of the quantity, the set name at
+     * the end of a line and "only the current view". Everything but the sets is remembered.
+     */
+    var CARDMARKET_DEFAULTS = { rarities: [], basis: 'total', suffix: 'none', viewOnly: false };
+
+    function exportCardmarket() {
+        var collection = state.collection;
+        var saved = Object.assign({}, CARDMARKET_DEFAULTS,
+            FCT.settings.get('cardmarketExport', {}));
+
+        // Sets of the collection as the table groups them (column Set), newest first.
+        var rowsBySet = new Map();
+        collection.rows.forEach(function (row) {
+            if (row._reference || !row.Id.trim()) return;
+            if (!rowsBySet.has(row.Set)) rowsBySet.set(row.Set, []);
+            rowsBySet.get(row.Set).push(row);
+        });
+        if (!rowsBySet.size) {
+            showMessage('Export nach Cardmarket', 'Der Bestand enthält noch keine Karten.');
+            return null;
+        }
+        var sets = Array.from(rowsBySet.keys()).map(function (name) {
+            var info = setInfo(name, rowsBySet.get(name));
+            return { name: name, label: info.label || '(ohne Set)', date: info.date || '' };
+        }).sort(function (a, b) {
+            if (a.date !== b.date) return !a.date ? 1 : !b.date ? -1 : a.date < b.date ? 1 : -1;
+            return a.label.localeCompare(b.label);
+        });
+
+        // Set list with search, as in "Sets aufnehmen".
+        var setBoxes = [];
+        var setList = el('ul', { className: 'cards set-list' });
+        sets.forEach(function (set) {
+            var box = el('input', { type: 'checkbox' });
+            box._set = set;
+            box._count = el('span', { className: 'what' });
+            setBoxes.push(box);
+            var date = set.date ? new Date(set.date + 'T00:00:00').toLocaleDateString('de-DE')
+                : 'ohne Datum';
+            box._item = el('li', {}, [el('label', {}, [box, ' ',
+                el('strong', { text: set.label }), el('span', { className: 'what',
+                    text: ' ' + date + ' · ' }), box._count])]);
+            setList.appendChild(box._item);
+        });
+        var search = el('input', { type: 'search', placeholder: 'Set suchen (* ?)',
+            title: 'Enthält den Text; * = beliebiger Text, ? = ein Zeichen' });
+        search.addEventListener('input', function () {
+            var text = util.fold(search.value);
+            var test = util.wildcard(search.value);
+            setBoxes.forEach(function (box) {
+                var name = util.fold(box._set.label);
+                box._item.hidden = !(!text || (test ? test(name) : name.indexOf(text) >= 0));
+            });
+        });
+        function tickShown(on) {
+            setBoxes.forEach(function (box) { if (!box._item.hidden) box.checked = on; });
+            update();
+        }
+
+        // Rarities that occur in the collection, in the order of the vocabulary.
+        var present = new Set(collection.rows.map(function (row) { return row.Rarity; }));
+        var rarityBoxes = model.choices('Rarity', collection.rows).filter(function (r) {
+            return present.has(r);
+        }).map(function (rarity) {
+            var box = el('input', { type: 'checkbox' });
+            box._value = rarity;
+            box.checked = saved.rarities.indexOf(rarity) >= 0;
+            return box;
+        });
+
+        function radios(name, choices, current) {
+            return choices.map(function (c) {
+                var input = el('input', { type: 'radio', name: name, value: c[0] });
+                input.checked = c[0] === current;
+                return input;
+            });
+        }
+        function labelled(inputs, texts) {
+            return inputs.map(function (input, i) {
+                return el('label', { className: 'cm-option' }, [input, ' ' + texts[i]]);
+            });
+        }
+        var basisInputs = radios('cm-basis', [['total'], ['set']], saved.basis);
+        var suffixInputs = radios('cm-suffix', [['none'], ['set'], ['setEdition']],
+            saved.suffix);
+        var viewRows = grid.visibleRows();
+        var viewBox = el('input', { type: 'checkbox' });
+        viewBox.checked = saved.viewOnly;
+        var preview = el('p', { className: 'cm-preview' });
+
+        function checkedValue(inputs) {
+            return inputs.filter(function (i) { return i.checked; })[0].value;
+        }
+        function current() {
+            return {
+                sets: setBoxes.filter(function (b) { return b.checked; }).map(function (b) {
+                    return b._set.name;
+                }),
+                rarities: rarityBoxes.filter(function (b) { return b.checked; })
+                    .map(function (b) { return b._value; }),
+                basis: checkedValue(basisInputs),
+                suffix: checkedValue(suffixInputs),
+                viewOnly: viewBox.checked,
+                rows: viewBox.checked ? viewRows : null
+            };
+        }
+
+        // Counts per set and the preview follow every change.
+        function update() {
+            var options = current();
+            var perSet = options.basis === 'set';
+            suffixInputs[0].disabled = perSet;
+            if (perSet && suffixInputs[0].checked) suffixInputs[1].checked = true;
+            setBoxes.forEach(function (box) {
+                var count = FCT.exportCardmarket.wants(collection, Object.assign({}, options,
+                    { sets: [box._set.name] })).reduce(function (sum, w) {
+                    return sum + w.quantity;
+                }, 0);
+                box._count.textContent = count ? count.toLocaleString('de-DE') + ' fehlend'
+                    : 'nichts fehlt';
+            });
+            var button = $('dialog-buttons').querySelector('button.primary');
+            if (!options.sets.length) {
+                preview.textContent = 'Bitte mindestens ein Set anhaken.';
+                if (button) button.disabled = true;
+                return;
+            }
+            var result = FCT.exportCardmarket.exportCardmarket(collection, options);
+            preview.textContent = 'Vorschau: ' +
+                FCT.exportCardmarket.describe(result.lines, result.cards);
+            if (button) button.disabled = !result.lines;
+        }
+
+        var body = el('div', { className: 'report take-over cardmarket-export' }, [
+            el('h3', { text: 'Sets' }),
+            el('div', { className: 'cm-row' }, [search,
+                el('button', { type: 'button', text: 'Alle',
+                    onclick: function () { tickShown(true); } }),
+                el('button', { type: 'button', text: 'Keine',
+                    onclick: function () { tickShown(false); } })]),
+            setList,
+            el('h3', { text: 'Seltenheit (keine angehakt = alle)' }),
+            el('div', { className: 'cm-row' }, labelled(rarityBoxes, rarityBoxes.map(
+                function (b) { return b._value; }))),
+            el('h3', { text: 'Menge' }),
+            el('div', { className: 'cm-row' }, labelled(basisInputs, [
+                'fehlend gesamt – Playset minus alle Exemplare der Karte über alle Sets',
+                'fehlend je Set – jedes Set für sich vollständig'])),
+            el('h3', { text: 'Set am Zeilenende' }),
+            el('div', { className: 'cm-row' }, labelled(suffixInputs, [
+                'nicht anhängen', 'Setname', 'Setname und Edition'])),
+            el('div', { className: 'cm-row' }, labelled([viewBox], [
+                'Nur Zeilen der aktuellen Ansicht (Suche und Filter, ' +
+                viewRows.length.toLocaleString('de-DE') + ' Zeilen)'])),
+            preview
+        ]);
+        body.addEventListener('change', update);
+
+        return openDialog({
+            title: 'Export nach Cardmarket – Wants-Liste',
+            body: body,
+            hint: 'Die Datei lässt sich bei Cardmarket unter Wants → „Add Deck List“ einfügen. ' +
+                'Es stehen nur Karten darin, die für ein Playset noch fehlen. Zeilen mit ' +
+                'gleichem Namen und Pitch zählen zusammen (auch CC Label), wie im ersten Tool.',
+            wide: true,
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Exportieren', value: 'accept', primary: true }
+            ],
+            setup: function () { update(); }
+        }).then(function (value) {
+            if (value !== 'accept') return;
+            var options = current();
+            FCT.settings.set('cardmarketExport', { rarities: options.rarities,
+                basis: options.basis, suffix: options.suffix, viewOnly: options.viewOnly });
+            var result = FCT.exportCardmarket.exportCardmarket(collection, options);
+            if (result.lines) {
+                FCT.storage.download('cardmarket-wants-' + util.timestamp() + '.txt',
+                    result.text, 'text/plain;charset=utf-8');
+            }
+            FCT.log.info('export', 'Cardmarket-Export', { sets: options.sets.length,
+                lines: result.lines, cards: result.cards, basis: options.basis });
+            showReport(result.report);
+        });
+    }
+
+    /*
      * Changing cells. Every change goes through changeCell, so that overrides and the
      * change log are always kept up to date.
      */
@@ -2842,6 +3039,7 @@ FCT.app = (function () {
             'btn-new': newCollection, 'btn-open': open, 'btn-save': save,
             'btn-backup': backup, 'btn-add-sets': addSets, 'btn-import-ods': importOds,
             'btn-import-fabrary': importFabrary, 'btn-export-fabrary': exportFabrary,
+            'btn-export-cardmarket': exportCardmarket,
             'btn-reference-update': function () { return updateReference(true); },
             'btn-reference-apply': applyReference, 'btn-reference-info': showReferenceInfo,
             'btn-log-file': chooseLogFile, 'btn-autosave': toggleAutosave,

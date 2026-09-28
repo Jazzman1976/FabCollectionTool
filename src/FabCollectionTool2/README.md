@@ -1,4 +1,4 @@
-# FabCollectionTool 2.1.0.0
+# FabCollectionTool 2.2.0.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -26,12 +26,14 @@ Kartenbilder, Editiermodus, Filter mit Häkchen und Platzhaltern, Gliederung, Se
 Stammdaten mit Branch-Auswahl, Protokoll und Rückgängig, Import/Export, Backup, Diagnose,
 häufige Fragen.
 
+Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.md).
+
 ## Überblick
 
 | Bereich | Funktion |
 |---|---|
 | **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets aufnehmen …* |
-| **Import / Export** | ODS (die FabCollectionTool-1.0-Tabelle), Fabrary |
+| **Import / Export** | Import: ODS (die FabCollectionTool-1.0-Tabelle), Fabrary · Export: Fabrary, Cardmarket (Wants-Liste) |
 | **Stammdaten** | Branch des Datensatzes, Stand, *Aktualisieren*, *Übernehmen …* (je Karte), *Info* |
 | **Ansicht** | Design (Auto, Hell, Dunkel), Schriftgröße, Lage der Meldungen, *Editiermodus* |
 | **Hilfe** | *Einrichtung* (Assistent), *Tutorial*, *Dokumentation*, *Diagnose* (Log herunterladen) |

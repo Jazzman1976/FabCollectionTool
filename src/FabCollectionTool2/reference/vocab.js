@@ -30,7 +30,7 @@ FCT.DATA.vocab = {
         B: 'Basic', C: 'Common', R: 'Rare', S: 'Super Rare', M: 'Majestic', L: 'Legendary',
         F: 'Fabled', T: 'Token', V: 'Marvel', P: 'Promo'
     },
-    pitchCodes: { 1: 'Red', 2: 'Yellow', 3: 'Blue' },
+    pitchCodes: { 1: 'Red', 2: 'Yellow', 3: 'Blue', 4: 'Purple' },
 
     // Splitting the type line of card.csv ("Light, Illusionist, Action, Attack") into the
     // columns Metatype, Talent1/2, Class1/2, Type1/2 and Sub1-3, following the Comprehensive
@@ -68,5 +68,13 @@ FCT.DATA.vocab = {
     fabraryTreatments: { 'Micro Text Box': 'Extended Art' },
 
     // Cards whose standard foiling is marked "Extended Art" here but listed as normal by Fabrary.
-    fabraryExtendedArtAsNormal: ['ROS002', 'ROS008']
+    fabraryExtendedArtAsNormal: ['ROS002', 'ROS008'],
+
+    // Card names that Cardmarket writes differently (wants list export, issue #7; taken from
+    // cardmarket-irregular-cardnames.json of the first tool). The key is the name, or
+    // "name // back side" for double-faced cards.
+    cardmarketNames: {
+        'Twelve Petal Kāṣāya': 'Twelve Petal Kasaya',
+        'Lyath Goldmane, Vile Savant // Lyath Goldmane': 'Lyath Goldmane, Vile Savant'
+    }
 };

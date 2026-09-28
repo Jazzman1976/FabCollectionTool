@@ -1,0 +1,54 @@
+# Closes the issues of a pull request as soon as it is merged into develop.
+# GitHub itself only closes issues named with "Closes #n" when the pull request goes into the
+# default branch (main). Our feature branches are merged into develop, so this is done here.
+# Closing the issue lets the project board's built-in workflow "Item closed" set it to "Done".
+# Only description lines like "Closes #7" count (see the script), so that examples in running
+# text do not close issues - that happened once with the description of pull request #10.
+name: Close issues merged into develop
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop]
+
+permissions:
+  issues: write
+
+jobs:
+  close:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            // Only lines of the description that consist of a closing keyword and issue
+            // numbers count, e.g. "Closes #7" or "Fixes #3, #5". Keywords within running text
+            // or quotes (e.g. examples in a description) are ignored on purpose.
+            const line = /^\s*(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+((?:#\d+[\s,]*)+)$/i;
+            const numbers = new Set();
+            for (const text of (pr.body || '').split(/\r?\n/)) {
+              const match = line.exec(text);
+              if (!match) continue;
+              for (const ref of match[1].match(/#\d+/g)) numbers.add(Number(ref.slice(1)));
+            }
+            for (const number of numbers) {
+              let issue;
+              try {
+                ({ data: issue } = await github.rest.issues.get({
+                  ...context.repo, issue_number: number }));
+              } catch (error) {
+                core.warning(`Issue #${number} nicht gefunden (${error.status}), übersprungen`);
+                continue;
+              }
+              if (issue.pull_request || issue.state === 'closed') continue;
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: number,
+                body: `Mit #${pr.number} nach \`develop\` gemergt.` });
+              await github.rest.issues.update({
+                ...context.repo, issue_number: number,
+                state: 'closed', state_reason: 'completed' });
+              core.info(`Issue #${number} geschlossen`);
+            }
+            if (!numbers.size) core.info('Keine "Closes #n"-Angabe im Pull Request');

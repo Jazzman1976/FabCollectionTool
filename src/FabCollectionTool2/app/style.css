@@ -44,6 +44,10 @@
     --ok-bg: #dff5e4;
     --ok-line: #2e9e4f;
     --ok-fg: #1d5a2f;
+    --pitch-red: #d92d20;       /* dots in front of the pitch values (issue #4) */
+    --pitch-yellow: #d9a400;
+    --pitch-blue: #2f6fe0;
+    --pitch-purple: #8e44d9;
 }
 /* Dark colours: chosen in the view settings ("Design: Dunkel"), or following the operating
    system when the design is "System" (no data-theme attribute on <html>). */
@@ -87,6 +91,10 @@
     --ok-bg: #173323;
     --ok-line: #56d27a;
     --ok-fg: #c9f2d5;
+    --pitch-red: #ff6b61;
+    --pitch-yellow: #f5c542;
+    --pitch-blue: #6ea8ff;
+    --pitch-purple: #c08cff;
 }
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -129,6 +137,10 @@
         --ok-bg: #173323;
         --ok-line: #56d27a;
         --ok-fg: #c9f2d5;
+        --pitch-red: #ff6b61;
+        --pitch-yellow: #f5c542;
+        --pitch-blue: #6ea8ff;
+        --pitch-purple: #c08cff;
     }
 }
 :root[data-theme="light"] {
@@ -660,6 +672,15 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
 body.edit-mode .grid td.no-printing {
     cursor: text;
 }
+/* Pitch: a coloured dot in front of the value, in the table and in its filter list. */
+.pitch-red::before, .pitch-yellow::before, .pitch-blue::before, .pitch-purple::before {
+    content: '●';
+    margin-right: 0.3em;
+}
+.pitch-red::before { color: var(--pitch-red); }
+.pitch-yellow::before { color: var(--pitch-yellow); }
+.pitch-blue::before { color: var(--pitch-blue); }
+.pitch-purple::before { color: var(--pitch-purple); }
 .grid tr.selected td.k-reference, .grid tr.selected td.k-identity,
 .grid tr.selected td.k-calc, .grid tr.selected td.actions, .grid tr.selected td.status {
     background: var(--selected);
@@ -1015,6 +1036,30 @@ dialog menu .left + button:not(.left) {
 .take-over .what {
     color: var(--muted);
     padding-left: 1.6em;
+}
+/* Cardmarket export dialog: the set list scrolls on its own, the options stay visible. */
+.cardmarket-export h3 {
+    margin: 10px 0 4px;
+    font-size: 1em;
+}
+.cardmarket-export .cm-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+}
+.cardmarket-export ul.set-list {
+    max-height: 30vh;
+    overflow: auto;
+    margin: 4px 0;
+    border: 1px solid var(--line);
+}
+.cardmarket-export ul.set-list li .what {
+    padding-left: 0;
+}
+.cardmarket-export .cm-preview {
+    margin: 10px 0 0;
+    font-weight: bold;
 }
 table.row-form select {
     width: 100%;

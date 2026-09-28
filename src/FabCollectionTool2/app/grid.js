@@ -81,6 +81,7 @@ FCT.grid = (function () {
         var allRows = [];
         var viewRows = [];
         var matchCount = 0;
+        var matchedRows = [];       // rows passing search and filters, also in closed groups
         var cursor = { item: null, key: null };  // active cell: row (or group) and column
         var sort = { key: null, dir: 1 };
         var filters = {};              // text filters per column key
@@ -358,6 +359,7 @@ FCT.grid = (function () {
                     anchor: button,
                     title: column.label,
                     values: listValues(column),
+                    valueClass: column.valueClass || null,
                     selected: checks[column.key] || null,
                     onChange: function (selected) {
                         if (selected) checks[column.key] = selected;
@@ -587,6 +589,7 @@ FCT.grid = (function () {
                 });
             }
             matchCount = rows.length;
+            matchedRows = rows;
             viewRows = grouping === 'none' ? rows : groupRows(rows);
             keepCursor();
             render();
@@ -909,6 +912,8 @@ FCT.grid = (function () {
             if (isCursor) classes.push('cursor');
             if (column.numeric && editable && isNaN(util.toInt(value))) classes.push('invalid');
             if (mark && mark.className) classes.push(mark.className);
+            var valueClass = column.valueClass && column.valueClass(text);
+            if (valueClass) classes.push(valueClass);
 
             var title = mark && mark.title ? text + '\n' + mark.title : text;
             var picture = column.key === options.imageColumn && options.hasImage &&
@@ -1331,6 +1336,8 @@ FCT.grid = (function () {
             // Redraws without filtering again, so an edited row does not vanish from view.
             refresh: render,
             applyView: applyView,
+            // Rows of the current view (search and filters), also those in closed groups.
+            visibleRows: function () { return matchedRows.slice(); },
             setSearch: function (text) { search = text; filterChanged(); applyView(); },
             setMode: function (value) { mode = value; filterChanged(); applyView(); },
             clearFilters: function () {

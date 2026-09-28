@@ -23,7 +23,7 @@ if (!odsFile || !fabraryFile) {
 const FCT = loadApp({
     withReference: true,
     extra: ['app/model.js', 'app/changelog.js', 'app/import-ods.js', 'app/import-fabrary.js',
-        'app/export-fabrary.js']
+        'app/export-fabrary.js', 'app/export-cardmarket.js']
 });
 FCT.importOds.inflateRaw = async (bytes) => new Uint8Array(zlib.inflateRawSync(bytes));
 FCT.reference.install(FCT.DATA, FCT.DATA.info);
@@ -83,6 +83,74 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         FCT.exportFabrary.exportFabrary(imported.collection).text);
     check('Fabrary round trip',
         FCT.model.toCsv(again.collection) === FCT.model.toCsv(imported.collection));
+}
+
+// Cardmarket wants list (issue #7) from the ODS example: line format, sorting, pitch only for
+// cards with several pitches, one line per card, filters and name exceptions.
+{
+    const fold = FCT.util.fold;
+    const cm = FCT.exportCardmarket;
+    const all = cm.exportCardmarket(ods.collection, { basis: 'total' });
+    const lines = all.text.split('\n').filter(Boolean);
+    const entries = cm.wants(ods.collection, { basis: 'total' });
+    const badFormat = lines.filter((line) => !/^[1-9]\d* \S/.test(line) || /\s{2}|\s$/.test(line));
+    const sorted = entries.every((e, i) => !i ||
+        fold(entries[i - 1].row.Name).localeCompare(fold(e.row.Name)) <= 0);
+    check('Cardmarket format and order', lines.length > 0 && lines.length === all.lines &&
+        !badFormat.length && sorted, `${lines.length} lines, ${all.cards} cards, ` +
+        `bad ${badFormat.slice(0, 3).join(' / ') || '-'}`);
+
+    // Pitch: written exactly for names with several pitches.
+    const pitches = new Map();
+    FCT.reference.data().cards.forEach((card) => {
+        if (!card[2]) return;
+        if (!pitches.has(fold(card[1]))) pitches.set(fold(card[1]), new Set());
+        pitches.get(fold(card[1])).add(card[2]);
+    });
+    const wrongPitch = entries.filter((e) => {
+        const several = (pitches.get(fold(e.row.Name)) || new Set()).size > 1;
+        return several ? e.pitch !== e.row.Pitch : e.pitch !== '';
+    });
+    check('Cardmarket pitch only when needed', !wrongPitch.length,
+        wrongPitch.slice(0, 3).map((e) => e.row.Name).join(', '));
+
+    // "Missing in total": one line per name, back side and pitch; quantity = largest playset
+    // of these rows minus all copies owned (also across peculiarities such as the CC label).
+    const cardOf = (r) => [fold(r.Name), fold(r['Backside Name']), r.Pitch].join('|');
+    const keys = entries.map((e) => cardOf(e.row));
+    const wrongNeed = entries.filter((e) => {
+        const rows = ods.collection.rows.filter((r) => r.Id.trim() && cardOf(r) === cardOf(e.row));
+        const playset = Math.max(...rows.map((r) => FCT.util.toInt(r.Playset) || 0));
+        const have = rows.reduce((sum, r) => sum + r._have, 0);
+        return e.quantity !== playset - have;
+    });
+    check('Cardmarket one line per card', new Set(keys).size === keys.length && !wrongNeed.length,
+        `${keys.length - new Set(keys).size} duplicates, ${wrongNeed.length} wrong quantities`);
+
+    // Filters: one set, one rarity; "per set" always writes the set name.
+    const someSet = entries[0].row.Set;
+    const oneSet = cm.wants(ods.collection, { basis: 'total', sets: [someSet] });
+    const rares = cm.wants(ods.collection, { basis: 'total', rarities: ['Rare'] });
+    const perSet = cm.exportCardmarket(ods.collection, { basis: 'set', suffix: 'none',
+        sets: [someSet] });
+    const perSetLines = perSet.text.split('\n').filter(Boolean);
+    check('Cardmarket set and rarity filter', oneSet.length > 0 &&
+        oneSet.every((e) => e.set === someSet) && rares.length > 0 &&
+        rares.every((e) => e.row.Rarity === 'Rare') &&
+        perSetLines.every((line) => line.endsWith(' (' + someSet + ')')),
+        `${someSet}: ${oneSet.length}, Rare: ${rares.length}, per set: ${perSetLines.length}`);
+
+    // Name exceptions of the first tool.
+    const collection = FCT.model.create();
+    collection.rows.push(FCT.model.newRow({ Id: 'XXX001', Name: 'Twelve Petal Kāṣāya',
+        Playset: '1' }));
+    collection.rows.push(FCT.model.newRow({ Id: 'XXX002', Name: 'Lyath Goldmane, Vile Savant',
+        'Backside Name': 'Lyath Goldmane', Playset: '1' }));
+    collection.rows.push(FCT.model.newRow({ Id: 'XXX003', Name: 'A Card',
+        'Backside Name': 'Its Back', Playset: '2', ST: '1' }));
+    const names = cm.exportCardmarket(collection, { basis: 'total' }).text;
+    check('Cardmarket name exceptions', names === '1 A Card // Its Back\n' +
+        '1 Lyath Goldmane, Vile Savant\n1 Twelve Petal Kasaya\n', JSON.stringify(names));
 }
 
 // The skeleton must not contain quantities (it only has the eight identity columns).
@@ -175,6 +243,18 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     const old = FCT.model.fromCsv('"Id","Name","ST"\r\n"WTR001","Rhinar","1"\r\n');
     const warned = old.report.groups.some((g) => g.examples.includes('Overrides'));
     check('2.0.0.0 file without Overrides', old.collection.rows[0].Overrides === '' && !warned);
+}
+
+// Purple pitch: code 4 of the reference data is "Purple"; rows saved as "4" are converted.
+{
+    const code = FCT.DATA.vocab.pitchCodes[4] === 'Purple';
+    const loaded = FCT.model.fromCsv('"Id","Name","Pitch"\r\n"X001","A","4"\r\n' +
+        '"X002","B","Red"\r\n');
+    const rows = loaded.collection.rows;
+    const converted = rows[0].Pitch === 'Purple' && rows[1].Pitch === 'Red';
+    const noted = JSON.stringify(loaded.report).includes('Purple');
+    check('Purple pitch', code && converted && noted,
+        `code ${code}, converted ${converted}, noted ${noted}`);
 }
 
 // Expected reference values against the ODS rows: most rows must match. The deviations per
