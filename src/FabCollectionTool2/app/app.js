@@ -49,7 +49,7 @@ FCT.app = (function () {
         Set: 12, Edition: 5.5, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5, Talent1: 6.5,
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
-        'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 4.5,
+        'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
         Peculiarity: 7, 'Art Treatment': 8.5, Note: 15
     };
     var STEP_WIDTH = 5.5;
@@ -84,6 +84,14 @@ FCT.app = (function () {
             : '';
     }
 
+    // Pitch values get a coloured dot (issue #4); the text stays for filter, sort and search.
+    var PITCH_CLASSES = { Red: 'pitch-red', Yellow: 'pitch-yellow', Blue: 'pitch-blue',
+        Purple: 'pitch-purple' };
+
+    function pitchClass(value) {
+        return PITCH_CLASSES[value] || null;
+    }
+
     function buildColumns() {
         var columns = model.COLUMNS.filter(function (key) {
             return model.columnKind(key) !== 'internal';
@@ -92,7 +100,8 @@ FCT.app = (function () {
             return {
                 key: key, label: key, numeric: numeric, kind: model.columnKind(key),
                 step: numeric, width: numeric ? STEP_WIDTH : WIDTHS[key] || 7,
-                list: model.choices(key) !== null, hint: HINTS[key] || ''
+                list: model.choices(key) !== null, hint: HINTS[key] || '',
+                valueClass: key === 'Pitch' ? pitchClass : null
             };
         });
 

@@ -26,6 +26,7 @@ FCT.gridFilter = (function () {
      *   anchor     the button that opens the panel
      *   title      heading of the panel
      *   values     [{ value, label, count }] in the order to show
+     *   valueClass(value)   optional: extra class of a value's label (e.g. the pitch colour)
      *   selected   Set of ticked values, or null for "all ticked" (no filter)
      *   onChange(selected)   called on every change; null means "all ticked"
      *   onClose()  called when the panel closes
@@ -66,7 +67,8 @@ FCT.gridFilter = (function () {
                     emit();
                 });
                 list.appendChild(el('label', { className: 'lf-item' }, [box,
-                    el('span', { className: 'lf-label', text: v.label }),
+                    el('span', { className: 'lf-label' + (options.valueClass
+                        ? ' ' + (options.valueClass(v.value) || '') : ''), text: v.label }),
                     el('span', { className: 'lf-count', text: v.count.toLocaleString('de-DE') })
                 ]));
             });
