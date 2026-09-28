@@ -5,7 +5,7 @@ Versionsschema **Major.Minor.Release.Build**. Eine neue Version entsteht als Bra
 die dritte Stelle (z. B. 2.2.0.0 → 2.2.1.0). Nach dem Test wird der Branch nach `main`
 gemergt (Veröffentlichung als GitHub Page, Tag) und danach zurück nach `develop`.
 
-## 2.2.0.0 – in Test
+## 2.2.0.0 – 28.09.2026
 
 ### Neu
 - **Export nach Cardmarket** (#7): Der Button *Export → Cardmarket* erzeugt eine Wants-Liste
