@@ -358,6 +358,7 @@ FCT.grid = (function () {
                     anchor: button,
                     title: column.label,
                     values: listValues(column),
+                    valueClass: column.valueClass || null,
                     selected: checks[column.key] || null,
                     onChange: function (selected) {
                         if (selected) checks[column.key] = selected;
@@ -909,6 +910,8 @@ FCT.grid = (function () {
             if (isCursor) classes.push('cursor');
             if (column.numeric && editable && isNaN(util.toInt(value))) classes.push('invalid');
             if (mark && mark.className) classes.push(mark.className);
+            var valueClass = column.valueClass && column.valueClass(text);
+            if (valueClass) classes.push(valueClass);
 
             var title = mark && mark.title ? text + '\n' + mark.title : text;
             var picture = column.key === options.imageColumn && options.hasImage &&
