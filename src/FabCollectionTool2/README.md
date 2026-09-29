@@ -113,6 +113,13 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
   zusammengezählt. „Extra for trade“ wird nach den Regeln des alten Tools berechnet.
   Bestandszeilen, deren Variante oder Foiling die Stammdaten nicht kennen, werden gemeldet und
   nicht geraten.
+- **Fabrary-Zuordnung** (Nachtrag zu Issue #17): Wo Fabrary Set-Namen, Identifier oder
+  Treatments anders schreibt, ersetzt der Export sie nach einer Zuordnung. Mitgeliefert ist
+  `reference/fabrary-map.js`, erzeugt aus einem Fabrary-Export (z. B. volle Treatment-Liste
+  „Alternate Art, Alternate Border, Extended Art“, Identifier ohne Punkte, „Promos“ statt
+  der Promo-Setnamen). Eigene Einträge je Bestand stehen in `<bestand>-config.json` und gehen
+  vor. Der Dialog *Zuordnung …* zeigt beides, nimmt eigene Werte auf und gleicht mit einem
+  Fabrary-Export ab (eindeutige Funde vorausgewählt, unklare zur Wahl).
 
 ## Grenzen dieser Fassung
 
@@ -131,7 +138,7 @@ in `index.html`: `core.js` (Namensraum, Hilfen), `log.js` (Diagnose-Log), `notic
 Stammdatenabgleich, Berechnung),
 `changelog.js`, `storage.js` (Dateien, Arbeitsordner, IndexedDB), `diagnosis.js` (Log-Datei
 mit Rotation), `grid-filter.js`, `card-image.js` (Kartenbilder) und `grid.js` (Tabelle),
-Importe/Exporte,
+Importe/Exporte, `fabrary-map.js` (Fabrary-Zuordnung und Abgleich),
 `reference-update.js`, `tour.js` (Tutorial), `onboarding.js` (Einrichtungs-Assistent),
 `app.js` (Oberfläche).
 
@@ -140,8 +147,10 @@ Importe/Exporte,
 Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.js.
 
 - `tools/build-reference.mjs`: erzeugt `reference/*.js` neu (siehe `reference/README.md`).
+- `tools/build-fabrary-map.mjs`: erzeugt `reference/fabrary-map.js` aus einem Fabrary-Export
+  (siehe `reference/README.md`).
 - `tools/selftest.mjs`: automatische Prüfungen (CSV, ODS-Import, Fabrary-Import/-Export,
-  Round-Trip, Fabrary-Zeilen aus den Stammdaten, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
+  Round-Trip, Fabrary-Zeilen aus den Stammdaten, Fabrary-Zuordnung, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
   Gruppen, Änderungsprotokoll, Erscheinungsdaten, Lückenfüllung, Übernehmen ohne Änderung
   des Bestands, Wertelisten, Platzhalter, Sets aufnehmen, Playset, bearbeitbare Zellen,
   Grenzen von Protokoll und Diagnose-Log, Spaltenreihenfolge, Kartenbilder, Branch-URL,

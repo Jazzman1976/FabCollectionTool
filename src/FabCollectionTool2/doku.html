@@ -206,9 +206,10 @@
             <tr><td><code>collection-log.csv</code></td>
                 <td>das Änderungsprotokoll (die letzten 1.000 Änderungen)</td></tr>
             <tr><td><code>collection-config.json</code></td>
-                <td>Einstellungen zum Bestand, die nicht in die CSV gehören – zurzeit die Sets,
-                    die du ohne Zeilen sammelst (siehe <a href="#sets">Sets aufnehmen</a>).
-                    Ohne Arbeitsordner merkt sich das nur der Browser.</td></tr>
+                <td>Einstellungen zum Bestand, die nicht in die CSV gehören – die Sets, die du
+                    ohne Zeilen sammelst (siehe <a href="#sets">Sets aufnehmen</a>), und deine
+                    eigene Fabrary-Zuordnung (siehe <a href="#fabrary">Fabrary</a>). Ohne
+                    Arbeitsordner merkt sich das nur der Browser.</td></tr>
             <tr><td><code>collection-backup-JJJJMMTT-HHMMSS.csv</code></td>
                 <td>Backups, die du mit <em>Backup</em> anlegst</td></tr>
             <tr><td><code>fct-diagnose.log</code>, <code>fct-diagnose.1.log</code></td>
@@ -756,7 +757,7 @@
             <li><em>Übernehmen</em>, dann <em>Speichern</em>.</li>
         </ol>
         <p>Die Spalten werden über ihre Überschriften erkannt; ihre Reihenfolge ist egal.</p>
-        <h3>Fabrary</h3>
+        <h3 id="fabrary">Fabrary</h3>
         <ul>
             <li><strong>Import:</strong> der Sammlungsexport aus Fabrary. Zeilen mit Menge
                 werden zum Bestand, die Foilings werden zu ST/RF/CF/GF zusammengefasst.</li>
@@ -768,6 +769,23 @@
                 Art“, „Extra for trade“ wird nach den Regeln des alten Tools berechnet. Zeilen
                 deines Bestands, deren Variante oder Foiling die Stammdaten nicht kennen,
                 werden im Bericht genannt und nicht exportiert.</li>
+            <li><strong>Zuordnung …</strong> (Gruppe Export): Fabrary nennt manches anders als
+                die Stammdaten – andere Set-Namen, alle Treatments einer Variante statt eines
+                („Alternate Art, Alternate Border, Extended Art“), Identifier ohne Punkte.
+                Findet Fabrary eine Zeile nicht, kommt die Karte dort nicht an. Die App bringt
+                deshalb eine Zuordnung mit, die der Export verwendet. Im Dialog siehst du sie
+                je Set und je Variante und kannst eigene Werte eintragen; sie gehen der
+                mitgelieferten Zuordnung vor. Ein leeres Feld nimmt den grau angezeigten Wert,
+                „-“ steht für ausdrücklich leer, ↺ entfernt deinen Eintrag. Weitere Sets und
+                Varianten (per Kartennummer) lassen sich hinzufügen. Deine Zuordnung steht in
+                <code>&lt;bestand&gt;-config.json</code>.</li>
+            <li><strong>Mit Fabrary-Export abgleichen …</strong> (im Dialog Zuordnung): Lade
+                in Fabrary deine Sammlung als CSV herunter und wähle die Datei. Die App zeigt
+                nur, wo Fabrary anders heißt als die geltende Zuordnung: Set-Namen, Varianten
+                und unklare Fälle, bei denen mehrere Fabrary-Zeilen passen – dort wählst du
+                die richtige oder lässt sie weg. Eindeutige Funde sind angehakt;
+                <em>Übernehmen</em> trägt sie in deine Zuordnung ein. Varianten, die es bei
+                Fabrary nicht gibt, stehen nur zur Information darunter.</li>
         </ul>
         <p>Ein Import <strong>ersetzt</strong> den geöffneten Bestand; er wird nicht
             zusammengeführt.</p>

@@ -23,7 +23,7 @@ if (!odsFile || !fabraryFile) {
 const FCT = loadApp({
     withReference: true,
     extra: ['app/model.js', 'app/changelog.js', 'app/import-ods.js', 'app/import-fabrary.js',
-        'app/export-fabrary.js', 'app/export-cardmarket.js']
+        'app/fabrary-map.js', 'app/export-fabrary.js', 'app/export-cardmarket.js']
 });
 FCT.importOds.inflateRaw = async (bytes) => new Uint8Array(zlib.inflateRawSync(bytes));
 FCT.reference.install(FCT.DATA, FCT.DATA.info);
@@ -120,20 +120,79 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         'written identically');
 }
 
-// Round trip: Fabrary import -> export -> import gives the same collection. Only the set
-// names differ: the export writes those of the reference data, not Fabrary's own (#17).
-// A second export is identical to the first.
+// Round trip: Fabrary import -> export -> import gives the same collection. Only set names
+// and treatments are written as the Fabrary mapping says. A second export is identical.
 {
     const first = FCT.exportFabrary.exportFabrary(imported.collection).text;
     const again = FCT.importFabrary.importFabrary(first);
+    // The Fabrary mapping writes Fabrary's set names and full treatments, which the import
+    // takes over; the variants stay the same.
     const withoutSet = (collection) => {
         const copy = FCT.model.create();
-        collection.rows.forEach((row) => copy.rows.push(Object.assign({}, row, { Set: '' })));
+        collection.rows.forEach((row) => copy.rows.push(Object.assign({}, row, { Set: '',
+            'Art Treatment': FCT.exportFabrary.treatment(row['Art Treatment'], '', row.Id) })));
         return FCT.model.toCsv(copy);
     };
     check('Fabrary round trip',
         withoutSet(again.collection) === withoutSet(imported.collection) &&
         FCT.exportFabrary.exportFabrary(again.collection).text === first);
+}
+
+/*
+ * Fabrary mapping (issue #17, addendum): with the shipped mapping every row of the export is
+ * written exactly as in Fabrary's own export of 29.09.2026, except the printings Fabrary does
+ * not know; the quantities of that export arrive. Own entries win over shipped ones, and the
+ * comparison finds nothing left to map - but finds a wrong own entry.
+ */
+{
+    const map = FCT.fabraryMap;
+    const fab = FCT.exportFabrary;
+    const fabraryText = fs.readFileSync(path.join(appRoot, '..', '..', 'docs', 'fabrary',
+        'Fabrary-Export 2026-09-29.csv'), 'utf8');
+    const fabraryRecords = FCT.csv.parse(fabraryText).slice(1);
+    const known = new Set(fabraryRecords.map((r) => r.slice(0, 8).join('|')));
+    const rows = fab.baseRows();
+    const result = map.compare(rows, fabraryText);
+    const absent = new Set(result.notInFabrary.map((row) => row.identity.slice(4, 7).join('|')));
+
+    const collection = FCT.importFabrary.importFabrary(fabraryText).collection;
+    const records = FCT.csv.parse(fab.exportFabrary(collection).text).slice(1);
+    const other = records.filter((r) => !known.has(r.slice(0, 8).join('|')) &&
+        !absent.has(r.slice(4, 7).join('|')));
+    const exported = new Map(records.map((r) => [r.slice(0, 8).join('|'), r[8]]));
+    // Printings the reference data does not know (e.g. sets of other branches) are skipped.
+    const numbers = new Set(records.map((r) => r[4]));
+    const lost = fabraryRecords.filter((r) => Number(r[8]) > 0 && numbers.has(r[4]) &&
+        exported.get(r.slice(0, 8).join('|')) !== r[8]);
+    const cards = ['ANQ006', 'FAB375', 'LGS427', 'CRU009', 'SUP208', 'PEN165'];
+    const reached = cards.every((id) => records.filter((r) => r[4] === id)
+        .every((r) => known.has(r.slice(0, 8).join('|'))));
+    check("Fabrary mapping meets Fabrary's export", !other.length && !lost.length && reached,
+        `${records.length} rows, ${other.length} unlike Fabrary, ${absent.size} not in ` +
+            `Fabrary, ${lost.length} quantities lost, ${cards.join(' ')}: ${reached}`);
+    check('Fabrary comparison with the shipped mapping',
+        !result.sets.length && !result.variants.length && !result.unclear.length,
+        `${result.matched} found, ${result.sets.length} sets, ${result.variants.length} ` +
+            `variants, ${result.unclear.length} unclear`);
+
+    // Own entries win; values equal to the shipped ones are not kept.
+    const anq = rows.find((row) => row.identity[4] === 'ANQ006' && row.identity[6] === 'Rainbow');
+    const own = map.empty();
+    map.setSet(own, 'ANQ', 'Test Set');
+    map.setVariant(own, anq, { treatment: 'Alternate Art' });
+    const mapped = map.apply(anq, own);
+    const ownWins = mapped.own && mapped.identity[3] === 'Test Set' &&
+        mapped.identity[7] === 'Alternate Art';
+    const wrong = map.compare(rows, fabraryText, own);
+    const found = wrong.sets.length === 1 && wrong.variants.length === 1 &&
+        wrong.variants[0].fabrary.treatment === 'Alternate Art, Alternate Border, Extended Art';
+    map.setSet(own, 'ANQ', 'Promos');
+    map.setVariant(own, anq, { treatment: 'Alternate Art, Alternate Border, Extended Art' });
+    const normal = map.normalize({ sets: { ANQ: 'X', BAD: 1 }, variants: { k: { set: 'Y',
+        other: 'Z' }, empty: {} } });
+    check('Fabrary mapping: own entries', ownWins && found && map.isEmpty(own) &&
+        JSON.stringify(normal) === '{"sets":{"ANQ":"X"},"variants":{"k":{"set":"Y"}}}',
+        `own wins ${ownWins}, wrong entry found ${found}, reset ${map.isEmpty(own)}`);
 }
 
 // Cardmarket wants list (issue #7) from the ODS example: line format, sorting, pitch only for

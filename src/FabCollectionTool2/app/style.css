@@ -1052,6 +1052,23 @@ dialog menu .left + button:not(.left) {
 .take-over p.what {
     padding-left: 0;
 }
+/* Fabrary-Zuordnung (issue #17): sets and variants with the fields of the mapping. */
+.fabrary-map table.row-form tbody th {
+    font-weight: normal;
+    white-space: normal;
+}
+.fabrary-map table.row-form tbody th .what {
+    padding-left: 0;
+}
+.fabrary-map .add-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0;
+}
+.fabrary-map input[type=search] {
+    margin: 0 0 4px;
+}
 /* Cardmarket export dialog: the set list scrolls on its own, the options stay visible. */
 .cardmarket-export h3 {
     margin: 10px 0 4px;

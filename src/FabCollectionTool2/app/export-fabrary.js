@@ -5,7 +5,8 @@
  * one row per card, printing variant and foiling that exists - for all sets, whether they are
  * in the collection or not. "Have" and "Extra for trade" always carry a number; a card the
  * collection does not have gets 0, so that Fabrary shows it as missing. Identifier, name and
- * set are written as the first tool did (FabraryDto.cs); Fabrary accepted its files.
+ * set are written as the first tool did (FabraryDto.cs); where Fabrary names things
+ * differently, the Fabrary mapping (fabrary-map.js) replaces identifier, set or treatment.
  * Collection rows whose variant or foiling the reference data does not know are skipped and
  * reported - they are never guessed.
  */
@@ -55,18 +56,33 @@ FCT.exportFabrary = (function () {
         return result;
     }
 
+    // The treatments of the reference data as Fabrary names them, all of them, e.g.
+    // "Alternate Art, Alternate Border, Extended Art" (Micro Text Box is Extended Art).
+    function fullTreatment(art) {
+        var vocab = FCT.DATA.vocab;
+        var result = [];
+        String(art || '').split(',').forEach(function (t) {
+            t = t.trim();
+            t = vocab.fabraryTreatments[t] || t;
+            if (t && result.indexOf(t) < 0) result.push(t);
+        });
+        return result.join(', ');
+    }
+
     // Lookup key of a Fabrary variant: card number | edition | foiling | treatment.
     function variantKey(id, edition, foilingName, art) {
         return [id, edition, foilingName, treatment(art, foilingName, id)].join('|');
     }
 
     /*
-     * The rows of the export from the reference data, sorted like Fabrary's own export, and
-     * a lookup variantKey() -> row indexes (several cards can share a card number, e.g. an
-     * angel and its figment; Fabrary lists each of them). Rows that Fabrary would see as the
-     * same (e.g. "Micro Text Box" and "Extended Art" of one card number) are written once.
+     * The rows of the export from the reference data, without mapping: one per card,
+     * printing variant (with all its treatments) and foiling. Each row is
+     * { identity, setCode, art, key, variantKey, order }; identity is
+     * [identifier, name, pitch, set, set number, edition, foiling, treatment] by the rules
+     * of the export, key the key of the Fabrary mapping. Printings that only differ in names
+     * Fabrary does not know (e.g. "Micro Text Box" and "Extended Art") give one row.
      */
-    function referenceRows() {
+    function baseRows() {
         var cards = new Map();
         FCT.reference.data().cards.forEach(function (c) {
             cards.set(c[0], { name: c[1], pitch: c[2] });
@@ -80,15 +96,33 @@ FCT.exportFabrary = (function () {
             FOILINGS.forEach(function (letter) {
                 if (String(p[5]).indexOf(letter) < 0) return;
                 var foilingName = FOILING_NAMES[letter];
-                var identity = [identifier(card.name, card.pitch), card.name, card.pitch,
-                    FCT.reference.setName(p[1]), p[0], p[2], foilingName,
-                    treatment(p[3], foilingName, p[0])];
-                var text = identity.join('|');
-                if (seen.has(text)) return;
-                seen.add(text);
-                rows.push({ identity: identity, order: FOILINGS.indexOf(letter),
-                    key: variantKey(p[0], p[2], foilingName, p[3]), have: 0, extra: 0 });
+                var id = identifier(card.name, card.pitch);
+                var art = fullTreatment(p[3]);
+                var key = FCT.fabraryMap.key(p[0], p[2], foilingName, art, id);
+                if (seen.has(key)) return;
+                seen.add(key);
+                rows.push({
+                    identity: [id, card.name, card.pitch, FCT.reference.setName(p[1]), p[0],
+                        p[2], foilingName, treatment(p[3], foilingName, p[0])],
+                    setCode: p[1], art: art, key: key, order: FOILINGS.indexOf(letter),
+                    variantKey: variantKey(p[0], p[2], foilingName, p[3])
+                });
             });
+        });
+        return rows;
+    }
+
+    /*
+     * The rows of the export with the Fabrary mapping applied (own = the collection's own
+     * mapping), sorted like Fabrary's own export, and a lookup variantKey -> row indexes
+     * (several cards can share a card number, e.g. an angel and its figment; Fabrary lists
+     * each of them).
+     */
+    function referenceRows(own) {
+        var rows = baseRows().map(function (row) {
+            var mapped = FCT.fabraryMap.apply(row, own);
+            return { identity: mapped.identity, order: row.order, key: row.variantKey,
+                art: row.art, mapped: mapped.changed, byOwn: mapped.own, have: 0, extra: 0 };
         });
 
         rows.sort(function (a, b) {
@@ -153,7 +187,7 @@ FCT.exportFabrary = (function () {
         var util = FCT.util;
         var model = FCT.model;
         var report = FCT.createReport('Export nach Fabrary');
-        var target = referenceRows();
+        var target = referenceRows(collection.fabraryOverrides);
         var exported = 0;
         var skipped = 0;
 
@@ -210,13 +244,19 @@ FCT.exportFabrary = (function () {
                 }
 
                 // Several cards share one card number (e.g. an angel and its figment): the
-                // name decides. Without an exact match the first row is taken and reported.
+                // name decides, then the full treatment. Without an exact match the first
+                // row is taken and reported.
                 var at = candidates[0];
                 if (candidates.length > 1) {
                     var byName = candidates.filter(function (i) {
                         return util.fold(target.rows[i].identity[1]) === util.fold(row.Name);
                     });
-                    if (byName.length) at = byName[0];
+                    var art = fullTreatment(row['Art Treatment']);
+                    var byArt = byName.filter(function (i) {
+                        return target.rows[i].art === art;
+                    });
+                    if (byArt.length) at = byArt[0];
+                    else if (byName.length) at = byName[0];
                     else if (count > 0) {
                         report.add('warn', 'Mehrdeutig, erste passende Fabrary-Zeile genommen',
                             row.Id + ' ' + row.Name);
@@ -249,6 +289,12 @@ FCT.exportFabrary = (function () {
             ' davon exportiert');
         report.summary.push(target.rows.length + ' Fabrary-Zeilen aus den Stammdaten ' +
             'geschrieben, ' + withQuantity.length + ' mit Menge > 0, die übrigen mit 0');
+        var mapped = target.rows.filter(function (row) { return row.mapped; });
+        if (mapped.length) {
+            var byOwn = mapped.filter(function (row) { return row.byOwn; }).length;
+            report.summary.push(mapped.length + ' Zeilen per Fabrary-Zuordnung angepasst' +
+                (byOwn ? ' (davon ' + byOwn + ' mit eigener Zuordnung)' : ''));
+        }
         if (skipped) {
             report.summary.push(skipped + ' Exemplare übersprungen: Variante oder Foiling ' +
                 'kennen die Stammdaten nicht');
@@ -257,5 +303,5 @@ FCT.exportFabrary = (function () {
     }
 
     return { exportFabrary: exportFabrary, identifier: identifier, treatment: treatment,
-        HEADER: HEADER };
+        fullTreatment: fullTreatment, baseRows: baseRows, HEADER: HEADER };
 })();

@@ -2,7 +2,7 @@
 
 **Issue:** https://github.com/Jazzman1976/FabCollectionTool/issues/17
 **Branch:** `feature/17-fabrary-export-thefabcube` · **Stand:** 29. September 2026
-**Status:** umgesetzt, PR nach `develop`; Nachtrag Fabrary-Zuordnung geplant (siehe unten)
+**Status:** umgesetzt, PR nach `develop`; Nachtrag Fabrary-Zuordnung umgesetzt (siehe unten)
 
 ## Kontext
 Heute kopiert der Fabrary-Export das mitgelieferte Skelett (`reference/fabrary-skeleton.js`,
@@ -124,7 +124,7 @@ wenn sich mehrere Karten eine Kartennummer teilen.
 
 ## Nachtrag: Fabrary-Zuordnung (Overrides und Abgleich)
 
-**Stand:** 29.09.2026 · **Status:** geplant, wartet auf #18 und „Ready for dev“
+**Stand:** 29.09.2026 · **Status:** umgesetzt, PR #20 nach `develop`
 
 ### Kontext
 Elmars Test des Exports: ANQ006 (und 5 weitere Karten mit Bestand) kommen in Fabrary nicht an.
@@ -231,3 +231,63 @@ fabrary: {
   Fabrary-Datei → Vorschau ohne Funde (Grund-Mapping deckt alles ab), nach Zurücksetzen eines
   Eintrags erscheint er als Fund; keine Konsolenfehler.
 - **Elmar** importiert den neuen Export in Fabrary: die 6 Karten kommen an.
+
+### Umsetzung und Abweichungen (Nachtrag)
+- `develop` mit #18 per Merge geholt, ohne Konflikte.
+- **Schlüssel mit allen Treatments:** the-fab-cube führt je Variante die volle Liste (ANQ006:
+  „Alternate Art, Alternate Border, Extended Art“). Der Schlüssel der Zuordnung nimmt deshalb
+  diese Liste statt des einen Export-Treatments. Fabrary unterscheidet z. B. HER125 Cold
+  „Alternate Art“ und „Alternate Art, Full Art“. Solche Varianten wurden bisher zu einer
+  Zeile zusammengefasst und stehen jetzt getrennt (3 Fälle: HER125, ROS008, UPR103). Der Export
+  hat jetzt 16.602 statt 16.599 Zeilen. Bestandszeilen gehen bei mehreren passenden Zeilen
+  an die mit gleichem Namen und gleicher Treatment-Liste.
+- `app/fabrary-map.js`: `key`, `apply`, `value(s)`, `setVariant`, `setSet`, `normalize`,
+  `compare`. Der Abgleich wählt die Fabrary-Zeile so: gleiche Kartennummer, Edition und
+  Foiling; bei mehreren Karten der Name; dann die gleiche Treatment-Liste (Reihenfolge egal),
+  sonst ein einziger Kandidat, sonst das gleiche Export-Treatment, sonst unklar.
+  Set-Namen werden je Set-Code gefunden, wenn Fabrary innerhalb des Codes nur einen Namen
+  nutzt, sonst je Variante.
+- `export-fabrary.js`: `baseRows()` (Zeilen ohne Zuordnung, auch für Dialog und Build-Skript),
+  `fullTreatment()`. Der Bericht nennt „N Zeilen per Fabrary-Zuordnung angepasst (davon M mit
+  eigener Zuordnung)“.
+- **Grund-Mapping** aus `docs/fabrary/Fabrary-Export 2026-09-29.csv`: 55 Sets, 150 Varianten,
+  keine unklaren Fälle. 33 Varianten gibt es bei Fabrary nicht, z. B. UPR225, SMP007–020,
+  AUR001, JDG000 Cold.
+- **Dialog „Zuordnung …“** (Gruppe Export): Tabellen Sets und Varianten. Grau steht der Wert
+  ohne eigenen Eintrag, eigene Werte sind markiert wie lokale Änderungen. „-“ bedeutet
+  ausdrücklich leer, ↺ entfernt den eigenen Eintrag. Sets kommen per Auswahl dazu, Varianten
+  per Kartennummer; die Varianten lassen sich durchsuchen. „Mit Fabrary-Export abgleichen …“
+  übernimmt zuerst die Eingaben, zeigt dann die Vorschau (Set-Namen, Varianten, Unklar mit
+  Auswahl, „Bei Fabrary nicht vorhanden“ zur Information) und öffnet danach wieder die
+  Zuordnung. Jede Änderung steht im Protokoll („Fabrary-Zuordnung“) und im Diagnose-Log.
+- **Zusätzlich:** Ein Import (ODS/Fabrary) behält die eigene Fabrary-Zuordnung. Sie gehört
+  zum Nutzer, nicht zu den importierten Daten.
+- Konfigurationsdatei: Abschnitt `fabrary` nur, wenn es eigene Einträge gibt, sortiert nach
+  Schlüsseln. Ohne Arbeitsordner trägt die Kopie im Browser ihn mit. Der Hinweis zur
+  Konfigurationsdatei nennt jetzt auch die Zuordnung.
+- Gold LGS229: Die Zeile ist identisch mit Fabrarys Export und wird richtig zugeordnet. Warum
+  Fabrary die Menge nicht übernommen hat, bleibt offen.
+- Unser Export aus dem Test (`docs/screenshots/Pull Request #17/fabrary-20260929-165014.csv`)
+  bleibt ungetrackt liegen.
+
+### Ergebnis der Abnahme (Nachtrag, 29.09.2026)
+- Selbsttest grün, neue Prüfungen:
+  - „Fabrary mapping meets Fabrary's export“: 16.602 Zeilen, **alle** identisch mit Fabrarys
+    Export außer den Varianten, die es dort nicht gibt. Keine Menge geht verloren. ANQ006,
+    FAB375, LGS427, CRU009, SUP208 und PEN165 sind zeichengleich.
+  - „Fabrary comparison with the shipped mapping“: 16.569 gefunden, keine Abweichung.
+  - „Fabrary mapping: own entries“: Vorrang, falscher Eintrag wird gefunden, Zurücksetzen,
+    `normalize`.
+  - Rundlauf mit Treatments auf das Export-Treatment reduziert.
+  - Info mit dem alten Beispiel-Export: 16.302 statt bisher 13.470 von 16.571 Zeilen
+    identisch.
+- Chrome über localhost mit Arbeitsordner (privates Dateisystem des Browsers):
+  - Fabrary-Export importiert, gespeichert.
+  - „Zuordnung …“ zeigt 55 Sets und 150 Varianten.
+  - ANQ → „Test-Set“: steht in `collection-config.json` und wirkt im Export. Die ANQ006-Zeile
+    trägt „Alternate Art, Alternate Border, Extended Art“, `argh-smash-yellow` ist ohne Punkte.
+  - Abgleich mit der Fabrary-Datei findet genau diesen Eintrag („Test-Set“ → „Promos“).
+    Übernehmen leert die eigene Zuordnung.
+  - Treatment „-“ wird als leerer Wert gespeichert und ist nach dem Neuladen noch da.
+  - Keine Konsolenfehler, keine Fehler im Diagnose-Log.
+- Offen: Elmar importiert den neuen Export in Fabrary.
