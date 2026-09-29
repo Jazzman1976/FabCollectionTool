@@ -5,6 +5,7 @@
  * (tour.js): the assistant sets something up, the tutorial explains the page. It starts by
  * itself at the first visit when there is no collection yet, and can be repeated via
  * "Hilfe" > "Einrichtung". The dialogs and actions come from app.js (see init).
+ * Steps: 1 how to start, 2 where the files go, 3 announce and run the chosen way.
  */
 FCT.onboarding = (function () {
     var el = FCT.util.el;
@@ -89,20 +90,71 @@ FCT.onboarding = (function () {
         });
     }
 
+    // A short dialog of the assistant with "Abbrechen" and "Weiter". Resolves true for Weiter.
+    function explain(heading, texts) {
+        return app.openDialog({
+            title: heading,
+            body: el('div', {}, texts.map(function (text) { return el('p', { text: text }); })),
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Weiter', value: 'next', primary: true }
+            ]
+        }).then(function (value) { return value === 'next'; });
+    }
+
+    /*
+     * Step 3, before the file dialog (issue #3): says which file is picked next, so that the
+     * second window after the folder dialog does not come as a surprise. "new" needs no
+     * announcement, its own dialog explains itself. Resolves false if cancelled.
+     */
+    function announce(way) {
+        var file = {
+            ods: 'die .ods-Datei deines alten FabCollectionTool',
+            fabrary: 'die CSV-Datei, die du bei Fabrary exportiert hast'
+        }[way];
+        if (file) {
+            return explain(title(3, 'Datei auswählen'), [
+                'Im nächsten Fenster wählst du ' + file + '.',
+                'Danach zeigt eine Vorschau, was übernommen wird, und dein Bestand wird als ' +
+                    'neue Datei angelegt.'
+            ]);
+        }
+        if (way === 'open') {
+            return explain(title(3, 'Bestand auswählen'), [app.hasFolder()
+                ? 'Im nächsten Fenster wählst du deinen Bestand aus dem Arbeitsordner „' +
+                    app.folderName() + '“.'
+                : 'Im nächsten Fenster wählst du deine Bestandsdatei (z. B. collection.csv).']);
+        }
+        return Promise.resolve(true);
+    }
+
+    // Before an import is saved: says that the file name comes next. Resolves false if cancelled.
+    function announceSave() {
+        return explain('Einrichtung – Bestand speichern', [app.hasFolder()
+            ? 'Der Import ist übernommen. Jetzt legst du den Namen der Bestandsdatei im ' +
+                'Arbeitsordner fest.'
+            : 'Der Import ist übernommen. Im nächsten Fenster wählst du Ort und Namen der ' +
+                'Bestandsdatei.']);
+    }
+
     // Step 3: runs the chosen way. Resolves true if a collection is there afterwards.
     function runWay(way) {
         var before = { file: app.fileName(), rows: app.rowCount() };
         var run;
-        if (way === 'new') run = app.newCollection({ thenAddSets: true });
-        else if (way === 'ods') run = app.importOds();
-        else if (way === 'fabrary') run = app.importFabrary();
+        if (way === 'new') {
+            run = app.newCollection({ thenAddSets: true, title: title(3, 'Neuer Bestand') });
+        } else if (way === 'ods') run = app.importOds({ assistant: true });
+        else if (way === 'fabrary') run = app.importFabrary({ assistant: true });
         else run = app.open();
         return Promise.resolve(run).then(function () {
             var changed = app.fileName() !== before.file || app.rowCount() !== before.rows;
             if (!changed) return false;
             // An import is not saved yet: save it right away, so it is a file.
             if ((way === 'ods' || way === 'fabrary') && app.dirty()) {
-                return Promise.resolve(app.save()).then(function () { return true; });
+                return announceSave().then(function (go) {
+                    return go ? Promise.resolve(app.save()).then(function () { return true; })
+                        : false;
+                });
             }
             return true;
         });
@@ -146,6 +198,8 @@ FCT.onboarding = (function () {
             if (way === 'cancel') return false;
             chosen = way;
             return askPlace();
+        }).then(function (go) {
+            return go ? announce(chosen) : false;
         }).then(function (go) {
             return go ? runWay(chosen) : false;
         }).then(function (done) {
