@@ -2959,13 +2959,23 @@ FCT.app = (function () {
                 });
             }
 
-            // Marks fields whose value differs from the reference data.
+            var referenceCell = el('td', { className: 'reference', text: reference });
+
+            // Marks fields whose value differs from the reference data. An empty value on
+            // either side shows "[leer]" (issue #25): in the column of the reference data by
+            // CSS, in a text field as placeholder.
             function mark() {
                 var probe = {};
                 probe[key] = input.value;
                 var differs = kind === 'reference' && model.deviates(probe, key, expected);
                 input.classList.toggle('override', differs);
                 if (reset) reset.disabled = !differs;
+                referenceCell.classList.toggle('empty-mark', differs && reference === '');
+                if (input.tagName === 'INPUT') {
+                    var empty = differs && input.value === '';
+                    input.placeholder = empty ? '[leer]' : '';
+                    input.classList.toggle('empty-mark', empty);
+                }
             }
             input.addEventListener('input', mark);
             input.addEventListener('change', mark);
@@ -2975,7 +2985,7 @@ FCT.app = (function () {
             return el('tr', {}, [
                 el('th', { text: label }),
                 el('td', {}, [input]),
-                el('td', { className: 'reference', text: reference }),
+                referenceCell,
                 el('td', {}, [reset])
             ]);
         });
