@@ -68,11 +68,12 @@ Ready for dev, In progress, In review, Done. Remote heißt lokal `github`, in de
   „offen bei Elmar“-Listen.
 
 ## Release (Atlassian GitFlow)
-- `release/<Major.Minor.0.0>` von `develop`. **Erst dort** Versionsnummer (`VERSION`,
+- Versionsschema **Major.Minor.Release** (dreistellig seit 2.4.0, z. B. `2.4.0`).
+- `release/<Major.Minor.0>` von `develop`. **Erst dort** Versionsnummer (`VERSION`,
   `FCT.VERSION` in `app/core.js`, alle `?v=` in `index.html` und `doku.html`, README-Titel)
   und Release Notes (`src/FabCollectionTool2/RELEASE-NOTES.md`).
 - Vorher prüfen: Stammdaten-Stand gegen the-fab-cube `develop` (`reference/README.md`).
-- Jede Korrektur auf dem Release-Branch erhöht die dritte Stelle (2.3.0.0 → 2.3.1.0).
+- Jede Korrektur auf dem Release-Branch erhöht die dritte Stelle (2.4.0 → 2.4.1).
   Fehler nach der Veröffentlichung: `hotfix/<Version>` von `main`.
 - PR nach `main` (Elmar merged, die Action `pages.yml` testet und veröffentlicht), Tag
   `<Version>` (annotiert) auf `main`, danach PR `main` → `develop`.
