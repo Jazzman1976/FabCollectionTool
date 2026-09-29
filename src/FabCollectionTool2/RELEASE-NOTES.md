@@ -1,9 +1,31 @@
 # Release Notes FabCollectionTool 2
 
-Versionsschema **Major.Minor.Release.Build**. Eine neue Version entsteht als Branch
-`release/<Version>` von `develop`. Jede Erweiterung oder Korrektur auf dem Release-Branch erhöht
-die dritte Stelle (z. B. 2.2.0.0 → 2.2.1.0). Nach dem Test wird der Branch nach `main`
-gemergt (Veröffentlichung als GitHub Page, Tag) und danach zurück nach `develop`.
+Versionsschema **Major.Minor.Release** (seit 2.4.0; bis 2.3.1.0 mit vierter Stelle *Build*,
+die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>` von
+`develop`. Jede Erweiterung oder Korrektur auf dem Release-Branch erhöht die dritte Stelle
+(z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
+GitHub Page, Tag) und danach zurück nach `develop`.
+
+## 2.4.0 – 29.09.2026
+
+### Neu
+- **Set-Gruppen gemeinsam auf- und zuklappen** (#27): Im Kopf jedes Sets öffnet **⊞** das
+  Set mit allen Talent/Class-Gruppen darunter, **⊟** schließt alle Gruppen und lässt das Set
+  offen – wie die Gliederung 3 bzw. 2, aber nur für dieses Set. Auf der Set-Zeile geht das
+  auch mit **Shift+→** / **Shift+←**. Der Zustand wird gemerkt wie jedes Auf- und Zuklappen.
+
+### Verbessert
+- **Leere Abweichungen sichtbar** (#25): Ein leeres Feld, das von den Stammdaten abweicht,
+  zeigt in der Tabelle **„[leer]“** in der Farbe der Markierung (orange, lokal geändert
+  violett). Im Zeilendialog steht „[leer]“ in der Spalte *Stammdaten*, wenn dort nichts steht,
+  und als Platzhalter eines geleerten Felds. „[leer]“ ist nur eine Anzeige: Es wird nie
+  gespeichert, kopiert, gesucht oder exportiert.
+
+### Entwicklung
+- **Versionsnummer dreistellig**: *Major.Minor.Release*, die ungenutzte Build-Stelle entfällt.
+- `CLAUDE.md` im Wurzelordner hält die Arbeitsregeln fest (Sprache, Code, Board, GitFlow,
+  Release, Selbsttest), damit jede Sitzung – auch ein Cloud-Agent – gleich arbeitet.
+- Stammdaten vor dem Release geprüft: the-fab-cube `develop` unverändert auf `e56071b`.
 
 ## 2.3.1.0 – 29.09.2026
 

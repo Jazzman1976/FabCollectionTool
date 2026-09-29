@@ -711,6 +711,18 @@ body.edit-mode .grid td.no-printing {
 .grid td.stale:hover {
     background: var(--stale-bg);
 }
+/* An empty value that differs (issue #25): "[leer]" in the colour of its mark. Drawn by CSS
+   only, so it is never part of the value. */
+.grid td.empty-mark::after {
+    content: '[leer]';
+    font-style: italic;
+}
+.grid td.stale.empty-mark::after {
+    color: var(--stale);
+}
+.grid td.override.empty-mark::after {
+    color: var(--override);
+}
 .cell-editor option.reference {
     font-weight: bold;
 }
@@ -754,6 +766,26 @@ body.edit-mode .grid td.no-printing {
     margin-left: 1em;
     color: var(--muted);
     font-weight: normal;
+}
+/* Set header: open or close all its talent/class groups (issue #27) */
+.grid tr.group .group-all {
+    margin-left: 0.8em;
+}
+.grid tr.group .group-all button {
+    padding: 0 3px;
+    margin: 0 1px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--group1-line);
+    font: inherit;
+    font-weight: normal;
+    line-height: 1.1;
+    cursor: pointer;
+}
+.grid tr.group .group-all button:hover {
+    border-color: var(--accent);
+    background: var(--head);
+    color: var(--fg);
 }
 
 /* Status column at the left edge */
@@ -1147,6 +1179,15 @@ table.row-form input.override {
 }
 table.row-form td.reference {
     color: var(--muted);
+}
+table.row-form td.reference.empty-mark::after {
+    content: '[leer]';
+    font-style: italic;
+    color: var(--stale);
+}
+table.row-form input.empty-mark::placeholder {
+    font-style: italic;
+    color: var(--stale);
 }
 table.row-form button.reset {
     padding: 0 6px;
