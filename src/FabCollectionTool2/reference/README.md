@@ -50,5 +50,5 @@ wurden.
    Das Skript nennt unklare Fälle und Varianten, die es bei Fabrary nicht gibt; unklare
    bleiben draußen und lassen sich in der App je Bestand zuordnen.
 3. Selbsttest mit dieser Datei ausführen
-   (`node tools/selftest.mjs <altes.ods> "<Fabrary-Export.csv>" …`): „Fabrary mapping meets
-   Fabrary's export“ muss grün sein.
+   (`node tools/selftest.mjs … --fabrary-current "<Fabrary-Export.csv>"`): „Fabrary mapping
+   meets Fabrary's export“ und „Fabrary comparison with the shipped mapping“ müssen grün sein.

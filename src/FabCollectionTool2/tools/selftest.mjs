@@ -3,7 +3,9 @@
  *
  * Usage (from the tool folder):
  *   node tools/selftest.mjs <example.ods> <fabrary-export.csv> [folder with source csv files]
- * The Fabrary export should be a current one: the Fabrary mapping is checked against it.
+ *       [--fabrary-current <current fabrary-export.csv>]
+ * With --fabrary-current the shipped Fabrary mapping is checked against a current export of
+ * Fabrary (before a release); without it these checks are skipped, e.g. in the GitHub Action.
  *
  * The inputs are the user's own files; they are only read, never copied into the repository.
  */
@@ -12,10 +14,15 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { loadApp, appRoot } from './load-app.mjs';
 
-const [odsFile, fabraryFile, sourceDir] = process.argv.slice(2);
-if (!odsFile || !fabraryFile) {
+// Read the command line: positional arguments and the optional current Fabrary export.
+const args = process.argv.slice(2);
+const currentAt = args.indexOf('--fabrary-current');
+const currentFile = currentAt >= 0 ? args[currentAt + 1] : '';
+if (currentAt >= 0) args.splice(currentAt, 2);
+const [odsFile, fabraryFile, sourceDir] = args;
+if (!odsFile || !fabraryFile || (currentAt >= 0 && !currentFile)) {
     console.error('Usage: node tools/selftest.mjs <example.ods> <fabrary-export.csv> ' +
-        '[source folder]');
+        '[source folder] [--fabrary-current <current fabrary-export.csv>]');
     process.exit(1);
 }
 
@@ -144,16 +151,17 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
 }
 
 /*
- * Fabrary mapping (issue #17, addendum): with the shipped mapping every row of the export is
- * written exactly as in the given Fabrary export (a current one, as the mapping was built
- * from), except the printings Fabrary does not know; the quantities of that export arrive.
- * Own entries win over shipped ones, and the comparison finds nothing left to map - but finds
- * a wrong own entry.
+ * Fabrary mapping against a current Fabrary export (issue #17, addendum; only with
+ * --fabrary-current): with the shipped mapping every row of the export is written exactly as
+ * in that export, except the printings Fabrary does not know; its quantities arrive, and the
+ * comparison finds nothing left to map.
  */
-{
+if (!currentFile) {
+    console.log('SKIP Fabrary mapping against a current Fabrary export (--fabrary-current)');
+} else {
     const map = FCT.fabraryMap;
     const fab = FCT.exportFabrary;
-    const fabraryText = example;
+    const fabraryText = fs.readFileSync(currentFile, 'utf8');
     const fabraryRecords = FCT.csv.parse(fabraryText).slice(1);
     const known = new Set(fabraryRecords.map((r) => r.slice(0, 8).join('|')));
     const rows = fab.baseRows();
@@ -179,8 +187,23 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         !result.sets.length && !result.variants.length && !result.unclear.length,
         `${result.matched} found, ${result.sets.length} sets, ${result.variants.length} ` +
             `variants, ${result.unclear.length} unclear`);
+}
 
-    // Own entries win; values equal to the shipped ones are not kept.
+/*
+ * Own Fabrary mapping entries (issue #17, addendum), without any file of Fabrary: the export
+ * of an empty collection stands in for Fabrary's export. Compared with it, the shipped mapping
+ * leaves nothing to map; own entries win over shipped ones, a wrong own entry is found, and
+ * values equal to the shipped ones are not kept.
+ */
+{
+    const map = FCT.fabraryMap;
+    const fab = FCT.exportFabrary;
+    const rows = fab.baseRows();
+    const fabraryText = fab.exportFabrary(FCT.model.create()).text;
+    const none = map.compare(rows, fabraryText);
+    const clean = !none.error && !none.sets.length && !none.variants.length &&
+        !none.unclear.length && !none.notInFabrary.length;
+
     const anq = rows.find((row) => row.identity[4] === 'ANQ006' && row.identity[6] === 'Rainbow');
     const own = map.empty();
     map.setSet(own, 'ANQ', 'Test Set');
@@ -195,9 +218,10 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     map.setVariant(own, anq, { treatment: 'Alternate Art, Alternate Border, Extended Art' });
     const normal = map.normalize({ sets: { ANQ: 'X', BAD: 1 }, variants: { k: { set: 'Y',
         other: 'Z' }, empty: {} } });
-    check('Fabrary mapping: own entries', ownWins && found && map.isEmpty(own) &&
+    check('Fabrary mapping: own entries', clean && ownWins && found && map.isEmpty(own) &&
         JSON.stringify(normal) === '{"sets":{"ANQ":"X"},"variants":{"k":{"set":"Y"}}}',
-        `own wins ${ownWins}, wrong entry found ${found}, reset ${map.isEmpty(own)}`);
+        `nothing left to map ${clean}, own wins ${ownWins}, wrong entry found ${found}, ` +
+            `reset ${map.isEmpty(own)}`);
 }
 
 // Cardmarket wants list (issue #7) from the ODS example: line format, sorting, pitch only for

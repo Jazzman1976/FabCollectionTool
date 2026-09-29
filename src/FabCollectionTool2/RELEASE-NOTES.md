@@ -5,6 +5,65 @@ Versionsschema **Major.Minor.Release.Build**. Eine neue Version entsteht als Bra
 die dritte Stelle (z. B. 2.2.0.0 → 2.2.1.0). Nach dem Test wird der Branch nach `main`
 gemergt (Veröffentlichung als GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.3.1.0 – 29.09.2026
+
+### Korrigiert
+- **Veröffentlichung von 2.3.0.0**: Die GitHub Action hat die Page nicht erneuert, weil drei
+  Prüfungen des Selbsttests einen aktuellen Fabrary-Export brauchten, den die Action nicht hat
+  (er liegt bewusst nicht im Repository). Die App selbst ist unverändert. Diese Version
+  enthält alles aus 2.3.0.0.
+
+### Entwicklung
+- Selbsttest: Die Prüfungen der Fabrary-Zuordnung an einem aktuellen Fabrary-Export laufen
+  nur noch mit `--fabrary-current <Datei>` (vor einem Release) und werden sonst übersprungen.
+  Die Prüfung der eigenen Zuordnung braucht keine Fabrary-Datei mehr und läuft auch in der
+  Action.
+
+## 2.3.0.0 – 29.09.2026
+
+### Neu
+- **Fabrary-Export aus the-fab-cube** (#17): Der Export enthält jetzt **alle Karten** aus den
+  Stammdaten, jede Variante in jedem Foiling, das es gibt, aus allen Sets. Karten, die du nicht
+  hast, stehen mit **0** darin, damit Fabrary sie als fehlend anzeigt. Das mitgelieferte
+  Fabrary-Skelett entfällt. Bestandszeilen, deren Variante die Stammdaten nicht kennen, nennt
+  der Bericht.
+- **Fabrary-Zuordnung** (#17): Wo Fabrary anders benennt – Set-Namen, alle Treatments einer
+  Variante („Alternate Art, Alternate Border, Extended Art“), Identifier ohne Punkte –, schreibt
+  der Export Fabrarys Namen. Dafür bringt die App eine Zuordnung mit, erzeugt aus einem
+  aktuellen Fabrary-Export. Karten wie ANQ006 (Fyendal's Spring Tunic) oder „Argh… Smash!“, die
+  Fabrary bisher nicht erkannte, kommen jetzt an.
+  - *Export → Zuordnung …* zeigt die Zuordnung je Set und je Variante. Eigene Einträge gehen
+    vor und stehen in der Konfigurationsdatei des Bestands.
+  - *Mit Fabrary-Export abgleichen …* liest eine Sammlungs-CSV von Fabrary und zeigt nur die
+    Abweichungen zur geltenden Zuordnung: eindeutige angehakt, unklare zur Auswahl.
+- **Sets aufnehmen ohne leere Zeilen** (#18): Die Varianten eines aufgenommenen Sets stehen
+  standardmäßig nur grau (○) in der Tabelle. Erst eine Menge schreibt eine Zeile in die
+  Bestandsdatei. Wie bisher als Zeilen mit leeren Mengen aufzunehmen, ist im Dialog wählbar
+  (die Wahl wird gemerkt).
+  - Werden alle Mengen einer Zeile geleert und hat sie sonst nichts Eigenes (Notiz,
+    abweichendes Playset, lokale Änderung ✱), wird sie wieder grau.
+  - *Bestand → Leere Zeilen entfernen …* räumt vorhandene leere Zeilen auf; ihre Sets bleiben
+    gesammelt, Rückgängig ist möglich.
+  - Sets, die du ohne Zeilen sammelst, lassen sich im Dialog *Sets aufnehmen* wieder aufgeben.
+- **Konfigurationsdatei** (#18): `<bestand>-config.json` neben Bestand und Protokoll hält, was
+  nicht in die CSV gehört: die ohne Zeilen gesammelten Sets und die eigene Fabrary-Zuordnung.
+  Ohne Arbeitsordner merkt sich das nur der Browser.
+
+### Verbessert
+- **Einrichtungsassistent** (#3): Er kündigt an, welche Datei im nächsten Fenster gewählt wird,
+  bevor sich das Dateifenster des Browsers öffnet, und nach einem Import das Speichern.
+- **Doku zu den Stammdaten**: Abschnitt „Online geladen oder mitgeliefert“ erklärt, woher die
+  Kartendaten kommen und was ohne Internet gilt.
+
+### Entwicklung
+- Stammdaten vor dem Release geprüft: the-fab-cube `develop` steht unverändert auf Commit
+  `e56071b` (21.08.2026).
+- Neues Wartungsskript `tools/build-fabrary-map.mjs` erzeugt die Fabrary-Zuordnung aus einem
+  Fabrary-Export. Der Selbsttest prüft sie an einem aktuellen Fabrary-Export, der wie alle
+  eigenen Daten außerhalb des Repositorys liegt.
+- Pläne stehen nur noch als Kommentar im Issue, Abweichungen und Abnahme in der
+  PR-Beschreibung. Neue Branches heißen `feature/issue-<n>-<kurzname>`.
+
 ## 2.2.0.0 – 28.09.2026
 
 ### Neu
