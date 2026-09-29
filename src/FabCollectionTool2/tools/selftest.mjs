@@ -423,6 +423,39 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         `${rows.length} rows`);
 }
 
+/*
+ * Sets collected without rows (issue #18): all their printings show up as gaps at the end,
+ * the CSV stays unchanged, the set is no longer offered. "Empty" rows are only exact
+ * printing variants without quantity, note, local change or other own values.
+ */
+{
+    const m = FCT.model;
+    const collection = m.fromCsv(m.toCsv(ods.collection)).collection;
+    const set = m.missingSets(collection).find((s) => s.printings > 10);
+    const csvBefore = m.toCsv(collection);
+    collection.collectedSets.push(set.code);
+    const shown = m.withGaps(collection);
+    const gaps = shown.filter((row) => row._reference && m.setCode(row.Id) === set.code);
+    const atEnd = shown.slice(-gaps.length).every((row) => m.setCode(row.Id) === set.code);
+    check('Sets collected without rows', gaps.length === set.printings && atEnd &&
+        m.toCsv(collection) === csvBefore &&
+        !m.missingSets(collection).some((s) => s.code === set.code) &&
+        m.collectedCodes(collection).has(set.code),
+        `${set.code}: ${gaps.length} gaps`);
+
+    const empty = m.setRows(m.create(), [set.code])[0];
+    const withQuantity = Object.assign({}, empty, { ST: '1' });
+    const withZero = Object.assign({}, empty, { ST: '0' });
+    const withNote = Object.assign({}, empty, { Note: 'x' });
+    const withOverride = Object.assign({}, empty, { Overrides: 'Playset' });
+    const language = Object.assign({}, empty, { Edition: 'DE' });
+    const unknown = Object.assign({}, empty, { Id: 'ZZZ999' });
+    check('Empty rows', m.isEmptyRow(empty, collection) && m.isEmptyRow(withZero, collection) &&
+        !m.isEmptyRow(withQuantity, collection) && !m.isEmptyRow(withNote, collection) &&
+        !m.isEmptyRow(withOverride, collection) && !m.isEmptyRow(language, collection) &&
+        !m.isEmptyRow(unknown, collection));
+}
+
 // Playset from the reference data (2.0.3.0): legendary cards 1, Evo equipment 3. A differing
 // value of a file is kept as override; an empty one is filled in; nothing else changes.
 {
