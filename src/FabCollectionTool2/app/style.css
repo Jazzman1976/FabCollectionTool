@@ -767,6 +767,26 @@ body.edit-mode .grid td.no-printing {
     color: var(--muted);
     font-weight: normal;
 }
+/* Set header: open or close all its talent/class groups (issue #27) */
+.grid tr.group .group-all {
+    margin-left: 0.8em;
+}
+.grid tr.group .group-all button {
+    padding: 0 3px;
+    margin: 0 1px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--group1-line);
+    font: inherit;
+    font-weight: normal;
+    line-height: 1.1;
+    cursor: pointer;
+}
+.grid tr.group .group-all button:hover {
+    border-color: var(--accent);
+    background: var(--head);
+    color: var(--fg);
+}
 
 /* Status column at the left edge */
 .grid .status {

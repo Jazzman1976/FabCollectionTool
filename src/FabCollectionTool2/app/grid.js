@@ -697,6 +697,17 @@ FCT.grid = (function () {
             viewChanged();
         }
 
+        // Opens or closes all talent/class groups of one set (issue #27); the set itself is
+        // opened either way, so that its groups are seen.
+        function setSectionsOpen(set, open) {
+            if (!set.children || !set.children.size) return;
+            var states = filtering() ? filterOpen : groupOpen;
+            states.set(set.key, true);
+            set.children.forEach(function (sub) { states.set(sub.key, open); });
+            applyView();
+            viewChanged();
+        }
+
         // Tells the application that the view changed (it remembers it across sessions).
         function viewChanged() {
             if (options.onViewChange) options.onViewChange();
@@ -863,6 +874,16 @@ FCT.grid = (function () {
                 (gaps ? ' · ' + gaps.toLocaleString('de-DE') + ' nicht im Bestand' : '');
             var classes = 'group level' + group.level + (group.open ? ' open' : '') +
                 (group === cursor.item ? ' cursor' : '');
+
+            // A set with talent/class groups can open or close all of them at once.
+            var all = group.children && group.children.size ? el('span', {
+                className: 'group-all' }, [
+                el('button', { type: 'button', 'data-open': '1', text: '⊞',
+                    title: 'Alle Talent/Class-Gruppen dieses Sets öffnen (Shift+→)' }),
+                el('button', { type: 'button', 'data-open': '0', text: '⊟',
+                    title: 'Alle Talent/Class-Gruppen dieses Sets schließen (Shift+←)' })
+            ]) : null;
+
             // The title is centred in the visible part of the table, not in its full width.
             var tr = el('tr', { className: classes }, [
                 el('td', { colspan: span }, [
@@ -870,7 +891,8 @@ FCT.grid = (function () {
                         style: 'width:' + scroller.clientWidth + 'px' }, [
                         el('span', { className: 'toggle', text: group.open ? '▾' : '▸' }),
                         el('span', { className: 'name', text: group.label }),
-                        el('span', { className: 'info', text: info })
+                        el('span', { className: 'info', text: info }),
+                        all
                     ])
                 ])
             ]);
@@ -1120,7 +1142,9 @@ FCT.grid = (function () {
             if (!tr) return;
             if (tr._group) {
                 cursor.item = tr._group;
-                setGroupOpen(tr._group, !tr._group.open);
+                var all = event.target.closest('.group-all button');
+                if (all) setSectionsOpen(tr._group, all.getAttribute('data-open') === '1');
+                else setGroupOpen(tr._group, !tr._group.open);
                 return;
             }
             if (!tr._row) return;
@@ -1185,6 +1209,10 @@ FCT.grid = (function () {
 
             if (item && item._group && (key === 'Enter' || key === ' ')) {
                 setGroupOpen(item, !item.open);
+            } else if (item && item._group && item.level === 1 && e.shiftKey &&
+                (key === 'ArrowRight' || key === 'ArrowLeft')) {
+                // Shift+Right / Shift+Left on a set: all its talent/class groups (#27).
+                setSectionsOpen(item, key === 'ArrowRight');
             } else if (item && item._group && key === 'ArrowRight') {
                 setGroupOpen(item, true);
             } else if (item && item._group && key === 'ArrowLeft') {
