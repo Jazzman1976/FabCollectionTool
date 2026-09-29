@@ -510,8 +510,10 @@ FCT.model = (function () {
     }
 
     // Creates an empty collection.
+    // collectedSets: set codes that are collected without any row in the CSV (issue #18); they
+    // are kept in the configuration file next to the collection, not in the CSV.
     function create() {
-        return { rows: [], extraColumns: [] };
+        return { rows: [], extraColumns: [], collectedSets: [] };
     }
 
     // Creates a row with all columns present; values are taken from the given object.
@@ -833,10 +835,24 @@ FCT.model = (function () {
     }
 
     /*
-     * The collection with its gaps filled: printing variants missing from a set that occurs in
-     * the collection are placed where they belong (after the last row of the same set with a
-     * card number up to theirs). Sets that do not occur in the collection are left out.
-     * Gap rows carry _reference = true and become real rows as soon as they are edited.
+     * Set codes the collection collects: those of its rows plus the sets collected without
+     * rows (collection.collectedSets, issue #18).
+     */
+    function collectedCodes(collection) {
+        var codes = new Set(collection.collectedSets || []);
+        collection.rows.forEach(function (row) {
+            var code = setCode(row.Id);
+            if (code) codes.add(code);
+        });
+        return codes;
+    }
+
+    /*
+     * The collection with its gaps filled: printing variants missing from a collected set are
+     * placed where they belong (after the last row of the same set with a card number up to
+     * theirs). Sets collected without any row (issue #18) follow at the end, by card number.
+     * Sets that are not collected are left out. Gap rows carry _reference = true and become
+     * real rows as soon as they are edited.
      */
     function withGaps(collection) {
         var rows = collection.rows;
@@ -864,13 +880,19 @@ FCT.model = (function () {
             return best;
         }
 
-        // Where each gap goes: after a row index, or before the first row of its set.
+        // Where each gap goes: after a row index, or before the first row of its set, or - for
+        // sets collected without rows - at the end.
         var after = new Map();
         var before = new Map();
+        var atEnd = [];
+        var withoutRows = new Set(collection.collectedSets || []);
         referenceRows(collection).forEach(function (gap) {
             var code = setCode(gap.Id);
             var indexes = byCode.get(code);
-            if (!indexes) return;
+            if (!indexes) {
+                if (withoutRows.has(code)) atEnd.push(gap);
+                return;
+            }
             gap.Set = usualName(code) || gap.Set;
             var at = -1;
             indexes.forEach(function (i) { if (rows[i].Id <= gap.Id) at = i; });
@@ -896,7 +918,32 @@ FCT.model = (function () {
                 Array.prototype.push.apply(result, after.get(index).sort(byVariant));
             }
         });
+        Array.prototype.push.apply(result, atEnd.sort(byVariant));
         return result;
+    }
+
+    /*
+     * True if a row carries nothing of its own (issue #18): no quantity above 0, no note, no
+     * first-in or translation, no local change (✱, which also covers a changed playset) and no
+     * value in extra columns - and it is exactly a printing variant of the reference data, so
+     * that it shows up again as a gap (○) when it is taken out of the collection. Language
+     * editions and unknown card numbers never count as empty.
+     */
+    var OWN_COLUMNS = ['First In', 'Translated Name', 'Translated Backside Name', 'Peculiarity',
+        'Note', OVERRIDES];
+
+    function isEmptyRow(row, collection) {
+        if (!row.Id || FCT.DATA.vocab.languageEditions.indexOf(row.Edition) >= 0 ||
+            FCT.reference.foilings(row) === null) {
+            return false;
+        }
+        if (QUANTITIES.some(function (c) { return FCT.util.toInt(row[c]) !== 0; })) return false;
+        if (OWN_COLUMNS.some(function (c) { return String(row[c] || '').trim() !== ''; })) {
+            return false;
+        }
+        return !(collection ? collection.extraColumns : []).some(function (c) {
+            return String(row[c] || '').trim() !== '';
+        });
     }
 
     /*
@@ -905,7 +952,7 @@ FCT.model = (function () {
      * last; printings is the number of rows the set would get.
      */
     function missingSets(collection) {
-        var present = new Set(collection.rows.map(function (row) { return setCode(row.Id); }));
+        var present = collectedCodes(collection);
         var variants = new Map();   // set code -> Set of printing variants (rows it would get)
         FCT.reference.allPrintings().forEach(function (p) {
             var code = setCode(p[0]);
@@ -1138,6 +1185,8 @@ FCT.model = (function () {
         validate: validate,
         referenceRows: referenceRows,
         withGaps: withGaps,
+        collectedCodes: collectedCodes,
+        isEmptyRow: isEmptyRow,
         setCode: setCode,
         missingSets: missingSets,
         setRows: setRows,
