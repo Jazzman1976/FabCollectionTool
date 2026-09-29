@@ -2,7 +2,7 @@
 
 **Issue:** https://github.com/Jazzman1976/FabCollectionTool/issues/17
 **Branch:** `feature/17-fabrary-export-thefabcube` · **Stand:** 29. September 2026
-**Status:** umgesetzt, PR nach `develop`
+**Status:** umgesetzt, PR nach `develop`; Nachtrag Fabrary-Zuordnung geplant (siehe unten)
 
 ## Kontext
 Heute kopiert der Fabrary-Export das mitgelieferte Skelett (`reference/fabrary-skeleton.js`,
@@ -121,3 +121,113 @@ wenn sich mehrere Karten eine Kartennummer teilen.
   - Bericht mit 276 übersprungenen Exemplaren
   - keine Fehler im Diagnose-Log
 - Offen: Import der Datei in Fabrary durch Elmar.
+
+## Nachtrag: Fabrary-Zuordnung (Overrides und Abgleich)
+
+**Stand:** 29.09.2026 · **Status:** geplant, wartet auf #18 und „Ready for dev“
+
+### Kontext
+Elmars Test des Exports: ANQ006 (und 5 weitere Karten mit Bestand) kommen in Fabrary nicht an.
+Der Vergleich unseres Exports mit Fabrarys Export nach dem Import
+(`docs/screenshots/Pull Request #17/`) zeigt:
+- 16.916 von 17.099 Zeilen passen genau (Identifier, Set number, Edition, Foiling, Treatment).
+- **Treatment:** Fabrary erwartet die volle Liste („Alternate Art, Alternate Border, Extended
+  Art“), wir schreiben ein Merkmal → 126 Zeilen, davon 3 mit Bestand (ANQ006, FAB375, LGS427).
+- **Identifier:** Fabrary lässt Punkte weg (`argh-smash-yellow`) → 57 Zeilen, 3 mit Bestand.
+- **Set-Name** spielt beim Zuordnen keine Rolle (ANQ011 kam unter anderem Set-Namen an), soll
+  aber trotzdem überschreibbar sein.
+- Nicht lösbar per Zuordnung: Dragons of Legend UPR225 (gibt es bei Fabrary nicht), Gold LGS229
+  (Zeile identisch, Ursache unklar).
+
+Abgestimmt mit Elmar:
+- Export nutzt ein **Mapping** the-fab-cube → Fabrary-Bezeichnungen.
+- **Mitgeliefertes Grund-Mapping** (aus Elmars aktuellem Fabrary-Export erzeugt), darauf
+  **eigene Overrides** je Bestand; eigene gehen vor.
+- Overrides stehen in der **Konfigurationsdatei aus #18** (`<bestand>-config.json`) →
+  **#17 wird „blocked by #18“**.
+- **Ein Dialog „Fabrary-Zuordnung …“** (Gruppe Export) mit Override-Tabelle und darin
+  „Mit Fabrary-Export abgleichen …“.
+- Abgleich zeigt eine **Vorschau**: eindeutige Funde vorausgewählt, unklare zur Wahl.
+
+### Reihenfolge
+1. Plan als Nachtrag in `docs/plaene/Umsetzungsplan-Issue-17.md` + Kommentar in Issue #17,
+   „Blocked by #18“ per REST setzen, Board → Ready. Umsetzung erst ab „Ready for dev“.
+2. Nach Merge von PR #21 (#18): `develop` per Merge in `feature/17-…` holen, Konflikte lösen
+   (`app.js`, `index.html`, `doku.html`, `selftest.mjs`).
+3. Umsetzen wie unten, Selbsttest, Chrome-Check, Push → PR #20 wieder In review.
+
+### Datenmodell
+Schlüssel einer Export-Zeile (vor dem Mapping), eindeutig auch bei geteilten Kartennummern:
+`Set number|Edition|Foiling|Treatment(unser)|Identifier(unser)`.
+
+```
+fabrary: {
+  sets:     { "ANQ": "Promos", … },                         // Set-Code → Fabrary-Setname
+  variants: { "<Schlüssel>": { identifier?, treatment?, set? }, … }   // nur Abweichungen
+}
+```
+- Mitgeliefert: `reference/fabrary-map.js` → `FCT.DATA.fabraryMap` in diesem Format.
+- Eigen: `config.fabrary` in `<bestand>-config.json` (neben `collectedSets`), ohne
+  Arbeitsordner in der Browser-Kopie mitgetragen wie `collectedSets` in #18
+  (`applyConfig`, `configText`, `last.config`). Geladen nach `collection.fabraryOverrides`.
+- Vorrang je Feld: eigener Variant-Eintrag > mitgelieferter Variant-Eintrag > eigener
+  Set-Eintrag > mitgelieferter Set-Eintrag > heutige Regel (Identifier wie 1.0,
+  `TREATMENT_ORDER`, Setname the-fab-cube).
+
+### Änderungen
+- **Neu `app/fabrary-map.js`** (`FCT.fabraryMap`), geteilt von App und Build-Tool wie
+  `reference-transform.js`:
+  - `key(identity)`, `apply(identity, setCode, overrides)` → gemappte Identity.
+  - `compare(referenceRows, fabraryText)` → `{ sets, variants, unclear, notInFabrary }`:
+    Fabrary-Zeilen einlesen (`FCT.csv.parseTable`, identische Doppelzeilen einmal), gruppieren
+    nach Set number|Edition|Foiling; je unserer Zeile Kandidaten nach Name (`util.fold`)
+    filtern, dann: gleiches Treatment → eindeutig; sonst genau ein Kandidat, dessen
+    Treatment-Liste unseres enthält → eindeutig; sonst **unklar** mit Kandidatenliste. Zwei
+    unserer Zeilen auf dieselbe Fabrary-Zeile → unklar. Set-Namen je Set-Code zusammenfassen,
+    wenn innerhalb des Codes einheitlich, sonst je Variante.
+- **`app/export-fabrary.js`**: `referenceRows()` wendet `FCT.fabraryMap.apply` an (Set-Code
+  `p[1]` mitgeben); die Bestandszuordnung (`variantKey`) bleibt auf unseren Werten, nur die
+  geschriebene Identity ändert sich. `referenceRows` für `compare` exportieren (ohne Mapping).
+  Bericht: „N Zeilen per Zuordnung angepasst (davon M eigene)“.
+- **`app/app.js`**:
+  - Knopf `btn-fabrary-map` „Zuordnung …“ in der Export-Gruppe (`index.html`, Tooltip
+    „Fabrary-Bezeichnungen festlegen und mit einem Fabrary-Export abgleichen“).
+  - Dialog „Fabrary-Zuordnung“ (`openDialog`, `wide`): zwei Tabellen **Sets** und
+    **Varianten** mit Suche; Spalten: Schlüssel (Kartennummer, Name, Edition, Foiling),
+    Identifier, Treatment, Set; Herkunft „mitgeliefert“/„eigen“. Mitgelieferte Werte als
+    Platzhalter, Eingabe macht einen eigenen Eintrag, „Zurücksetzen“ löscht ihn. Neue Variante:
+    Kartennummer eingeben → Varianten aus den Stammdaten zur Wahl.
+  - Darin „Mit Fabrary-Export abgleichen …“: Datei wählen (wie `importFabrary`) → Vorschau
+    gruppiert nach Sets / Identifier / Treatment / Unklar, Häkchen je Fund (eindeutige an),
+    Unklare mit Auswahl der Fabrary-Kandidaten, Info-Zahl „bei Fabrary nicht vorhanden“.
+    Nur Abweichungen zur **aktuell geltenden** Zuordnung. „Übernehmen“ schreibt in
+    `collection.fabraryOverrides`, markiert den Bestand als geändert → gespeichert mit der
+    Config (`saveConfig`), Meldung + Diagnose-Eintrag.
+  - `configText`/`applyConfig` um `fabrary` erweitern (leere Abschnitte nicht schreiben).
+- **Neu `reference/fabrary-map.js`** + `tools/build-fabrary-map.mjs <fabrary-export.csv>`:
+  läuft `compare` über die Stammdaten, schreibt nur eindeutige Funde (eine Zeile je Eintrag).
+  Erzeugt aus `docs/fabrary/Fabrary-Export 2026-09-29.csv` (Elmars Datei aus
+  `docs/screenshots/Pull Request #17/` dorthin verschieben und committen).
+  `index.html` + `tools/load-app.mjs`: beide neuen Skripte einbinden.
+- **`tools/selftest.mjs`**:
+  - Mit Grund-Mapping trifft der Export Fabrarys Export (Datei oben) in allen Zeilen mit
+    Bestand außer UPR225/LGS229; ANQ006, FAB375, LGS427, CRU009, SUP208, PEN165 zeichengleich.
+  - Vorrang eigener Override vor mitgeliefertem, Set-Override, Zurücksetzen.
+  - `compare`: eindeutig/unklar an Beispielen (geteilte Kartennummer, Doppelzeilen).
+  - Config-Rundlauf mit `fabrary`; Rundlauf Import → Export → Import bleibt gleich.
+- **Doku:** `doku.html` Abschnitt Fabrary (Zuordnung, Abgleich, Config-Datei),
+  `README.md`, `reference/README.md` (Grund-Mapping erneuern vor jedem Release mit aktuellem
+  Fabrary-Export), Nachtrag im Umsetzungsplan.
+
+### Nicht im Umfang
+- Import aus Fabrary bleibt unverändert (ordnet über Set number/Edition/Treatment zu).
+- UPR225 und Gold LGS229 bleiben offen und werden im Plan-Nachtrag genannt.
+
+### Abnahme
+- Selbsttest grün (inkl. neue Prüfungen).
+- Chrome über localhost mit Arbeitsordner (OPFS unterschieben): Export → ANQ006-Zeile mit
+  „Alternate Art, Alternate Border, Extended Art“; Zuordnung eines Sets von Hand ändern →
+  steht in `collection-config.json`, wirkt im Export, nach Neuladen noch da; Abgleich mit der
+  Fabrary-Datei → Vorschau ohne Funde (Grund-Mapping deckt alles ab), nach Zurücksetzen eines
+  Eintrags erscheint er als Fund; keine Konsolenfehler.
+- **Elmar** importiert den neuen Export in Fabrary: die 6 Karten kommen an.
