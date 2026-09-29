@@ -270,6 +270,7 @@ FCT.app = (function () {
         state.autosaveChoice = null;
         state.fileText = null;
         state.fromCopy = false;
+        state.configText = null;
         clearTimeout(state.autosave.timer);
         state.autosave = { timer: null, running: false, saved: null, error: '', denied: false };
         state.dirty = !!dirty;
@@ -418,7 +419,7 @@ FCT.app = (function () {
         }
         // Rows by card number, to find the row of an entry quickly.
         var byId = new Map();
-        state.collection.rows.forEach(function (row) {
+        (state.shownRows || state.collection.rows).forEach(function (row) {
             if (!byId.has(row.Id)) byId.set(row.Id, []);
             byId.get(row.Id).push(row);
         });
@@ -498,10 +499,11 @@ FCT.app = (function () {
             return;
         }
         changeCell(row, e.column, e.old, 'Rückgängig');
+        releaseEmptied();
         FCT.log.info('log', 'Rückgängig', { id: e.id, column: e.column });
         setDirty(true);
         rebuild();
-        grid.select(row);
+        selectRow(row);
     }
 
     // Many changes in a row (e.g. applying reference data) redraw the pane only once.
@@ -657,7 +659,7 @@ FCT.app = (function () {
         return suggestName(folder).then(function (name) {
             input.value = name;
             return openDialog({
-                title: 'Neuer Bestand',
+                title: options.title || 'Neuer Bestand',
                 body: body,
                 setup: function (finish) { done = finish; },
                 hint: 'Abbrechen lässt alles, wie es ist – du arbeitest im aktuellen Bestand ' +
@@ -795,6 +797,8 @@ FCT.app = (function () {
                 // The same file as last time keeps its autosave decision and its log file.
                 if (last) state.logCandidate = last.logHandle || null;
                 return loadLog(last).then(function () {
+                    return loadConfig(last);
+                }).then(function () {
                     return askAutosave(placed.handle, last ? last.autosave || null : null);
                 });
             });
@@ -1072,6 +1076,105 @@ FCT.app = (function () {
     }
 
     /*
+     * Configuration file <name>-config.json next to the collection (issue #18, decided by
+     * Elmar: what has to be kept besides the collection and its log goes into a file, which
+     * lasts longer than the browser storage). It holds the sets collected without any row in
+     * the CSV and the collection's own Fabrary mapping (issue #17, addendum), written only if
+     * there is one. It is read when a collection is opened from the working folder and
+     * written with the collection (also by autosave), only if its content changed. Without a
+     * working folder it is kept in the copy in the browser only.
+     */
+    var CONFIG_VERSION = 1;
+
+    function configName() {
+        var base = String(state.file ? state.file.name : 'collection.csv').replace(/\.csv$/i, '');
+        return base + '-config.json';
+    }
+
+    // The values kept in the configuration, as an object.
+    function configValues() {
+        var config = { collectedSets: (state.collection.collectedSets || []).slice().sort() };
+        var own = state.collection.fabraryOverrides;
+        if (!FCT.fabraryMap.isEmpty(own)) config.fabrary = sortedMap(own);
+        return config;
+    }
+
+    // A mapping with its entries sorted by key, so that the file only changes with them.
+    function sortedMap(map) {
+        function sorted(object) {
+            var result = {};
+            Object.keys(object).sort().forEach(function (k) { result[k] = object[k]; });
+            return result;
+        }
+        return { sets: sorted(map.sets), variants: sorted(map.variants) };
+    }
+
+    function configText() {
+        var config = Object.assign({ version: CONFIG_VERSION }, configValues());
+        return JSON.stringify(config, null, 2) + '\n';
+    }
+
+    // Takes the values of a configuration ({ collectedSets, fabrary }) into the open
+    // collection.
+    function applyConfig(config) {
+        var sets = config && Array.isArray(config.collectedSets) ? config.collectedSets : [];
+        state.collection.collectedSets = sets.filter(function (code) {
+            return typeof code === 'string' && /^[A-Z0-9]{3}$/.test(code);
+        });
+        state.collection.fabraryOverrides = FCT.fabraryMap.normalize(config && config.fabrary);
+    }
+
+    /*
+     * Loads the configuration of the opened collection: from its file in the working folder,
+     * otherwise from the browser copy (if it is the same file as last time). A missing file
+     * is no error: older collections have none.
+     */
+    function loadConfig(last) {
+        state.configText = null;
+        if (fileInFolder()) {
+            return FCT.storage.readFolderFile(state.folder, configName()).then(function (file) {
+                if (!file.text.trim()) return;
+                applyConfig(JSON.parse(withoutBom(file.text)));
+                state.configText = file.text;
+                rebuild();
+            }).catch(function (error) {
+                FCT.log.warn('config', 'Konfigurationsdatei nicht lesbar', error);
+                showMessage('Konfiguration', configName() + ' ließ sich nicht lesen (' +
+                    (error && error.message) + '). Sets ohne Zeilen und die eigene ' +
+                    'Fabrary-Zuordnung fehlen deshalb.');
+            });
+        }
+        if (last && last.config) { applyConfig(last.config); rebuild(); }
+        return Promise.resolve();
+    }
+
+    // Writes the configuration file if the collection lies in the working folder and the
+    // content changed. Without a working folder the copy in the browser keeps it; a notice
+    // says so once, as soon as there is something to keep.
+    function saveConfig() {
+        var text = configText();
+        if (!fileInFolder()) {
+            var keep = state.collection.collectedSets.length ||
+                !FCT.fabraryMap.isEmpty(state.collection.fabraryOverrides);
+            if (keep && !state.configNoticeShown) {
+                state.configNoticeShown = true;
+                FCT.notices.show('config', 'info', 'Die Sets, die du ohne Zeilen sammelst ' +
+                    '(grau), und deine Fabrary-Zuordnung stehen nur mit Arbeitsordner in ' +
+                    'einer eigenen Datei neben dem Bestand. Ohne Arbeitsordner merkt sie sich ' +
+                    'nur dieser Browser.', { closable: true });
+            }
+            return Promise.resolve();
+        }
+        if (text === state.configText) return Promise.resolve();
+        return FCT.storage.writeFolderFile(state.folder, configName(), text).then(function () {
+            state.configText = text;
+            FCT.log.debug('config', 'Konfiguration gespeichert', { name: configName() });
+        }, function (error) {
+            FCT.log.error('config', 'Konfigurationsdatei nicht geschrieben', error);
+        });
+    }
+
+    /*
      * Copy of the last collection in the browser (decided 23.09.2026). After every load,
      * save and change (shortly delayed), the current collection is written to IndexedDB
      * together with its file handle and autosave decision. At the next start it is shown
@@ -1103,6 +1206,7 @@ FCT.app = (function () {
             logWritten: changelog.written(),
             logHandle: state.logHandle || state.logCandidate || null,
             autosave: state.autosaveChoice,
+            config: configValues(),
             text: model.toCsv(state.collection),
             fileText: state.fileText,
             updated: new Date().toISOString()
@@ -1127,6 +1231,7 @@ FCT.app = (function () {
                 handle: last.handle || null, inFolder: !!last.inFolder } : null,
                 copyChanged || !last.handle);
             changelog.load(last.log || [], last.logWritten);
+            if (last.config) { applyConfig(last.config); rebuild(); }
             state.fileText = last.fileText;
             state.openedText = last.fileText;
             state.logCandidate = last.logHandle || null;
@@ -1346,6 +1451,7 @@ FCT.app = (function () {
 
     function reloadFromFile(result, last, writable) {
         if (!loadCollection(result)) return null;
+        loadConfig(last);
         state.autosaveChoice = last.autosave || null;
         state.logCandidate = last.logHandle || null;
         state.writable = writable;
@@ -1498,7 +1604,7 @@ FCT.app = (function () {
                         'der Statuszeile).' : '')
                 : result.name + ' wurde als Download gespeichert (Download-Ordner des ' +
                     'Browsers).');
-            return saveLog(true);
+            return saveConfig().then(function () { return saveLog(true); });
         });
     }
 
@@ -1553,8 +1659,10 @@ FCT.app = (function () {
                 chars: text.length, ms: Date.now() - started });
             rememberCurrent();
             offerOpenedBackup();
-            return fileInFolder() || state.logHandle || state.logCandidate
-                ? saveLog(false) : null;
+            return saveConfig().then(function () {
+                return fileInFolder() || state.logHandle || state.logCandidate
+                    ? saveLog(false) : null;
+            });
         }).catch(function (error) {
             auto.error = error && error.message ? error.message : String(error);
             FCT.log.error('file', 'Automatisches Speichern fehlgeschlagen', error);
@@ -1808,8 +1916,9 @@ FCT.app = (function () {
     }
 
     // Common flow of both imports: pick file, convert, preview, accept. confirmed: the user
-    // already agreed to leave unsaved changes (e.g. in "Öffnen").
-    function runImport(accept, convert, confirmed) {
+    // already agreed to leave unsaved changes (e.g. in "Öffnen"). options.assistant: the setup
+    // assistant saves right afterwards, so the hint to save is left out (issue #3).
+    function runImport(accept, convert, confirmed, options) {
         if (!confirmed && !confirmDiscard()) return Promise.resolve(null);
         return FCT.storage.pickFile(accept).then(function (file) {
             if (!file) return null;
@@ -1829,9 +1938,12 @@ FCT.app = (function () {
                     showReport(result.report);
                     FCT.log.info('import', ok ? 'Import übernommen' : 'Import verworfen');
                     if (!ok) return;
+                    // The own Fabrary mapping belongs to the user, not to the imported data.
+                    result.collection.fabraryOverrides = state.collection.fabraryOverrides;
                     setCollection(result.collection, null, true);
                     changelog.add('Import', null, '', '', file.name + ' – ' +
                         result.collection.rows.length + ' Zeilen');
+                    if (options && options.assistant) return;
                     showMessage('Import übernommen', 'Der Bestand ist noch nicht gespeichert. ' +
                         'Bitte „Speichern“ wählen, um ihn als CSV-Datei abzulegen.');
                 });
@@ -1843,16 +1955,16 @@ FCT.app = (function () {
         });
     }
 
-    function importOds(confirmed) {
+    function importOds(confirmed, options) {
         return runImport('.ods', function (file) {
             return file.arrayBuffer().then(FCT.importOds.importOds);
-        }, confirmed === true);
+        }, confirmed === true, options);
     }
 
-    function importFabrary(confirmed) {
+    function importFabrary(confirmed, options) {
         return runImport('.csv,text/csv', function (file) {
             return file.text().then(FCT.importFabrary.importFabrary);
-        }, confirmed === true);
+        }, confirmed === true, options);
     }
 
     function exportFabrary() {
@@ -1860,6 +1972,363 @@ FCT.app = (function () {
         FCT.storage.download('fabrary-' + util.timestamp() + '.csv', result.text);
         FCT.log.info('export', 'Fabrary-Export', { chars: result.text.length });
         showReport(result.report);
+    }
+
+    /*
+     * "Fabrary-Zuordnung" (issue #17, addendum): the collection's own Fabrary mapping on top
+     * of the shipped one (fabrary-map.js). Sets and variants with a shipped or own entry are
+     * listed. A value typed into a field becomes an own entry, an empty field takes the value
+     * without it (shown grey), "-" stands for an explicitly empty value. From here the user
+     * can compare the mapping with an export of Fabrary (compareFabraryMap).
+     */
+    function fabraryMap() {
+        var map = FCT.fabraryMap;
+        var shipped = FCT.DATA.fabraryMap || map.empty();
+        var own = state.collection.fabraryOverrides || map.empty();
+        var rowsByKey = new Map();
+        FCT.exportFabrary.baseRows().forEach(function (row) { rowsByKey.set(row.key, row); });
+
+        // Sets: one line per set code with a shipped or own name.
+        var setLines = [];
+        var setBody = el('tbody');
+        function addSetLine(code) {
+            var input = el('input', { type: 'text', placeholder: shippedSet(code) });
+            if (Object.prototype.hasOwnProperty.call(own.sets, code)) {
+                input.value = own.sets[code] === '' ? map.EMPTY_MARK : own.sets[code];
+            }
+            markOwn(input);
+            setLines.push({ code: code, input: input });
+            setBody.appendChild(el('tr', {}, [
+                el('th', { text: code }),
+                el('td', { className: 'reference', text: FCT.reference.setName(code) }),
+                el('td', {}, [input]),
+                el('td', {}, [resetButton([input])])
+            ]));
+        }
+        function shippedSet(code) {
+            return Object.prototype.hasOwnProperty.call(shipped.sets, code)
+                ? shipped.sets[code] || '(leer)' : FCT.reference.setName(code);
+        }
+        union(shipped.sets, own.sets).forEach(addSetLine);
+
+        // Variants: one line per export row with a shipped or own entry. Own entries of rows
+        // the reference data no longer has are kept as they are.
+        var variantLines = [];
+        var variantBody = el('tbody');
+        function addVariantLine(key) {
+            var row = rowsByKey.get(key);
+            if (!row) return;
+            var entry = own.variants[key] || {};
+            var inputs = {};
+            var cells = map.FIELDS.map(function (field) {
+                var base = map.value(row, field, own, shipped, true).value;
+                var input = el('input', { type: 'text', placeholder: base || '(leer)' });
+                if (Object.prototype.hasOwnProperty.call(entry, field)) {
+                    input.value = entry[field] === '' ? map.EMPTY_MARK : entry[field];
+                }
+                markOwn(input);
+                inputs[field] = input;
+                return el('td', {}, [input]);
+            });
+            var line = el('tr', {}, [el('th', {}, [
+                el('div', { text: row.identity[4] + ' ' + row.identity[1] }),
+                el('div', { className: 'what', text: variantText(row) })
+            ])].concat(cells, [el('td', {}, [resetButton(Object.keys(inputs).map(function (f) {
+                return inputs[f];
+            }))])]));
+            variantLines.push({ row: row, inputs: inputs, line: line });
+            variantBody.appendChild(line);
+        }
+        var unknown = Object.keys(own.variants).filter(function (key) {
+            return !rowsByKey.has(key);
+        });
+        union(shipped.variants, own.variants).forEach(addVariantLine);
+
+        // An input with a value of its own is marked like a local change in the row dialog.
+        function markOwn(input) {
+            input.classList.toggle('override', input.value.trim() !== '');
+            input.addEventListener('input', function () {
+                input.classList.toggle('override', input.value.trim() !== '');
+            });
+        }
+        function resetButton(inputs) {
+            return el('button', { type: 'button', className: 'reset', text: '↺',
+                title: 'Eigene Zuordnung entfernen', onclick: function () {
+                    inputs.forEach(function (input) {
+                        input.value = '';
+                        input.classList.remove('override');
+                    });
+                } });
+        }
+
+        // Adding a set or all variants of a card number.
+        var setChoice = el('select', {}, [el('option', { value: '', text: 'Set wählen …' })]
+            .concat(FCT.reference.data().sets.map(function (set) {
+                return set[0];
+            }).filter(function (code, i, all) {
+                return all.indexOf(code) === i;
+            }).sort().map(function (code) {
+                return el('option', { value: code,
+                    text: code + ' – ' + FCT.reference.setName(code) });
+            })));
+        var addSet = el('button', { type: 'button', text: 'Set hinzufügen', onclick: function () {
+            var code = setChoice.value;
+            var listed = setLines.some(function (l) { return l.code === code; });
+            if (code && !listed) addSetLine(code);
+        } });
+        var cardNumber = el('input', { type: 'text', placeholder: 'Kartennummer, z. B. ANQ006' });
+        var addVariant = el('button', { type: 'button', text: 'Varianten hinzufügen',
+            onclick: function () {
+                var id = cardNumber.value.trim().toUpperCase();
+                rowsByKey.forEach(function (row, key) {
+                    var listed = variantLines.some(function (l) { return l.row.key === key; });
+                    if (row.identity[4] === id && !listed) addVariantLine(key);
+                });
+            } });
+
+        // The search narrows the variants (also with wildcards).
+        var search = el('input', { type: 'search', placeholder: 'Varianten suchen (* ?)' });
+        search.addEventListener('input', function () {
+            var text = util.fold(search.value);
+            var test = util.wildcard(search.value);
+            variantLines.forEach(function (l) {
+                var what = util.fold(l.line.textContent + ' ' + Object.keys(l.inputs)
+                    .map(function (f) { return l.inputs[f].value; }).join(' '));
+                l.line.hidden = !!text && !(test ? test(what) : what.indexOf(text) >= 0);
+            });
+        });
+
+        var head = function (labels) {
+            return el('thead', {}, [el('tr', {}, labels.map(function (label) {
+                return el('th', { text: label });
+            }))]);
+        };
+        var body = el('div', { className: 'report take-over fabrary-map' }, [
+            el('p', { className: 'what', text: 'Wo Fabrary Sets, Identifier oder Treatments ' +
+                'anders nennt als die Stammdaten, schreibt der Export Fabrarys Namen. ' +
+                'Mitgeliefert sind ' + Object.keys(shipped.sets).length + ' Sets und ' +
+                Object.keys(shipped.variants).length + ' Varianten; eigene Einträge gehen vor.' }),
+            el('h3', { text: 'Sets' }),
+            el('table', { className: 'row-form' }, [
+                head(['Code', 'Stammdaten', 'Name bei Fabrary', '']), setBody]),
+            el('div', { className: 'add-line' }, [setChoice, addSet]),
+            el('h3', { text: 'Varianten' }),
+            search,
+            el('table', { className: 'row-form' }, [
+                head(['Variante', 'Identifier', 'Set', 'Treatment', '']), variantBody]),
+            el('div', { className: 'add-line' }, [cardNumber, addVariant]),
+            unknown.length ? el('p', { className: 'what', text: unknown.length + ' eigene ' +
+                'Einträge gehören zu Varianten, die die Stammdaten nicht mehr kennen; sie ' +
+                'bleiben erhalten.' }) : null
+        ]);
+
+        // Reads the fields back into a new own mapping.
+        function read() {
+            var result = map.empty();
+            unknown.forEach(function (key) { result.variants[key] = own.variants[key]; });
+            function valueOf(input) {
+                var v = input.value.trim();
+                return v === map.EMPTY_MARK ? '' : v;
+            }
+            setLines.forEach(function (l) {
+                if (l.input.value.trim()) map.setSet(result, l.code, valueOf(l.input), shipped);
+            });
+            variantLines.forEach(function (l) {
+                var wanted = {};
+                map.FIELDS.forEach(function (field) {
+                    if (l.inputs[field].value.trim()) wanted[field] = valueOf(l.inputs[field]);
+                });
+                map.setVariant(result, l.row, wanted, shipped);
+            });
+            return result;
+        }
+
+        return openDialog({
+            title: 'Fabrary-Zuordnung',
+            body: body,
+            hint: 'Leeres Feld = mitgelieferter Wert bzw. Regel des Exports (grau), „-“ = ' +
+                'ausdrücklich leer. Die eigene Zuordnung steht in der Konfigurationsdatei ' +
+                'neben dem Bestand.',
+            wide: true,
+            buttons: [
+                { label: 'Mit Fabrary-Export abgleichen …', value: 'compare', left: true },
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Übernehmen', value: 'accept', primary: true }
+            ]
+        }).then(function (value) {
+            if (value === 'cancel') return null;
+            takeFabraryMap(read(), 'von Hand geändert');
+            return value === 'compare' ? compareFabraryMap() : null;
+        });
+    }
+
+    // Keys of two objects together, sorted.
+    function union(a, b) {
+        return Object.keys(Object.assign({}, a, b)).sort();
+    }
+
+    // Edition, foiling and treatments of an export row, for the dialogs.
+    function variantText(row) {
+        return [row.identity[5], row.identity[6] || 'Standard', row.art].filter(Boolean)
+            .join(' · ');
+    }
+
+    // Takes a new own Fabrary mapping, if it differs from the current one.
+    function takeFabraryMap(next, what) {
+        var before = state.collection.fabraryOverrides || FCT.fabraryMap.empty();
+        var count = function (m) {
+            return Object.keys(m.sets).length + Object.keys(m.variants).length;
+        };
+        if (JSON.stringify(sortedMap(next)) === JSON.stringify(sortedMap(before))) return false;
+        state.collection.fabraryOverrides = next;
+        changelog.add('Fabrary-Zuordnung', null, '', count(before) + ' Einträge',
+            count(next) + ' Einträge, ' + what);
+        FCT.log.info('fabrary-map', 'Fabrary-Zuordnung geändert', { what: what,
+            sets: Object.keys(next.sets).length, variants: Object.keys(next.variants).length });
+        setDirty(true);
+        return true;
+    }
+
+    /*
+     * "Mit Fabrary-Export abgleichen": reads a collection export of Fabrary and shows where
+     * Fabrary's names differ from the mapping in effect. Clear findings are ticked; for
+     * unclear ones the user picks the Fabrary row or leaves them out. Afterwards the dialog
+     * "Fabrary-Zuordnung" opens again.
+     */
+    function compareFabraryMap() {
+        var map = FCT.fabraryMap;
+        var shipped = FCT.DATA.fabraryMap || map.empty();
+        return FCT.storage.pickFile('.csv,text/csv').then(function (file) {
+            if (!file) return fabraryMap();
+            $('busy').hidden = false;
+            return file.text().then(function (text) {
+                $('busy').hidden = true;
+                var own = state.collection.fabraryOverrides || map.empty();
+                var result = map.compare(FCT.exportFabrary.baseRows(), text, own);
+                FCT.log.info('fabrary-map', 'Fabrary-Export abgeglichen', { file: file.name,
+                    matched: result.matched, sets: result.sets.length,
+                    variants: result.variants.length, unclear: result.unclear.length,
+                    notInFabrary: result.notInFabrary.length, error: result.error });
+                if (result.error) {
+                    showMessage('Fabrary-Abgleich', result.error);
+                    return null;
+                }
+                return showFabraryFindings(result, file.name, own, shipped);
+            }, function (error) {
+                $('busy').hidden = true;
+                throw error;
+            });
+        });
+    }
+
+    function showFabraryFindings(result, name, own, shipped) {
+        var map = FCT.fabraryMap;
+        var summary = result.matched.toLocaleString('de-DE') + ' Varianten bei Fabrary ' +
+            'gefunden, ' + result.notInFabrary.length + ' gibt es dort nicht.';
+        if (!result.sets.length && !result.variants.length && !result.unclear.length) {
+            showMessage('Fabrary-Abgleich', name + ': keine Abweichungen zur geltenden ' +
+                'Zuordnung. ' + summary);
+            return fabraryMap();
+        }
+
+        var boxes = [];
+        var choices = [];
+        function quoted(text) { return '„' + text + '“'; }
+        function changes(current, found) {
+            return map.FIELDS.filter(function (field) {
+                return Object.prototype.hasOwnProperty.call(found, field) &&
+                    found[field] !== current[field];
+            }).map(function (field) {
+                return field + ': ' + quoted(current[field]) + ' → ' + quoted(found[field]);
+            }).join(' · ');
+        }
+        function card(row) {
+            return el('strong', { text: row.identity[4] + ' ' + row.identity[1] });
+        }
+        function group(title, items) {
+            return items.length ? el('details', { className: 'group', open: true }, [
+                el('summary', { text: title + ' (' + items.length + ')' }),
+                el('ul', { className: 'cards' }, items)
+            ]) : null;
+        }
+
+        var setItems = result.sets.map(function (s) {
+            var box = el('input', { type: 'checkbox' });
+            box.checked = true;
+            box._apply = function (next) { map.setSet(next, s.code, s.fabrary, shipped); };
+            boxes.push(box);
+            return el('li', {}, [el('label', {}, [box, ' ',
+                el('strong', { text: s.code + ' ' + FCT.reference.setName(s.code) }),
+                el('div', { className: 'what', text: 'Set: ' + quoted(s.current) + ' → ' +
+                    quoted(s.fabrary) })])]);
+        });
+        var variantItems = result.variants.map(function (v) {
+            var box = el('input', { type: 'checkbox' });
+            box.checked = true;
+            box._apply = function (next) { takeVariant(next, v.row, v.fabrary); };
+            boxes.push(box);
+            return el('li', {}, [el('label', {}, [box, ' ', card(v.row),
+                ' (' + variantText(v.row) + ')',
+                el('div', { className: 'what', text: changes(v.current, v.fabrary) })])]);
+        });
+        var unclearItems = result.unclear.map(function (u) {
+            var select = el('select', {}, [el('option', { value: '',
+                text: 'nicht übernehmen' })].concat(u.candidates.map(function (c, i) {
+                return el('option', { value: String(i), text: [c.identifier, c.set,
+                    c.treatment || '(ohne Treatment)'].filter(function (t) {
+                    return t != null;
+                }).join(' · ') });
+            })));
+            choices.push({ select: select, unclear: u });
+            return el('li', {}, [card(u.row), ' (' + variantText(u.row) + ')',
+                el('div', { className: 'what' }, ['Bei Fabrary mehrdeutig: ', select])]);
+        });
+        var absentItems = result.notInFabrary.slice(0, 50).map(function (row) {
+            return el('li', {}, [card(row), ' (' + variantText(row) + ')']);
+        });
+
+        // Keeps the fields of an own entry that the finding does not name.
+        function takeVariant(next, row, found) {
+            map.setVariant(next, row, Object.assign({}, next.variants[row.key] || {}, found),
+                shipped);
+        }
+
+        function tick(on) { boxes.forEach(function (b) { b.checked = on; }); }
+        return openDialog({
+            title: 'Fabrary-Abgleich – ' + name,
+            body: el('div', { className: 'report take-over' }, [
+                el('p', { className: 'what', text: summary + ' Angezeigt sind nur ' +
+                    'Abweichungen zur geltenden Zuordnung.' }),
+                group('Set-Namen', setItems),
+                group('Varianten', variantItems),
+                group('Unklar', unclearItems),
+                absentItems.length ? el('details', { className: 'group' }, [
+                    el('summary', { text: 'Bei Fabrary nicht vorhanden (' +
+                        result.notInFabrary.length + ')' }),
+                    el('ul', { className: 'cards' }, absentItems)
+                ]) : null
+            ]),
+            hint: 'Angehakte Abweichungen kommen in die eigene Zuordnung dieses Bestands.',
+            wide: true,
+            buttons: [
+                { label: 'Alle', left: true, onClick: function () { tick(true); } },
+                { label: 'Keine', left: true, onClick: function () { tick(false); } },
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Übernehmen', value: 'accept', primary: true }
+            ]
+        }).then(function (value) {
+            if (value !== 'accept') return fabraryMap();
+            var next = JSON.parse(JSON.stringify(own));
+            boxes.forEach(function (b) { if (b.checked) b._apply(next); });
+            choices.forEach(function (c) {
+                if (c.select.value === '') return;
+                takeVariant(next, c.unclear.row, c.unclear.candidates[Number(c.select.value)]);
+            });
+            var taken = takeFabraryMap(next, 'Abgleich mit ' + name);
+            showMessage('Fabrary-Abgleich', taken ? 'Die Zuordnung ist übernommen und wird ' +
+                'mit dem Bestand gespeichert.' : 'Nichts übernommen.');
+            return fabraryMap();
+        });
     }
 
     /*
@@ -2067,12 +2536,60 @@ FCT.app = (function () {
             model.setOverride(row, key, model.deviates(row, key, expected));
         }
         changelog.add(action || 'Geändert', row, key, old, value);
+        // A quantity that goes away may leave the row empty; releaseEmptied decides after
+        // all changes of the action (a row dialog changes several cells one after another).
+        if (model.QUANTITIES.indexOf(key) >= 0 && util.toInt(old) > 0) row._emptied = true;
         return true;
+    }
+
+    /*
+     * Rows whose last quantity was just removed and that carry nothing else of their own go
+     * back to being gaps (○): they leave the CSV (issue #18). Rows taken in on purpose with
+     * empty quantities stay until they once had a quantity. Returns the number of rows.
+     */
+    function releaseEmptied() {
+        var released = state.collection.rows.filter(function (row) {
+            var emptied = row._emptied;
+            delete row._emptied;
+            return emptied && model.isEmptyRow(row, state.collection);
+        });
+        released.forEach(function (row) {
+            state.collection.rows.splice(state.collection.rows.indexOf(row), 1);
+            keepCollected(row);
+            changelog.add('Zurück zu ○', row, '', '', 'keine Menge mehr – steht nicht mehr ' +
+                'in der Bestandsdatei');
+        });
+        return released.length;
+    }
+
+    // The set of a row that leaves the collection stays collected, also when it was its last
+    // row: its printings then show up grey (○) instead of the set disappearing (issue #18).
+    function keepCollected(row) {
+        var code = model.setCode(row.Id);
+        var codes = state.collection.collectedSets;
+        if (code && codes.indexOf(code) < 0) codes.push(code);
+    }
+
+    // Selects a row after a rebuild; a row that went back to a gap is found by its variant.
+    function selectRow(row) {
+        if (state.shownRows.indexOf(row) < 0) {
+            row = state.shownRows.filter(function (r) {
+                return r.Id === row.Id && r.Edition === row.Edition &&
+                    r['Art Treatment'] === row['Art Treatment'] && r.Name === row.Name;
+            })[0] || null;
+        }
+        if (row) grid.select(row);
     }
 
     // Called by the grid after a cell was edited or a quantity button was pressed.
     function onEdit(row, key, value) {
         if (!changeCell(row, key, value)) return;
+        if (releaseEmptied()) {
+            setDirty(true);
+            rebuild();
+            selectRow(row);
+            return;
+        }
         rebuildCalculationOnly();
         setDirty(true);
     }
@@ -2366,6 +2883,7 @@ FCT.app = (function () {
                 'bleibt als ○ (noch nicht im Bestand) in der Liste des Sets.'
             : 'Zeile „' + label + '“ vollständig löschen?')) return;
         rows.splice(rows.indexOf(row), 1);
+        if (toGap) keepCollected(row);
         var quantities = model.QUANTITIES.map(function (q) {
             return q + '=' + (row[q] || 0);
         }).join(' ');
@@ -2508,20 +3026,30 @@ FCT.app = (function () {
                 if (changeCell(row, key, input.value, action)) changed = true;
             });
             if (!changed) return;
+            releaseEmptied();
             setDirty(true);
             rebuild();
-            grid.select(row);
+            selectRow(row);
         });
     }
 
     /*
-     * Taking whole sets into the collection (feedback on 2.0.2.0): the sets of the reference
-     * data that do not occur in the collection yet are listed, newest first; every printing of
-     * the ticked sets becomes a row with empty quantities, as in the old spreadsheet.
+     * Taking whole sets into the collection (feedback on 2.0.2.0, issue #18): the sets of the
+     * reference data that are not collected yet are listed, newest first. By default the ticked
+     * sets are only shown: their printings appear as gaps (○) and enter the CSV once they get
+     * a quantity; the set codes are kept in the configuration file. On request every printing
+     * becomes a row with empty quantities, as in the old spreadsheet. Sets collected without
+     * rows can be given up again in the same dialog.
      */
+    var ADD_SETS_MODES = {
+        show: 'Nur anzeigen (grau) – erst eine Menge nimmt die Karte in den Bestand auf',
+        rows: 'Als Zeilen mit leeren Mengen in den Bestand schreiben (wie in der 1.0-Tabelle)'
+    };
+
     function addSets() {
         var sets = model.missingSets(state.collection);
-        if (!sets.length) {
+        var withoutRows = setsWithoutRows();
+        if (!sets.length && !withoutRows.length) {
             showMessage('Sets aufnehmen', 'Alle Sets der Stammdaten sind schon im Bestand.');
             return null;
         }
@@ -2553,45 +3081,211 @@ FCT.app = (function () {
             });
         });
 
+        // How the ticked sets are taken in; the choice is remembered.
+        var mode = settings.get('addSetsMode', 'show');
+        var modes = Object.keys(ADD_SETS_MODES).map(function (value) {
+            var radio = el('input', { type: 'radio', name: 'add-sets-mode', value: value });
+            radio.checked = value === mode;
+            return el('label', {}, [radio, ' ' + ADD_SETS_MODES[value]]);
+        });
+
+        // Sets collected without rows, to give them up again.
+        var dropBoxes = withoutRows.map(function (code) {
+            var box = el('input', { type: 'checkbox' });
+            box._code = code;
+            return box;
+        });
+        var dropList = withoutRows.length ? el('div', {}, [
+            el('h3', { text: 'Gesammelt ohne Zeilen (grau)' }),
+            el('p', { className: 'what', text: 'Angehakte Sets werden nicht mehr gesammelt; ' +
+                'ihre grauen Zeilen verschwinden. Die Bestandsdatei ändert sich nicht.' }),
+            el('ul', { className: 'cards set-list' }, dropBoxes.map(function (box) {
+                return el('li', {}, [el('label', {}, [box, ' ', el('strong', {
+                    text: FCT.reference.setName(box._code) + ' (' + box._code + ')' })])]);
+            }))
+        ]) : null;
+
+        var body = el('div', { className: 'report take-over' }, [
+            sets.length ? search : null,
+            sets.length ? list : null,
+            sets.length ? el('div', { className: 'add-sets-mode' }, modes) : null,
+            dropList
+        ]);
         return openDialog({
             title: 'Sets aufnehmen – ' + sets.length + ' Sets noch nicht im Bestand',
-            body: el('div', { className: 'report take-over' }, [search, list]),
-            hint: 'Alle Varianten der angehakten Sets werden als Zeilen mit leeren Mengen in den ' +
-                'Bestand aufgenommen – so lassen sie sich wie in der 1.0-Tabelle ausfüllen. ' +
-                'Später erscheinende Varianten eines Sets tauchen automatisch als ○ auf.',
+            body: body,
+            hint: 'Später erscheinende Varianten eines gesammelten Sets tauchen automatisch ' +
+                'als ○ auf.',
             wide: true,
             buttons: [
                 { label: 'Abbrechen', value: 'cancel' },
-                { label: 'Aufnehmen', value: 'accept', primary: true }
+                { label: 'Übernehmen', value: 'accept', primary: true }
             ]
         }).then(function (value) {
             if (value !== 'accept') return;
             var chosen = boxes.filter(function (b) { return b.checked; }).map(function (b) {
                 return b._set;
             });
-            if (!chosen.length) return;
-            var rows = model.setRows(state.collection, chosen.map(function (set) {
-                return set.code;
-            }));
-            Array.prototype.push.apply(state.collection.rows, rows);
-            chosen.forEach(function (set) {
-                var count = rows.filter(function (row) {
-                    return model.setCode(row.Id) === set.code;
-                }).length;
-                changelog.add('Set aufgenommen', null, '', '', set.name + ' (' + set.code +
-                    ') – ' + count + ' Zeilen');
+            var dropped = dropBoxes.filter(function (b) { return b.checked; }).map(function (b) {
+                return b._code;
             });
-            FCT.log.info('sets', 'Sets aufgenommen', { sets: chosen.map(function (set) {
-                return set.code;
-            }), rows: rows.length });
+            var checked = modes.map(function (label) {
+                return label.querySelector('input');
+            }).filter(function (radio) { return radio.checked; })[0];
+            mode = checked ? checked.value : mode;
+            settings.set('addSetsMode', mode);
+            if (!chosen.length && !dropped.length) return;
+            var first = mode === 'rows' ? takeSetsAsRows(chosen) : takeSetsAsGaps(chosen);
+            dropSets(dropped);
             setDirty(true);
             rebuild();
-            if (rows.length) grid.select(rows[0]);
-            showMessage('Sets aufgenommen', chosen.map(function (set) {
-                return set.name + ' (' + set.code + ')';
-            }).join(', ') + ': ' + rows.length.toLocaleString('de-DE') + ' Zeilen mit leeren ' +
-                'Mengen aufgenommen.');
+            if (first) selectRow(first);
         });
+    }
+
+    // Set codes collected without any row in the collection.
+    function setsWithoutRows() {
+        var withRows = new Set(state.collection.rows.map(function (row) {
+            return model.setCode(row.Id);
+        }));
+        return (state.collection.collectedSets || []).filter(function (code) {
+            return !withRows.has(code);
+        });
+    }
+
+    // "Nur anzeigen": the sets are collected, their printings show up as gaps. Returns the
+    // first row of the first set, to select it.
+    function takeSetsAsGaps(chosen) {
+        if (!chosen.length) return null;
+        var codes = state.collection.collectedSets;
+        chosen.forEach(function (set) {
+            if (codes.indexOf(set.code) < 0) codes.push(set.code);
+            changelog.add('Set aufgenommen', null, '', '', set.name + ' (' + set.code +
+                ') – ' + set.printings + ' Varianten, nur angezeigt');
+        });
+        FCT.log.info('sets', 'Sets aufgenommen (nur angezeigt)', { sets: chosen.map(function (s) {
+            return s.code;
+        }) });
+        showMessage('Sets aufgenommen', chosen.map(function (set) {
+            return set.name + ' (' + set.code + ')';
+        }).join(', ') + ': Die Varianten stehen grau (○) in der Tabelle. Sobald du eine Menge ' +
+            'einträgst, kommt die Karte in die Bestandsdatei.');
+        var code = chosen[0].code;
+        return model.withGaps(state.collection).filter(function (row) {
+            return model.setCode(row.Id) === code;
+        })[0] || null;
+    }
+
+    // "Als Zeilen": every printing of the sets becomes a row with empty quantities.
+    function takeSetsAsRows(chosen) {
+        if (!chosen.length) return null;
+        var rows = model.setRows(state.collection, chosen.map(function (set) {
+            return set.code;
+        }));
+        Array.prototype.push.apply(state.collection.rows, rows);
+        chosen.forEach(function (set) {
+            var count = rows.filter(function (row) {
+                return model.setCode(row.Id) === set.code;
+            }).length;
+            changelog.add('Set aufgenommen', null, '', '', set.name + ' (' + set.code +
+                ') – ' + count + ' Zeilen');
+        });
+        FCT.log.info('sets', 'Sets aufgenommen', { sets: chosen.map(function (set) {
+            return set.code;
+        }), rows: rows.length });
+        showMessage('Sets aufgenommen', chosen.map(function (set) {
+            return set.name + ' (' + set.code + ')';
+        }).join(', ') + ': ' + rows.length.toLocaleString('de-DE') + ' Zeilen mit leeren ' +
+            'Mengen aufgenommen.');
+        return rows[0] || null;
+    }
+
+    // Gives up sets collected without rows.
+    function dropSets(codes) {
+        if (!codes.length) return;
+        state.collection.collectedSets = state.collection.collectedSets.filter(function (code) {
+            return codes.indexOf(code) < 0;
+        });
+        codes.forEach(function (code) {
+            changelog.add('Set nicht mehr gesammelt', null, '', '',
+                FCT.reference.setName(code) + ' (' + code + ')');
+        });
+        FCT.log.info('sets', 'Sets nicht mehr gesammelt', { sets: codes });
+    }
+
+    /*
+     * "Leere Zeilen entfernen" (issue #18): rows that carry nothing of their own (see
+     * model.isEmptyRow) are taken out of the CSV after a question. Their sets stay collected,
+     * so the printings show up grey (○). The change log keeps one entry per set.
+     */
+    function removeEmptyRows() {
+        var empty = state.collection.rows.filter(function (row) {
+            return model.isEmptyRow(row, state.collection);
+        });
+        if (!empty.length) {
+            showMessage('Leere Zeilen entfernen', 'Der Bestand hat keine leeren Zeilen.');
+            return null;
+        }
+        var bySet = new Map();
+        empty.forEach(function (row) {
+            var code = model.setCode(row.Id);
+            bySet.set(code, (bySet.get(code) || 0) + 1);
+        });
+        var list = el('ul', { className: 'cards set-list' }, Array.from(bySet.keys()).sort()
+            .map(function (code) {
+                return el('li', {}, [el('strong', { text: FCT.reference.setName(code) +
+                    ' (' + code + ')' }), el('span', { className: 'what', text: ' ' +
+                    bySet.get(code).toLocaleString('de-DE') + ' Zeilen' })]);
+            }));
+        return openDialog({
+            title: 'Leere Zeilen entfernen – ' + empty.length.toLocaleString('de-DE') + ' Zeilen',
+            body: el('div', { className: 'report take-over' }, [
+                el('p', { text: 'Diese Zeilen haben keine Menge, keine Notiz und keine lokale ' +
+                    'Änderung. Sie werden aus der Bestandsdatei genommen und stehen danach ' +
+                    'grau (○) in der Tabelle; ihre Sets bleiben gesammelt.' }),
+                list
+            ]),
+            wide: true,
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Entfernen', value: 'remove', primary: true }
+            ]
+        }).then(function (value) {
+            if (value !== 'remove') return;
+            var before = { rows: state.collection.rows.slice(),
+                sets: state.collection.collectedSets.slice() };
+            var codes = state.collection.collectedSets;
+            state.collection.rows = state.collection.rows.filter(function (row) {
+                return empty.indexOf(row) < 0;
+            });
+            bySet.forEach(function (count, code) {
+                if (codes.indexOf(code) < 0) codes.push(code);
+                changelog.add('Leere Zeilen entfernt', null, '', '',
+                    FCT.reference.setName(code) + ' (' + code + ') – ' + count + ' Zeilen');
+            });
+            FCT.log.info('sets', 'Leere Zeilen entfernt', { rows: empty.length,
+                sets: Array.from(bySet.keys()) });
+            setDirty(true);
+            rebuild();
+            FCT.notices.show('empty-rows', 'info', empty.length.toLocaleString('de-DE') +
+                ' leere Zeilen entfernt; sie stehen jetzt grau (○) in der Tabelle.', {
+                    closable: true,
+                    buttons: [{ label: '↶ Rückgängig', onClick: function () {
+                        FCT.notices.clear('empty-rows');
+                        restoreEmptyRows(before, empty.length);
+                    } }]
+                });
+        });
+    }
+
+    // Undoes "Leere Zeilen entfernen": the rows and collected sets as they were before.
+    function restoreEmptyRows(before, count) {
+        state.collection.rows = before.rows;
+        state.collection.collectedSets = before.sets;
+        changelog.add('Rückgängig', null, '', '', count + ' leere Zeilen wieder im Bestand');
+        FCT.log.info('sets', 'Leere Zeilen wiederhergestellt', { rows: count });
+        setDirty(true);
+        rebuild();
     }
 
     /*
@@ -3037,8 +3731,10 @@ FCT.app = (function () {
         // Toolbar.
         var actions = {
             'btn-new': newCollection, 'btn-open': open, 'btn-save': save,
-            'btn-backup': backup, 'btn-add-sets': addSets, 'btn-import-ods': importOds,
+            'btn-backup': backup, 'btn-add-sets': addSets, 'btn-remove-empty': removeEmptyRows,
+            'btn-import-ods': importOds,
             'btn-import-fabrary': importFabrary, 'btn-export-fabrary': exportFabrary,
+            'btn-fabrary-map': fabraryMap,
             'btn-export-cardmarket': exportCardmarket,
             'btn-reference-update': function () { return updateReference(true); },
             'btn-reference-apply': applyReference, 'btn-reference-info': showReferenceInfo,
@@ -3189,10 +3885,11 @@ FCT.app = (function () {
             ensureFolder: ensureFolder,
             canUseFolder: function () { return FCT.storage.canUseFolder; },
             hasFolder: function () { return !!state.folder; },
+            folderName: function () { return state.folder ? state.folder.name : ''; },
             canWriteBack: function () { return FCT.storage.canWriteBack; },
             newCollection: newCollection,
-            importOds: function () { return importOds(); },
-            importFabrary: function () { return importFabrary(); },
+            importOds: function (options) { return importOds(false, options); },
+            importFabrary: function (options) { return importFabrary(false, options); },
             open: open,
             save: save,
             rowCount: function () { return state.collection.rows.length; },

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css?v=2.2.0.0">
+    <link rel="stylesheet" href="app/style.css?v=2.3.0.0">
     <!-- Design (Auto, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
@@ -168,8 +168,9 @@
             startet beim
             ersten Besuch der <strong>Einrichtungs-Assistent</strong>: Er fragt, womit du
             beginnst (neu anfangen, 1.0-Tabelle oder Fabrary-Export importieren, vorhandenen
-            Bestand öffnen), führt durch Ablageort, Anlegen und „Sets aufnehmen“ und bietet am
-            Ende die kurze <strong>Tour</strong> durch die Seite an. Beides lässt sich
+            Bestand öffnen), führt durch Ablageort, Anlegen und „Sets aufnehmen“ – bevor sich
+            ein Fenster zur Dateiauswahl öffnet, sagt er, welche Datei du dort wählst – und
+            bietet am Ende die kurze <strong>Tour</strong> durch die Seite an. Beides lässt sich
             jederzeit wiederholen: <em>Hilfe → Einrichtung</em> und <em>Hilfe → Tutorial</em>;
             die Tour endet mit <kbd>Esc</kbd>.</p>
         <p>So kommt dein Bestand in die Anwendung:</p>
@@ -186,7 +187,8 @@
         </ul>
         <p>Beim Start lädt die Anwendung automatisch die aktuellen Kartendaten (die
             „Stammdaten“) aus dem Internet. Ohne Internet arbeitet sie mit den mitgelieferten
-            weiter. Beim nächsten Start ist dein Bestand sofort wieder da.</p>
+            weiter (siehe <a href="#mitgeliefert">Online geladen oder mitgeliefert</a>). Beim
+            nächsten Start ist dein Bestand sofort wieder da.</p>
         <p class="tip">Unterstützt wird Chrome (Edge beruht auf derselben Technik): Nur dort
             kann die Anwendung direkt in deine Dateien schreiben – Arbeitsordner und
             automatisches Speichern. Siehe <a href="#browser">Unterstützte Browser</a>.</p>
@@ -203,6 +205,11 @@
                 <td>dein Bestand</td></tr>
             <tr><td><code>collection-log.csv</code></td>
                 <td>das Änderungsprotokoll (die letzten 1.000 Änderungen)</td></tr>
+            <tr><td><code>collection-config.json</code></td>
+                <td>Einstellungen zum Bestand, die nicht in die CSV gehören – die Sets, die du
+                    ohne Zeilen sammelst (siehe <a href="#sets">Sets aufnehmen</a>), und deine
+                    eigene Fabrary-Zuordnung (siehe <a href="#fabrary">Fabrary</a>). Ohne
+                    Arbeitsordner merkt sich das nur der Browser.</td></tr>
             <tr><td><code>collection-backup-JJJJMMTT-HHMMSS.csv</code></td>
                 <td>Backups, die du mit <em>Backup</em> anlegst</td></tr>
             <tr><td><code>fct-diagnose.log</code>, <code>fct-diagnose.1.log</code></td>
@@ -340,7 +347,10 @@
         <h3>Farben der Zellen</h3>
         <ul>
             <li><strong>Weiß mit blauem Rahmen:</strong> deine Eingaben – Mengen und Notiz.</li>
-            <li><strong>Grau:</strong> aus den Stammdaten, normalerweise gesperrt.</li>
+            <li><strong>Grauer Hintergrund:</strong> Wert aus den Stammdaten, normalerweise
+                gesperrt. Das ist etwas anderes als eine <strong>graue Zeile</strong> mit
+                <span class="sym gap">○</span>: Die steht nicht in deiner Bestandsdatei (siehe
+                <a href="#sets">Vollständige Sets</a>).</li>
             <li><strong>Schraffiert:</strong> Mengenzelle eines Foilings, das es von dieser
                 Variante laut Stammdaten nicht gibt (z. B. WTR000 Alpha nur als Cold Foil). Sie
                 ist gesperrt: Der Zellcursor kann sie erreichen (auch zum Durchwandern mit der
@@ -377,8 +387,8 @@
         <h3>Zeilenaktionen</h3>
         <p>Am Ende jeder Zeile (auch beim seitlichen Scrollen sichtbar): ✎ alle Felder
             bearbeiten, ＋ neue Zeile darunter, Kopieren, Kopie darunter einfügen (ohne Mengen –
-            z. B. für eine weitere Sprache), Löschen. Zeilen, die noch nicht im Bestand sind
-            (<span class="sym gap">○</span>), haben statt Kopieren und Löschen das Symbol
+            z. B. für eine weitere Sprache), Löschen. Zeilen, die nicht in deiner Bestandsdatei
+            stehen (<span class="sym gap">○</span>), haben statt Kopieren und Löschen das Symbol
             <strong>In den Bestand aufnehmen</strong> (Pfeil in eine Ablage) – und ebenso ＋
             für eine neue Zeile darunter.</p>
         <ul>
@@ -395,9 +405,9 @@
                 Stammdaten, wird die Zeile nur <em>geleert</em>: Mengen und Notiz verschwinden,
                 und die Variante steht grau als <span class="sym gap">○</span> an derselben
                 Stelle. Ganz entfernt wird eine Zeile nur, wenn ihre Variante nicht in den
-                Stammdaten steht oder eine andere Zeile sie schon abdeckt. Wird die letzte
-                Zeile eines Sets gelöscht, verschwindet das Set; <em>Sets aufnehmen</em> holt es
-                zurück.</li>
+                Stammdaten steht oder eine andere Zeile sie schon abdeckt. Auch nach der
+                letzten Zeile eines Sets bleibt das Set gesammelt und steht grau in der Tabelle;
+                aufgeben lässt es sich unter <em>Sets aufnehmen …</em>.</li>
         </ul>
         <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus – außer Id,
             Edition und Art Treatment, die eine Variante ausmachen und immer sichtbar sind;
@@ -478,8 +488,10 @@
                 Stammdaten ab, z. B. „Rarity: Majestic → Marvel“.</td></tr>
             <tr><td><span class="sym override">✱</span></td><td>Du hast einen Stammdatenwert
                 bewusst geändert (lokale Änderung). Er bleibt, bis du ihn zurücksetzt.</td></tr>
-            <tr><td><span class="sym gap">○</span></td><td>Diese Variante hast du noch nicht im
-                Bestand (siehe <a href="#sets">Vollständige Sets</a>).</td></tr>
+            <tr><td><span class="sym gap">○</span></td><td>Diese Variante gibt es laut
+                Stammdaten, sie steht aber <strong>nicht in deiner Bestandsdatei</strong> – die
+                Zeile ist grau und wird nur angezeigt (siehe
+                <a href="#sets">Vollständige Sets</a>).</td></tr>
             <tr><td><span class="sym unknown">?</span></td><td>Die Kartennummer ist in den
                 Stammdaten unbekannt.</td></tr>
         </table>
@@ -574,10 +586,17 @@
         <!-- 8 -->
         <h2 id="sets">9. Vollständige Sets und Sets aufnehmen</h2>
         <h3>Vollständige Sets</h3>
-        <p>Jedes Set in deinem Bestand wird <strong>vollständig</strong> angezeigt: Varianten, die
-            du noch nicht hast, stehen als Zeile mit <span class="sym gap">○</span> an ihrer
-            Stelle. Sobald du dort eine Menge einträgst oder ＋ drückst, gehören sie zu deinem
-            Bestand. Erscheinen später neue Varianten eines Sets, tauchen sie ebenfalls so auf.</p>
+        <p>Jedes Set, das du sammelst, wird <strong>vollständig</strong> angezeigt: Varianten,
+            die nicht in deiner Bestandsdatei stehen, erscheinen als <strong>graue
+            Zeile</strong> mit <span class="sym gap">○</span> an ihrer Stelle. Sie werden nur
+            angezeigt und nicht gespeichert. Sobald du dort eine Menge einträgst oder ＋ drückst,
+            kommt die Zeile in die Bestandsdatei. Erscheinen später neue Varianten eines Sets,
+            tauchen sie ebenfalls so auf.</p>
+        <p>In der Bestandsdatei stehen nur Zeilen, die etwas Eigenes haben. Nimmst du einer
+            Zeile die letzte Menge (Zelle leeren, − bis 0, Zeilendialog), wird sie wieder grau
+            und verschwindet aus der Datei – sofern sie keine Notiz und keine lokale Änderung
+            (<span class="sym override">✱</span>) hat. <em>Rückgängig</em> im Protokoll holt
+            die Menge zurück.</p>
         <p>Manche Sets gibt es in mehreren <strong>Editionen</strong>, z. B. „Welcome to Rathe“
             als Alpha und Unlimited. Hast du nur Unlimited-Zeilen, erscheint jede Karte
             zusätzlich als Alpha-○. Damit der Unterschied sofort auffällt:</p>
@@ -594,14 +613,28 @@
                 <em>Edition</em> das Häkchen bei ihr heraus (z. B. „Alpha“).</li>
         </ul>
         <h3>Sets aufnehmen</h3>
-        <p><em>Sets aufnehmen …</em> (Gruppe Bestand) listet alle Sets der Stammdaten, die noch
-            nicht in deinem Bestand sind – die neuesten zuerst, mit Erscheinungsdatum und Zahl
-            der Varianten. Das Suchfeld grenzt die Liste ein (auch mit Platzhaltern). Die
-            angehakten Sets werden mit <strong>allen Varianten als Zeilen mit leeren
-            Mengen</strong> aufgenommen – so kannst du sie ausfüllen wie früher in der
-            1.0-Tabelle, auch
-            wenn du noch keine einzige Karte davon hast. Welche Sets du sammelst, entscheidest
-            nur du; die Anwendung nimmt nie von selbst neue Sets auf.</p>
+        <p><em>Sets aufnehmen …</em> (Gruppe Bestand) listet alle Sets der Stammdaten, die du
+            noch nicht sammelst – die neuesten zuerst, mit Erscheinungsdatum und Zahl der
+            Varianten. Das Suchfeld grenzt die Liste ein (auch mit Platzhaltern). Für die
+            angehakten Sets wählst du, wie sie aufgenommen werden (die Wahl wird gemerkt):</p>
+        <ul>
+            <li><strong>Nur anzeigen (grau)</strong> – Standard: Alle Varianten stehen grau
+                (<span class="sym gap">○</span>) in der Tabelle, die Bestandsdatei bleibt, wie
+                sie ist. Erst eine Menge nimmt eine Karte in die Datei auf. Dass du das Set
+                sammelst, steht in <code>&lt;bestand&gt;-config.json</code> im Arbeitsordner.</li>
+            <li><strong>Als Zeilen mit leeren Mengen</strong> – wie früher in der 1.0-Tabelle:
+                Alle Varianten kommen als Zeilen in die Bestandsdatei.</li>
+        </ul>
+        <p>Sets, die du ohne Zeilen sammelst, stehen im selben Dialog unter <em>Gesammelt ohne
+            Zeilen</em>; angehakt werden sie nicht mehr gesammelt, und ihre grauen Zeilen
+            verschwinden. Welche Sets du sammelst, entscheidest nur du; die Anwendung nimmt nie
+            von selbst neue Sets auf.</p>
+        <h3>Leere Zeilen entfernen</h3>
+        <p><em>Leere Zeilen entfernen …</em> (Gruppe Bestand) findet Zeilen ohne Menge, Notiz
+            und lokale Änderung – etwa aus einem früheren <em>Sets aufnehmen</em> als Zeilen –,
+            zeigt ihre Zahl je Set und nimmt sie nach Rückfrage aus der Bestandsdatei. Sie
+            stehen danach grau in der Tabelle, ihre Sets bleiben gesammelt. Der Hinweis danach
+            bietet <em>Rückgängig</em> an.</p>
 
         <!-- 9 -->
         <h2 id="stammdaten">10. Stammdaten</h2>
@@ -632,6 +665,29 @@
                 vorausgewählt ist nichts. Ist der Bestand leer, erklärt ein Hinweis, dass es
                 noch nichts zu übernehmen gibt, und bietet <em>Sets aufnehmen</em> an.</li>
         </ul>
+        <h3 id="mitgeliefert">Online geladen oder mitgeliefert</h3>
+        <p>Die Stammdaten beschreiben <strong>alle Karten, die es gibt</strong> – nicht deine
+            Sammlung. Was du besitzt (Mengen, Playset, Notizen), steht nur in deiner
+            <code>collection.csv</code> im Arbeitsordner. Beides ist getrennt.</p>
+        <ul>
+            <li><strong>Mitgeliefert:</strong> Die Anwendung bringt einen festen Stand der
+                Stammdaten mit, im Ordner <code>reference/</code> (Sets, Karten und
+                Varianten). Er wird nur mit einer neuen Version der Anwendung
+                erneuert. <em>Info</em> zeigt Herkunft und Stand der gerade geltenden
+                Stammdaten.</li>
+            <li><strong>Mit Internet</strong> lädt die Anwendung bei <strong>jedem
+                Start</strong> den aktuellen Stand des Datensatzes aus dem gewählten Branch und
+                verwendet ihn statt des mitgelieferten. Neue Karten und Sets bekommst du so ohne
+                Update der Anwendung.</li>
+            <li><strong>Ohne Internet</strong> – oder wenn das Laden zu lange dauert oder die
+                Daten unvollständig ankommen – gelten die mitgelieferten Stammdaten.</li>
+            <li>Online geladene Stammdaten werden <strong>nicht gespeichert</strong>. Ohne
+                Internet gilt also immer der mitgelieferte Stand, nicht der zuletzt online
+                geladene. Dein Bestand ist davon nicht betroffen: Zeilen mit Karten, die im
+                mitgelieferten Stand noch fehlen, bleiben mit deinen Werten erhalten und sind
+                mit <span class="sym unknown">?</span> markiert (Kartennummer nicht in den
+                Stammdaten).</li>
+        </ul>
         <h3>Farben des Stammdaten-Stands</h3>
         <table>
             <tr><th>Farbe</th><th>Bedeutung</th></tr>
@@ -646,7 +702,8 @@
         <p>Der Tooltip des Stands und der Dialog <em>Info</em> nennen diese Bedeutung ebenfalls.
             Die Farben in der Tabelle: <span class="sym differs">≠</span> orange = weicht von den
             Stammdaten ab, <span class="sym override">✱</span> violett = lokal geändert,
-            <span class="sym gap">○</span> grau = noch nicht im Bestand, roter Balken am
+            <span class="sym gap">○</span> graue Zeile = nicht in der Bestandsdatei, roter
+            Balken am
             Zeilenanfang = fehlt zum Playset, grüner Balken = überzählig (siehe
             <a href="#status">Status</a>).</p>
         <p class="tip">Übernehmen verändert nie deine Sammlung selbst: Mengen, Notiz,
@@ -700,14 +757,35 @@
             <li><em>Übernehmen</em>, dann <em>Speichern</em>.</li>
         </ol>
         <p>Die Spalten werden über ihre Überschriften erkannt; ihre Reihenfolge ist egal.</p>
-        <h3>Fabrary</h3>
+        <h3 id="fabrary">Fabrary</h3>
         <ul>
             <li><strong>Import:</strong> der Sammlungsexport aus Fabrary. Zeilen mit Menge
                 werden zum Bestand, die Foilings werden zu ST/RF/CF/GF zusammengefasst.</li>
-            <li><strong>Export:</strong> erzeugt eine Importdatei für Fabrary. Sprachvarianten
-                werden zusammengezählt, „Micro Text Box“ wird zu „Extended Art“, „Extra for
-                trade“ wird nach den Regeln des alten Tools berechnet. Varianten, die Fabrary nicht
-                kennt, werden gemeldet und nicht geraten.</li>
+            <li><strong>Export:</strong> erzeugt eine Importdatei für Fabrary mit
+                <strong>allen Karten</strong> aus den Stammdaten – jede Variante in jedem
+                Foiling, das es gibt, aus allen Sets. Karten, die du nicht hast, stehen mit
+                <strong>0</strong> darin, damit Fabrary sie als fehlend anzeigt.
+                Sprachvarianten werden zusammengezählt, „Micro Text Box“ wird zu „Extended
+                Art“, „Extra for trade“ wird nach den Regeln des alten Tools berechnet. Zeilen
+                deines Bestands, deren Variante oder Foiling die Stammdaten nicht kennen,
+                werden im Bericht genannt und nicht exportiert.</li>
+            <li><strong>Zuordnung …</strong> (Gruppe Export): Fabrary nennt manches anders als
+                die Stammdaten – andere Set-Namen, alle Treatments einer Variante statt eines
+                („Alternate Art, Alternate Border, Extended Art“), Identifier ohne Punkte.
+                Findet Fabrary eine Zeile nicht, kommt die Karte dort nicht an. Die App bringt
+                deshalb eine Zuordnung mit, die der Export verwendet. Im Dialog siehst du sie
+                je Set und je Variante und kannst eigene Werte eintragen; sie gehen der
+                mitgelieferten Zuordnung vor. Ein leeres Feld nimmt den grau angezeigten Wert,
+                „-“ steht für ausdrücklich leer, ↺ entfernt deinen Eintrag. Weitere Sets und
+                Varianten (per Kartennummer) lassen sich hinzufügen. Deine Zuordnung steht in
+                <code>&lt;bestand&gt;-config.json</code>.</li>
+            <li><strong>Mit Fabrary-Export abgleichen …</strong> (im Dialog Zuordnung): Lade
+                in Fabrary deine Sammlung als CSV herunter und wähle die Datei. Die App zeigt
+                nur, wo Fabrary anders heißt als die geltende Zuordnung: Set-Namen, Varianten
+                und unklare Fälle, bei denen mehrere Fabrary-Zeilen passen – dort wählst du
+                die richtige oder lässt sie weg. Eindeutige Funde sind angehakt;
+                <em>Übernehmen</em> trägt sie in deine Zuordnung ein. Varianten, die es bei
+                Fabrary nicht gibt, stehen nur zur Information darunter.</li>
         </ul>
         <p>Ein Import <strong>ersetzt</strong> den geöffneten Bestand; er wird nicht
             zusammengeführt.</p>

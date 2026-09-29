@@ -1037,6 +1037,38 @@ dialog menu .left + button:not(.left) {
     color: var(--muted);
     padding-left: 1.6em;
 }
+/* Sets aufnehmen (issue #18): how the ticked sets are taken in, and sets without rows. */
+.take-over .add-sets-mode {
+    margin: 10px 0 4px;
+}
+.take-over .add-sets-mode label {
+    display: block;
+    padding: 2px 0;
+}
+.take-over h3 {
+    margin: 12px 0 4px;
+    font-size: 1em;
+}
+.take-over p.what {
+    padding-left: 0;
+}
+/* Fabrary-Zuordnung (issue #17): sets and variants with the fields of the mapping. */
+.fabrary-map table.row-form tbody th {
+    font-weight: normal;
+    white-space: normal;
+}
+.fabrary-map table.row-form tbody th .what {
+    padding-left: 0;
+}
+.fabrary-map .add-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0;
+}
+.fabrary-map input[type=search] {
+    margin: 0 0 4px;
+}
 /* Cardmarket export dialog: the set list scrolls on its own, the options stay visible. */
 .cardmarket-export h3 {
     margin: 10px 0 4px;
