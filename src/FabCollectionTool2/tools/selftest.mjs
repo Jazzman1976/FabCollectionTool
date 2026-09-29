@@ -3,6 +3,7 @@
  *
  * Usage (from the tool folder):
  *   node tools/selftest.mjs <example.ods> <fabrary-export.csv> [folder with source csv files]
+ * The Fabrary export should be a current one: the Fabrary mapping is checked against it.
  *
  * The inputs are the user's own files; they are only read, never copied into the repository.
  */
@@ -121,7 +122,9 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
 }
 
 // Round trip: Fabrary import -> export -> import gives the same collection. Only set names
-// and treatments are written as the Fabrary mapping says. A second export is identical.
+// and treatments are written as the Fabrary mapping says, and cards the reference data does
+// not know (e.g. sets of other branches) are skipped by the export. A second export is
+// identical.
 {
     const first = FCT.exportFabrary.exportFabrary(imported.collection).text;
     const again = FCT.importFabrary.importFabrary(first);
@@ -129,8 +132,10 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
     // takes over; the variants stay the same.
     const withoutSet = (collection) => {
         const copy = FCT.model.create();
-        collection.rows.forEach((row) => copy.rows.push(Object.assign({}, row, { Set: '',
-            'Art Treatment': FCT.exportFabrary.treatment(row['Art Treatment'], '', row.Id) })));
+        collection.rows.filter((row) => FCT.reference.printings(row.Id).length)
+            .forEach((row) => copy.rows.push(Object.assign({}, row, { Set: '',
+                'Art Treatment': FCT.exportFabrary.treatment(row['Art Treatment'], '',
+                    row.Id) })));
         return FCT.model.toCsv(copy);
     };
     check('Fabrary round trip',
@@ -140,15 +145,15 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
 
 /*
  * Fabrary mapping (issue #17, addendum): with the shipped mapping every row of the export is
- * written exactly as in Fabrary's own export of 29.09.2026, except the printings Fabrary does
- * not know; the quantities of that export arrive. Own entries win over shipped ones, and the
- * comparison finds nothing left to map - but finds a wrong own entry.
+ * written exactly as in the given Fabrary export (a current one, as the mapping was built
+ * from), except the printings Fabrary does not know; the quantities of that export arrive.
+ * Own entries win over shipped ones, and the comparison finds nothing left to map - but finds
+ * a wrong own entry.
  */
 {
     const map = FCT.fabraryMap;
     const fab = FCT.exportFabrary;
-    const fabraryText = fs.readFileSync(path.join(appRoot, '..', '..', 'docs', 'fabrary',
-        'Fabrary-Export 2026-09-29.csv'), 'utf8');
+    const fabraryText = example;
     const fabraryRecords = FCT.csv.parse(fabraryText).slice(1);
     const known = new Set(fabraryRecords.map((r) => r.slice(0, 8).join('|')));
     const rows = fab.baseRows();

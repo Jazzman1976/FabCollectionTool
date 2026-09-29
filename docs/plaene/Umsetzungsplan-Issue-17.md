@@ -206,8 +206,8 @@ fabrary: {
   - `configText`/`applyConfig` um `fabrary` erweitern (leere Abschnitte nicht schreiben).
 - **Neu `reference/fabrary-map.js`** + `tools/build-fabrary-map.mjs <fabrary-export.csv>`:
   läuft `compare` über die Stammdaten, schreibt nur eindeutige Funde (eine Zeile je Eintrag).
-  Erzeugt aus `docs/fabrary/Fabrary-Export 2026-09-29.csv` (Elmars Datei aus
-  `docs/screenshots/Pull Request #17/` dorthin verschieben und committen).
+  Erzeugt aus Elmars Fabrary-Export vom 29.09.2026 (Datei aus
+  `docs/screenshots/Pull Request #17/`).
   `index.html` + `tools/load-app.mjs`: beide neuen Skripte einbinden.
 - **`tools/selftest.mjs`**:
   - Mit Grund-Mapping trifft der Export Fabrarys Export (Datei oben) in allen Zeilen mit
@@ -250,7 +250,7 @@ fabrary: {
 - `export-fabrary.js`: `baseRows()` (Zeilen ohne Zuordnung, auch für Dialog und Build-Skript),
   `fullTreatment()`. Der Bericht nennt „N Zeilen per Fabrary-Zuordnung angepasst (davon M mit
   eigener Zuordnung)“.
-- **Grund-Mapping** aus `docs/fabrary/Fabrary-Export 2026-09-29.csv`: 55 Sets, 150 Varianten,
+- **Grund-Mapping** aus Elmars Fabrary-Export vom 29.09.2026: 55 Sets, 150 Varianten,
   keine unklaren Fälle. 33 Varianten gibt es bei Fabrary nicht, z. B. UPR225, SMP007–020,
   AUR001, JDG000 Cold.
 - **Dialog „Zuordnung …“** (Gruppe Export): Tabellen Sets und Varianten. Grau steht der Wert
@@ -291,3 +291,17 @@ fabrary: {
   - Treatment „-“ wird als leerer Wert gespeichert und ist nach dem Neuladen noch da.
   - Keine Konsolenfehler, keine Fehler im Diagnose-Log.
 - Offen: Elmar importiert den neuen Export in Fabrary.
+
+### Nachtrag: Fabrary-Export nicht im Repository (29.09.2026)
+- Elmars Fabrary-Export enthält seine Sammlung mit Mengen, das Repository ist öffentlich. Er
+  liegt deshalb wie die Quelldateien von the-fab-cube außerhalb des Repositorys; die App
+  braucht nur das erzeugte `reference/fabrary-map.js`.
+- Der Selbsttest prüft die Zuordnung an der Fabrary-Datei, die beim Aufruf angegeben wird
+  (zweites Argument); sie sollte aktuell sein. `reference/README.md` und `README.md`
+  beschreiben das.
+- Mit Elmars aktuellem Export als zweitem Argument sind alle Prüfungen grün. Mit dem alten
+  `docs/Fabrary Export Beispiel.csv` schlagen die drei Zuordnungsprüfungen erwartungsgemäß
+  fehl, weil Fabrary damals anders benannte.
+- Rundlauf-Prüfung: Karten, die die Stammdaten nicht kennen (z. B. IAR038 aus einem Set, das
+  nur auf einem Branch von the-fab-cube liegt), überspringt der Export bewusst; die Prüfung
+  nimmt sie aus.
