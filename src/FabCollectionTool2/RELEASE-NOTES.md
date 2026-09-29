@@ -5,6 +5,20 @@ Versionsschema **Major.Minor.Release.Build**. Eine neue Version entsteht als Bra
 die dritte Stelle (z. B. 2.2.0.0 → 2.2.1.0). Nach dem Test wird der Branch nach `main`
 gemergt (Veröffentlichung als GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.3.1.0 – 29.09.2026
+
+### Korrigiert
+- **Veröffentlichung von 2.3.0.0**: Die GitHub Action hat die Page nicht erneuert, weil drei
+  Prüfungen des Selbsttests einen aktuellen Fabrary-Export brauchten, den die Action nicht hat
+  (er liegt bewusst nicht im Repository). Die App selbst ist unverändert. Diese Version
+  enthält alles aus 2.3.0.0.
+
+### Entwicklung
+- Selbsttest: Die Prüfungen der Fabrary-Zuordnung an einem aktuellen Fabrary-Export laufen
+  nur noch mit `--fabrary-current <Datei>` (vor einem Release) und werden sonst übersprungen.
+  Die Prüfung der eigenen Zuordnung braucht keine Fabrary-Datei mehr und läuft auch in der
+  Action.
+
 ## 2.3.0.0 – 29.09.2026
 
 ### Neu

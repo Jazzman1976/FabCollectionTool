@@ -1,4 +1,4 @@
-# FabCollectionTool 2.3.0.0
+# FabCollectionTool 2.3.1.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -155,6 +155,9 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
   des Bestands, Wertelisten, Platzhalter, Sets aufnehmen, Playset, bearbeitbare Zellen,
   Grenzen von Protokoll und Diagnose-Log, Spaltenreihenfolge, Kartenbilder, Branch-URL,
   Zeilenlänge):
-  `node tools/selftest.mjs <altes.ods> <fabrary-export.csv> [Ordner mit Quell-CSVs]`;
-  der Fabrary-Export sollte aktuell sein, die Fabrary-Zuordnung wird an ihm geprüft. Beide
-  Dateien liegen außerhalb des Repositorys.
+  `node tools/selftest.mjs <altes.ods> <fabrary-export.csv> [Ordner mit Quell-CSVs]
+  [--fabrary-current <aktueller Fabrary-Export.csv>]`. Die GitHub Action ruft ihn mit
+  `docs/example.ods` und `docs/Fabrary Export Beispiel.csv` auf. Mit `--fabrary-current` wird
+  zusätzlich die Fabrary-Zuordnung an einem aktuellen Fabrary-Export geprüft (vor einem
+  Release); diese Datei liegt außerhalb des Repositorys, ohne sie werden die Prüfungen
+  übersprungen.
