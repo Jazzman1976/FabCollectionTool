@@ -711,6 +711,18 @@ body.edit-mode .grid td.no-printing {
 .grid td.stale:hover {
     background: var(--stale-bg);
 }
+/* An empty value that differs (issue #25): "[leer]" in the colour of its mark. Drawn by CSS
+   only, so it is never part of the value. */
+.grid td.empty-mark::after {
+    content: '[leer]';
+    font-style: italic;
+}
+.grid td.stale.empty-mark::after {
+    color: var(--stale);
+}
+.grid td.override.empty-mark::after {
+    color: var(--override);
+}
 .cell-editor option.reference {
     font-weight: bold;
 }
@@ -1147,6 +1159,15 @@ table.row-form input.override {
 }
 table.row-form td.reference {
     color: var(--muted);
+}
+table.row-form td.reference.empty-mark::after {
+    content: '[leer]';
+    font-style: italic;
+    color: var(--stale);
+}
+table.row-form input.empty-mark::placeholder {
+    font-style: italic;
+    color: var(--stale);
 }
 table.row-form button.reset {
     padding: 0 6px;

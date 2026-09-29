@@ -912,6 +912,11 @@ FCT.grid = (function () {
             if (isCursor) classes.push('cursor');
             if (column.numeric && editable && isNaN(util.toInt(value))) classes.push('invalid');
             if (mark && mark.className) classes.push(mark.className);
+            // An empty cell that differs shows "[leer]" (issue #25); only CSS draws it, so it
+            // never becomes a value (copy, search, export).
+            if (text === '' && mark && /\b(stale|override)\b/.test(mark.className)) {
+                classes.push('empty-mark');
+            }
             var valueClass = column.valueClass && column.valueClass(text);
             if (valueClass) classes.push(valueClass);
 
@@ -1274,7 +1279,7 @@ FCT.grid = (function () {
                 input.value = typed != null ? typed : current;
             }
             td.textContent = '';
-            td.classList.remove('stepper');
+            td.classList.remove('stepper', 'empty-mark');
             td.appendChild(input);
             editor = { row: row, column: column };
             input.focus();
