@@ -1078,8 +1078,9 @@ FCT.app = (function () {
     /*
      * Configuration file <name>-config.json next to the collection (issue #18, decided by
      * Elmar: what has to be kept besides the collection and its log goes into a file, which
-     * lasts longer than the browser storage). For now it holds the sets collected without any
-     * row in the CSV. It is read when a collection is opened from the working folder and
+     * lasts longer than the browser storage). It holds the sets collected without any row in
+     * the CSV and the collection's own Fabrary mapping (issue #17, addendum), written only if
+     * there is one. It is read when a collection is opened from the working folder and
      * written with the collection (also by autosave), only if its content changed. Without a
      * working folder it is kept in the copy in the browser only.
      */
@@ -1090,17 +1091,37 @@ FCT.app = (function () {
         return base + '-config.json';
     }
 
-    function configText() {
-        var sets = (state.collection.collectedSets || []).slice().sort();
-        return JSON.stringify({ version: CONFIG_VERSION, collectedSets: sets }, null, 2) + '\n';
+    // The values kept in the configuration, as an object.
+    function configValues() {
+        var config = { collectedSets: (state.collection.collectedSets || []).slice().sort() };
+        var own = state.collection.fabraryOverrides;
+        if (!FCT.fabraryMap.isEmpty(own)) config.fabrary = sortedMap(own);
+        return config;
     }
 
-    // Takes the values of a configuration ({ collectedSets }) into the open collection.
+    // A mapping with its entries sorted by key, so that the file only changes with them.
+    function sortedMap(map) {
+        function sorted(object) {
+            var result = {};
+            Object.keys(object).sort().forEach(function (k) { result[k] = object[k]; });
+            return result;
+        }
+        return { sets: sorted(map.sets), variants: sorted(map.variants) };
+    }
+
+    function configText() {
+        var config = Object.assign({ version: CONFIG_VERSION }, configValues());
+        return JSON.stringify(config, null, 2) + '\n';
+    }
+
+    // Takes the values of a configuration ({ collectedSets, fabrary }) into the open
+    // collection.
     function applyConfig(config) {
         var sets = config && Array.isArray(config.collectedSets) ? config.collectedSets : [];
         state.collection.collectedSets = sets.filter(function (code) {
             return typeof code === 'string' && /^[A-Z0-9]{3}$/.test(code);
         });
+        state.collection.fabraryOverrides = FCT.fabraryMap.normalize(config && config.fabrary);
     }
 
     /*
@@ -1119,7 +1140,8 @@ FCT.app = (function () {
             }).catch(function (error) {
                 FCT.log.warn('config', 'Konfigurationsdatei nicht lesbar', error);
                 showMessage('Konfiguration', configName() + ' ließ sich nicht lesen (' +
-                    (error && error.message) + '). Sets ohne Zeilen fehlen deshalb.');
+                    (error && error.message) + '). Sets ohne Zeilen und die eigene ' +
+                    'Fabrary-Zuordnung fehlen deshalb.');
             });
         }
         if (last && last.config) { applyConfig(last.config); rebuild(); }
@@ -1132,12 +1154,14 @@ FCT.app = (function () {
     function saveConfig() {
         var text = configText();
         if (!fileInFolder()) {
-            if (state.collection.collectedSets.length && !state.configNoticeShown) {
+            var keep = state.collection.collectedSets.length ||
+                !FCT.fabraryMap.isEmpty(state.collection.fabraryOverrides);
+            if (keep && !state.configNoticeShown) {
                 state.configNoticeShown = true;
                 FCT.notices.show('config', 'info', 'Die Sets, die du ohne Zeilen sammelst ' +
-                    '(grau), stehen nur mit Arbeitsordner in einer eigenen Datei neben dem ' +
-                    'Bestand. Ohne Arbeitsordner merkt sie sich nur dieser Browser.',
-                    { closable: true });
+                    '(grau), und deine Fabrary-Zuordnung stehen nur mit Arbeitsordner in ' +
+                    'einer eigenen Datei neben dem Bestand. Ohne Arbeitsordner merkt sie sich ' +
+                    'nur dieser Browser.', { closable: true });
             }
             return Promise.resolve();
         }
@@ -1182,7 +1206,7 @@ FCT.app = (function () {
             logWritten: changelog.written(),
             logHandle: state.logHandle || state.logCandidate || null,
             autosave: state.autosaveChoice,
-            config: { collectedSets: state.collection.collectedSets || [] },
+            config: configValues(),
             text: model.toCsv(state.collection),
             fileText: state.fileText,
             updated: new Date().toISOString()
@@ -1914,6 +1938,8 @@ FCT.app = (function () {
                     showReport(result.report);
                     FCT.log.info('import', ok ? 'Import übernommen' : 'Import verworfen');
                     if (!ok) return;
+                    // The own Fabrary mapping belongs to the user, not to the imported data.
+                    result.collection.fabraryOverrides = state.collection.fabraryOverrides;
                     setCollection(result.collection, null, true);
                     changelog.add('Import', null, '', '', file.name + ' – ' +
                         result.collection.rows.length + ' Zeilen');
@@ -1946,6 +1972,363 @@ FCT.app = (function () {
         FCT.storage.download('fabrary-' + util.timestamp() + '.csv', result.text);
         FCT.log.info('export', 'Fabrary-Export', { chars: result.text.length });
         showReport(result.report);
+    }
+
+    /*
+     * "Fabrary-Zuordnung" (issue #17, addendum): the collection's own Fabrary mapping on top
+     * of the shipped one (fabrary-map.js). Sets and variants with a shipped or own entry are
+     * listed. A value typed into a field becomes an own entry, an empty field takes the value
+     * without it (shown grey), "-" stands for an explicitly empty value. From here the user
+     * can compare the mapping with an export of Fabrary (compareFabraryMap).
+     */
+    function fabraryMap() {
+        var map = FCT.fabraryMap;
+        var shipped = FCT.DATA.fabraryMap || map.empty();
+        var own = state.collection.fabraryOverrides || map.empty();
+        var rowsByKey = new Map();
+        FCT.exportFabrary.baseRows().forEach(function (row) { rowsByKey.set(row.key, row); });
+
+        // Sets: one line per set code with a shipped or own name.
+        var setLines = [];
+        var setBody = el('tbody');
+        function addSetLine(code) {
+            var input = el('input', { type: 'text', placeholder: shippedSet(code) });
+            if (Object.prototype.hasOwnProperty.call(own.sets, code)) {
+                input.value = own.sets[code] === '' ? map.EMPTY_MARK : own.sets[code];
+            }
+            markOwn(input);
+            setLines.push({ code: code, input: input });
+            setBody.appendChild(el('tr', {}, [
+                el('th', { text: code }),
+                el('td', { className: 'reference', text: FCT.reference.setName(code) }),
+                el('td', {}, [input]),
+                el('td', {}, [resetButton([input])])
+            ]));
+        }
+        function shippedSet(code) {
+            return Object.prototype.hasOwnProperty.call(shipped.sets, code)
+                ? shipped.sets[code] || '(leer)' : FCT.reference.setName(code);
+        }
+        union(shipped.sets, own.sets).forEach(addSetLine);
+
+        // Variants: one line per export row with a shipped or own entry. Own entries of rows
+        // the reference data no longer has are kept as they are.
+        var variantLines = [];
+        var variantBody = el('tbody');
+        function addVariantLine(key) {
+            var row = rowsByKey.get(key);
+            if (!row) return;
+            var entry = own.variants[key] || {};
+            var inputs = {};
+            var cells = map.FIELDS.map(function (field) {
+                var base = map.value(row, field, own, shipped, true).value;
+                var input = el('input', { type: 'text', placeholder: base || '(leer)' });
+                if (Object.prototype.hasOwnProperty.call(entry, field)) {
+                    input.value = entry[field] === '' ? map.EMPTY_MARK : entry[field];
+                }
+                markOwn(input);
+                inputs[field] = input;
+                return el('td', {}, [input]);
+            });
+            var line = el('tr', {}, [el('th', {}, [
+                el('div', { text: row.identity[4] + ' ' + row.identity[1] }),
+                el('div', { className: 'what', text: variantText(row) })
+            ])].concat(cells, [el('td', {}, [resetButton(Object.keys(inputs).map(function (f) {
+                return inputs[f];
+            }))])]));
+            variantLines.push({ row: row, inputs: inputs, line: line });
+            variantBody.appendChild(line);
+        }
+        var unknown = Object.keys(own.variants).filter(function (key) {
+            return !rowsByKey.has(key);
+        });
+        union(shipped.variants, own.variants).forEach(addVariantLine);
+
+        // An input with a value of its own is marked like a local change in the row dialog.
+        function markOwn(input) {
+            input.classList.toggle('override', input.value.trim() !== '');
+            input.addEventListener('input', function () {
+                input.classList.toggle('override', input.value.trim() !== '');
+            });
+        }
+        function resetButton(inputs) {
+            return el('button', { type: 'button', className: 'reset', text: '↺',
+                title: 'Eigene Zuordnung entfernen', onclick: function () {
+                    inputs.forEach(function (input) {
+                        input.value = '';
+                        input.classList.remove('override');
+                    });
+                } });
+        }
+
+        // Adding a set or all variants of a card number.
+        var setChoice = el('select', {}, [el('option', { value: '', text: 'Set wählen …' })]
+            .concat(FCT.reference.data().sets.map(function (set) {
+                return set[0];
+            }).filter(function (code, i, all) {
+                return all.indexOf(code) === i;
+            }).sort().map(function (code) {
+                return el('option', { value: code,
+                    text: code + ' – ' + FCT.reference.setName(code) });
+            })));
+        var addSet = el('button', { type: 'button', text: 'Set hinzufügen', onclick: function () {
+            var code = setChoice.value;
+            var listed = setLines.some(function (l) { return l.code === code; });
+            if (code && !listed) addSetLine(code);
+        } });
+        var cardNumber = el('input', { type: 'text', placeholder: 'Kartennummer, z. B. ANQ006' });
+        var addVariant = el('button', { type: 'button', text: 'Varianten hinzufügen',
+            onclick: function () {
+                var id = cardNumber.value.trim().toUpperCase();
+                rowsByKey.forEach(function (row, key) {
+                    var listed = variantLines.some(function (l) { return l.row.key === key; });
+                    if (row.identity[4] === id && !listed) addVariantLine(key);
+                });
+            } });
+
+        // The search narrows the variants (also with wildcards).
+        var search = el('input', { type: 'search', placeholder: 'Varianten suchen (* ?)' });
+        search.addEventListener('input', function () {
+            var text = util.fold(search.value);
+            var test = util.wildcard(search.value);
+            variantLines.forEach(function (l) {
+                var what = util.fold(l.line.textContent + ' ' + Object.keys(l.inputs)
+                    .map(function (f) { return l.inputs[f].value; }).join(' '));
+                l.line.hidden = !!text && !(test ? test(what) : what.indexOf(text) >= 0);
+            });
+        });
+
+        var head = function (labels) {
+            return el('thead', {}, [el('tr', {}, labels.map(function (label) {
+                return el('th', { text: label });
+            }))]);
+        };
+        var body = el('div', { className: 'report take-over fabrary-map' }, [
+            el('p', { className: 'what', text: 'Wo Fabrary Sets, Identifier oder Treatments ' +
+                'anders nennt als die Stammdaten, schreibt der Export Fabrarys Namen. ' +
+                'Mitgeliefert sind ' + Object.keys(shipped.sets).length + ' Sets und ' +
+                Object.keys(shipped.variants).length + ' Varianten; eigene Einträge gehen vor.' }),
+            el('h3', { text: 'Sets' }),
+            el('table', { className: 'row-form' }, [
+                head(['Code', 'Stammdaten', 'Name bei Fabrary', '']), setBody]),
+            el('div', { className: 'add-line' }, [setChoice, addSet]),
+            el('h3', { text: 'Varianten' }),
+            search,
+            el('table', { className: 'row-form' }, [
+                head(['Variante', 'Identifier', 'Set', 'Treatment', '']), variantBody]),
+            el('div', { className: 'add-line' }, [cardNumber, addVariant]),
+            unknown.length ? el('p', { className: 'what', text: unknown.length + ' eigene ' +
+                'Einträge gehören zu Varianten, die die Stammdaten nicht mehr kennen; sie ' +
+                'bleiben erhalten.' }) : null
+        ]);
+
+        // Reads the fields back into a new own mapping.
+        function read() {
+            var result = map.empty();
+            unknown.forEach(function (key) { result.variants[key] = own.variants[key]; });
+            function valueOf(input) {
+                var v = input.value.trim();
+                return v === map.EMPTY_MARK ? '' : v;
+            }
+            setLines.forEach(function (l) {
+                if (l.input.value.trim()) map.setSet(result, l.code, valueOf(l.input), shipped);
+            });
+            variantLines.forEach(function (l) {
+                var wanted = {};
+                map.FIELDS.forEach(function (field) {
+                    if (l.inputs[field].value.trim()) wanted[field] = valueOf(l.inputs[field]);
+                });
+                map.setVariant(result, l.row, wanted, shipped);
+            });
+            return result;
+        }
+
+        return openDialog({
+            title: 'Fabrary-Zuordnung',
+            body: body,
+            hint: 'Leeres Feld = mitgelieferter Wert bzw. Regel des Exports (grau), „-“ = ' +
+                'ausdrücklich leer. Die eigene Zuordnung steht in der Konfigurationsdatei ' +
+                'neben dem Bestand.',
+            wide: true,
+            buttons: [
+                { label: 'Mit Fabrary-Export abgleichen …', value: 'compare', left: true },
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Übernehmen', value: 'accept', primary: true }
+            ]
+        }).then(function (value) {
+            if (value === 'cancel') return null;
+            takeFabraryMap(read(), 'von Hand geändert');
+            return value === 'compare' ? compareFabraryMap() : null;
+        });
+    }
+
+    // Keys of two objects together, sorted.
+    function union(a, b) {
+        return Object.keys(Object.assign({}, a, b)).sort();
+    }
+
+    // Edition, foiling and treatments of an export row, for the dialogs.
+    function variantText(row) {
+        return [row.identity[5], row.identity[6] || 'Standard', row.art].filter(Boolean)
+            .join(' · ');
+    }
+
+    // Takes a new own Fabrary mapping, if it differs from the current one.
+    function takeFabraryMap(next, what) {
+        var before = state.collection.fabraryOverrides || FCT.fabraryMap.empty();
+        var count = function (m) {
+            return Object.keys(m.sets).length + Object.keys(m.variants).length;
+        };
+        if (JSON.stringify(sortedMap(next)) === JSON.stringify(sortedMap(before))) return false;
+        state.collection.fabraryOverrides = next;
+        changelog.add('Fabrary-Zuordnung', null, '', count(before) + ' Einträge',
+            count(next) + ' Einträge, ' + what);
+        FCT.log.info('fabrary-map', 'Fabrary-Zuordnung geändert', { what: what,
+            sets: Object.keys(next.sets).length, variants: Object.keys(next.variants).length });
+        setDirty(true);
+        return true;
+    }
+
+    /*
+     * "Mit Fabrary-Export abgleichen": reads a collection export of Fabrary and shows where
+     * Fabrary's names differ from the mapping in effect. Clear findings are ticked; for
+     * unclear ones the user picks the Fabrary row or leaves them out. Afterwards the dialog
+     * "Fabrary-Zuordnung" opens again.
+     */
+    function compareFabraryMap() {
+        var map = FCT.fabraryMap;
+        var shipped = FCT.DATA.fabraryMap || map.empty();
+        return FCT.storage.pickFile('.csv,text/csv').then(function (file) {
+            if (!file) return fabraryMap();
+            $('busy').hidden = false;
+            return file.text().then(function (text) {
+                $('busy').hidden = true;
+                var own = state.collection.fabraryOverrides || map.empty();
+                var result = map.compare(FCT.exportFabrary.baseRows(), text, own);
+                FCT.log.info('fabrary-map', 'Fabrary-Export abgeglichen', { file: file.name,
+                    matched: result.matched, sets: result.sets.length,
+                    variants: result.variants.length, unclear: result.unclear.length,
+                    notInFabrary: result.notInFabrary.length, error: result.error });
+                if (result.error) {
+                    showMessage('Fabrary-Abgleich', result.error);
+                    return null;
+                }
+                return showFabraryFindings(result, file.name, own, shipped);
+            }, function (error) {
+                $('busy').hidden = true;
+                throw error;
+            });
+        });
+    }
+
+    function showFabraryFindings(result, name, own, shipped) {
+        var map = FCT.fabraryMap;
+        var summary = result.matched.toLocaleString('de-DE') + ' Varianten bei Fabrary ' +
+            'gefunden, ' + result.notInFabrary.length + ' gibt es dort nicht.';
+        if (!result.sets.length && !result.variants.length && !result.unclear.length) {
+            showMessage('Fabrary-Abgleich', name + ': keine Abweichungen zur geltenden ' +
+                'Zuordnung. ' + summary);
+            return fabraryMap();
+        }
+
+        var boxes = [];
+        var choices = [];
+        function quoted(text) { return '„' + text + '“'; }
+        function changes(current, found) {
+            return map.FIELDS.filter(function (field) {
+                return Object.prototype.hasOwnProperty.call(found, field) &&
+                    found[field] !== current[field];
+            }).map(function (field) {
+                return field + ': ' + quoted(current[field]) + ' → ' + quoted(found[field]);
+            }).join(' · ');
+        }
+        function card(row) {
+            return el('strong', { text: row.identity[4] + ' ' + row.identity[1] });
+        }
+        function group(title, items) {
+            return items.length ? el('details', { className: 'group', open: true }, [
+                el('summary', { text: title + ' (' + items.length + ')' }),
+                el('ul', { className: 'cards' }, items)
+            ]) : null;
+        }
+
+        var setItems = result.sets.map(function (s) {
+            var box = el('input', { type: 'checkbox' });
+            box.checked = true;
+            box._apply = function (next) { map.setSet(next, s.code, s.fabrary, shipped); };
+            boxes.push(box);
+            return el('li', {}, [el('label', {}, [box, ' ',
+                el('strong', { text: s.code + ' ' + FCT.reference.setName(s.code) }),
+                el('div', { className: 'what', text: 'Set: ' + quoted(s.current) + ' → ' +
+                    quoted(s.fabrary) })])]);
+        });
+        var variantItems = result.variants.map(function (v) {
+            var box = el('input', { type: 'checkbox' });
+            box.checked = true;
+            box._apply = function (next) { takeVariant(next, v.row, v.fabrary); };
+            boxes.push(box);
+            return el('li', {}, [el('label', {}, [box, ' ', card(v.row),
+                ' (' + variantText(v.row) + ')',
+                el('div', { className: 'what', text: changes(v.current, v.fabrary) })])]);
+        });
+        var unclearItems = result.unclear.map(function (u) {
+            var select = el('select', {}, [el('option', { value: '',
+                text: 'nicht übernehmen' })].concat(u.candidates.map(function (c, i) {
+                return el('option', { value: String(i), text: [c.identifier, c.set,
+                    c.treatment || '(ohne Treatment)'].filter(function (t) {
+                    return t != null;
+                }).join(' · ') });
+            })));
+            choices.push({ select: select, unclear: u });
+            return el('li', {}, [card(u.row), ' (' + variantText(u.row) + ')',
+                el('div', { className: 'what' }, ['Bei Fabrary mehrdeutig: ', select])]);
+        });
+        var absentItems = result.notInFabrary.slice(0, 50).map(function (row) {
+            return el('li', {}, [card(row), ' (' + variantText(row) + ')']);
+        });
+
+        // Keeps the fields of an own entry that the finding does not name.
+        function takeVariant(next, row, found) {
+            map.setVariant(next, row, Object.assign({}, next.variants[row.key] || {}, found),
+                shipped);
+        }
+
+        function tick(on) { boxes.forEach(function (b) { b.checked = on; }); }
+        return openDialog({
+            title: 'Fabrary-Abgleich – ' + name,
+            body: el('div', { className: 'report take-over' }, [
+                el('p', { className: 'what', text: summary + ' Angezeigt sind nur ' +
+                    'Abweichungen zur geltenden Zuordnung.' }),
+                group('Set-Namen', setItems),
+                group('Varianten', variantItems),
+                group('Unklar', unclearItems),
+                absentItems.length ? el('details', { className: 'group' }, [
+                    el('summary', { text: 'Bei Fabrary nicht vorhanden (' +
+                        result.notInFabrary.length + ')' }),
+                    el('ul', { className: 'cards' }, absentItems)
+                ]) : null
+            ]),
+            hint: 'Angehakte Abweichungen kommen in die eigene Zuordnung dieses Bestands.',
+            wide: true,
+            buttons: [
+                { label: 'Alle', left: true, onClick: function () { tick(true); } },
+                { label: 'Keine', left: true, onClick: function () { tick(false); } },
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Übernehmen', value: 'accept', primary: true }
+            ]
+        }).then(function (value) {
+            if (value !== 'accept') return fabraryMap();
+            var next = JSON.parse(JSON.stringify(own));
+            boxes.forEach(function (b) { if (b.checked) b._apply(next); });
+            choices.forEach(function (c) {
+                if (c.select.value === '') return;
+                takeVariant(next, c.unclear.row, c.unclear.candidates[Number(c.select.value)]);
+            });
+            var taken = takeFabraryMap(next, 'Abgleich mit ' + name);
+            showMessage('Fabrary-Abgleich', taken ? 'Die Zuordnung ist übernommen und wird ' +
+                'mit dem Bestand gespeichert.' : 'Nichts übernommen.');
+            return fabraryMap();
+        });
     }
 
     /*
@@ -3351,6 +3734,7 @@ FCT.app = (function () {
             'btn-backup': backup, 'btn-add-sets': addSets, 'btn-remove-empty': removeEmptyRows,
             'btn-import-ods': importOds,
             'btn-import-fabrary': importFabrary, 'btn-export-fabrary': exportFabrary,
+            'btn-fabrary-map': fabraryMap,
             'btn-export-cardmarket': exportCardmarket,
             'btn-reference-update': function () { return updateReference(true); },
             'btn-reference-apply': applyReference, 'btn-reference-info': showReferenceInfo,

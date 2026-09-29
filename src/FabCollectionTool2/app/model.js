@@ -512,8 +512,10 @@ FCT.model = (function () {
     // Creates an empty collection.
     // collectedSets: set codes that are collected without any row in the CSV (issue #18); they
     // are kept in the configuration file next to the collection, not in the CSV.
+    // fabraryOverrides: the collection's own Fabrary mapping (fabrary-map.js), also kept there.
     function create() {
-        return { rows: [], extraColumns: [], collectedSets: [] };
+        return { rows: [], extraColumns: [], collectedSets: [],
+            fabraryOverrides: { sets: {}, variants: {} } };
     }
 
     // Creates a row with all columns present; values are taken from the given object.

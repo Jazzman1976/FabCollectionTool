@@ -3,6 +3,7 @@
  *
  * Usage (from the tool folder):
  *   node tools/selftest.mjs <example.ods> <fabrary-export.csv> [folder with source csv files]
+ * The Fabrary export should be a current one: the Fabrary mapping is checked against it.
  *
  * The inputs are the user's own files; they are only read, never copied into the repository.
  */
@@ -23,7 +24,7 @@ if (!odsFile || !fabraryFile) {
 const FCT = loadApp({
     withReference: true,
     extra: ['app/model.js', 'app/changelog.js', 'app/import-ods.js', 'app/import-fabrary.js',
-        'app/export-fabrary.js', 'app/export-cardmarket.js']
+        'app/fabrary-map.js', 'app/export-fabrary.js', 'app/export-cardmarket.js']
 });
 FCT.importOds.inflateRaw = async (bytes) => new Uint8Array(zlib.inflateRawSync(bytes));
 FCT.reference.install(FCT.DATA, FCT.DATA.info);
@@ -64,25 +65,139 @@ const exampleRecords = FCT.csv.parse(example);
 check('Fabrary import', imported.collection && imported.collection.rows.length > 0,
     imported.report.summary.join('; '));
 
-// Fabrary export after ODS import: same header, same rows, identity columns unchanged.
+/*
+ * Fabrary export after ODS import (issue #17): the rows come from the reference data - every
+ * printing in each of its foilings, nothing else -, Have and Extra for trade are never empty,
+ * the quantities of the collection arrive, and identifier and treatment follow the rules of
+ * the first tool and of Fabrary.
+ */
 {
-    const exported = FCT.exportFabrary.exportFabrary(ods.collection);
+    const fab = FCT.exportFabrary;
+    const exported = fab.exportFabrary(ods.collection);
     const records = FCT.csv.parse(exported.text);
-    const identityDiffs = records.filter((record, i) =>
-        record.slice(0, 8).join('|') !== (exampleRecords[i] || []).slice(0, 8).join('|'));
-    check('Fabrary export header', records[0].join() === exampleRecords[0].join());
-    check('Fabrary export rows', records.length === exampleRecords.length,
-        `${records.length} / ${exampleRecords.length}`);
-    check('Fabrary export identity columns', identityDiffs.length === 0,
-        `${identityDiffs.length} differences`);
+    const header = records.shift();
+    check('Fabrary export header', header.join() === exampleRecords[0].join());
+
+    // Every printing variant and foiling of the reference data, and only those.
+    const letters = { '': 'S', Rainbow: 'R', Cold: 'C', Gold: 'G' };
+    const expected = new Set();
+    FCT.reference.allPrintings().forEach((p) => {
+        String(p[5]).split('').forEach((f) => expected.add([p[0], p[2], f].join('|')));
+    });
+    const written = new Set(records.map((r) => [r[4], r[5], letters[r[6]]].join('|')));
+    const missing = [...expected].filter((k) => !written.has(k));
+    const extra = [...written].filter((k) => !expected.has(k));
+    check('Fabrary export: all variants from the reference data, no others',
+        missing.length === 0 && extra.length === 0,
+        `${records.length} rows, ${missing.length} missing, ${extra.length} unknown`);
+    const empty = records.filter((r) => !/^\d+$/.test(r[8]) || !/^\d+$/.test(r[11]));
+    check('Fabrary export: Have and Extra for trade never empty', empty.length === 0,
+        `${empty.length} rows with an empty value`);
+
+    // The quantities of the collection arrive (except rows the report names as skipped).
+    const have = records.reduce((sum, r) => sum + Number(r[8]), 0);
+    const owned = ods.collection.rows.reduce((sum, row) => sum + ['ST', 'RF', 'CF', 'GF']
+        .reduce((s, c) => s + (FCT.util.toInt(row[c]) || 0), 0), 0);
+    check('Fabrary export: quantities arrive', have + exported.skipped === owned,
+        `${have} exported + ${exported.skipped} skipped = ${owned} owned`);
+
+    check('Fabrary identifier as in the first tool',
+        fab.identifier('Arcane Seeds // Life', 'Red') === 'arcane-seeds--life-red' &&
+        fab.identifier('10,000 Year Reunion', 'Red') === '10000-year-reunion-red' &&
+        fab.identifier('Twelve Petal Kāṣāya', '') === 'twelve-petal-kasaya' &&
+        fab.identifier('Squizzy & Floof', '') === 'squizzy--floof');
+    check('Fabrary treatment order',
+        fab.treatment('Alternate Art, Extended Art', '', 'X') === 'Alternate Art' &&
+        fab.treatment('Alternate Border, Extended Art', '', 'X') === 'Alternate Border' &&
+        fab.treatment('Alternate Art, Full Art', '', 'X') === 'Alternate Art' &&
+        fab.treatment('Micro Text Box', '', 'X') === 'Extended Art' &&
+        fab.treatment('Extended Art', '', 'ROS002') === '' &&
+        fab.treatment('Extended Art', 'Rainbow', 'ROS002') === 'Extended Art');
+
+    // Information only: how close the rows are to Fabrary's own export.
+    const own = new Set(exampleRecords.slice(1).map((r) => r.slice(0, 8).join('|')));
+    const same = records.filter((r) => own.has(r.slice(0, 8).join('|'))).length;
+    console.log(`INFO Fabrary export: ${same} of ${own.size} rows of Fabrary's own export ` +
+        'written identically');
 }
 
-// Round trip: Fabrary import -> export -> import gives the same collection.
+// Round trip: Fabrary import -> export -> import gives the same collection. Only set names
+// and treatments are written as the Fabrary mapping says, and cards the reference data does
+// not know (e.g. sets of other branches) are skipped by the export. A second export is
+// identical.
 {
-    const again = FCT.importFabrary.importFabrary(
-        FCT.exportFabrary.exportFabrary(imported.collection).text);
+    const first = FCT.exportFabrary.exportFabrary(imported.collection).text;
+    const again = FCT.importFabrary.importFabrary(first);
+    // The Fabrary mapping writes Fabrary's set names and full treatments, which the import
+    // takes over; the variants stay the same.
+    const withoutSet = (collection) => {
+        const copy = FCT.model.create();
+        collection.rows.filter((row) => FCT.reference.printings(row.Id).length)
+            .forEach((row) => copy.rows.push(Object.assign({}, row, { Set: '',
+                'Art Treatment': FCT.exportFabrary.treatment(row['Art Treatment'], '',
+                    row.Id) })));
+        return FCT.model.toCsv(copy);
+    };
     check('Fabrary round trip',
-        FCT.model.toCsv(again.collection) === FCT.model.toCsv(imported.collection));
+        withoutSet(again.collection) === withoutSet(imported.collection) &&
+        FCT.exportFabrary.exportFabrary(again.collection).text === first);
+}
+
+/*
+ * Fabrary mapping (issue #17, addendum): with the shipped mapping every row of the export is
+ * written exactly as in the given Fabrary export (a current one, as the mapping was built
+ * from), except the printings Fabrary does not know; the quantities of that export arrive.
+ * Own entries win over shipped ones, and the comparison finds nothing left to map - but finds
+ * a wrong own entry.
+ */
+{
+    const map = FCT.fabraryMap;
+    const fab = FCT.exportFabrary;
+    const fabraryText = example;
+    const fabraryRecords = FCT.csv.parse(fabraryText).slice(1);
+    const known = new Set(fabraryRecords.map((r) => r.slice(0, 8).join('|')));
+    const rows = fab.baseRows();
+    const result = map.compare(rows, fabraryText);
+    const absent = new Set(result.notInFabrary.map((row) => row.identity.slice(4, 7).join('|')));
+
+    const collection = FCT.importFabrary.importFabrary(fabraryText).collection;
+    const records = FCT.csv.parse(fab.exportFabrary(collection).text).slice(1);
+    const other = records.filter((r) => !known.has(r.slice(0, 8).join('|')) &&
+        !absent.has(r.slice(4, 7).join('|')));
+    const exported = new Map(records.map((r) => [r.slice(0, 8).join('|'), r[8]]));
+    // Printings the reference data does not know (e.g. sets of other branches) are skipped.
+    const numbers = new Set(records.map((r) => r[4]));
+    const lost = fabraryRecords.filter((r) => Number(r[8]) > 0 && numbers.has(r[4]) &&
+        exported.get(r.slice(0, 8).join('|')) !== r[8]);
+    const cards = ['ANQ006', 'FAB375', 'LGS427', 'CRU009', 'SUP208', 'PEN165'];
+    const reached = cards.every((id) => records.filter((r) => r[4] === id)
+        .every((r) => known.has(r.slice(0, 8).join('|'))));
+    check("Fabrary mapping meets Fabrary's export", !other.length && !lost.length && reached,
+        `${records.length} rows, ${other.length} unlike Fabrary, ${absent.size} not in ` +
+            `Fabrary, ${lost.length} quantities lost, ${cards.join(' ')}: ${reached}`);
+    check('Fabrary comparison with the shipped mapping',
+        !result.sets.length && !result.variants.length && !result.unclear.length,
+        `${result.matched} found, ${result.sets.length} sets, ${result.variants.length} ` +
+            `variants, ${result.unclear.length} unclear`);
+
+    // Own entries win; values equal to the shipped ones are not kept.
+    const anq = rows.find((row) => row.identity[4] === 'ANQ006' && row.identity[6] === 'Rainbow');
+    const own = map.empty();
+    map.setSet(own, 'ANQ', 'Test Set');
+    map.setVariant(own, anq, { treatment: 'Alternate Art' });
+    const mapped = map.apply(anq, own);
+    const ownWins = mapped.own && mapped.identity[3] === 'Test Set' &&
+        mapped.identity[7] === 'Alternate Art';
+    const wrong = map.compare(rows, fabraryText, own);
+    const found = wrong.sets.length === 1 && wrong.variants.length === 1 &&
+        wrong.variants[0].fabrary.treatment === 'Alternate Art, Alternate Border, Extended Art';
+    map.setSet(own, 'ANQ', 'Promos');
+    map.setVariant(own, anq, { treatment: 'Alternate Art, Alternate Border, Extended Art' });
+    const normal = map.normalize({ sets: { ANQ: 'X', BAD: 1 }, variants: { k: { set: 'Y',
+        other: 'Z' }, empty: {} } });
+    check('Fabrary mapping: own entries', ownWins && found && map.isEmpty(own) &&
+        JSON.stringify(normal) === '{"sets":{"ANQ":"X"},"variants":{"k":{"set":"Y"}}}',
+        `own wins ${ownWins}, wrong entry found ${found}, reset ${map.isEmpty(own)}`);
 }
 
 // Cardmarket wants list (issue #7) from the ODS example: line format, sorting, pitch only for
@@ -153,12 +268,6 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
         '1 Lyath Goldmane, Vile Savant\n1 Twelve Petal Kasaya\n', JSON.stringify(names));
 }
 
-// The skeleton must not contain quantities (it only has the eight identity columns).
-{
-    const bad = FCT.DATA.fabrarySkeleton.filter((row) => row.length !== 8);
-    check('Skeleton without quantities', bad.length === 0,
-        `${FCT.DATA.fabrarySkeleton.length} rows, ${bad.length} with extra columns`);
-}
 
 // Type line split into the columns Metatype to Sub3 by the rules 2.14.1 (2.0.5.0): words
 // are placed by their position; the dash of the printed type line marks the subtypes.
