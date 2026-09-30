@@ -929,6 +929,9 @@ FCT.grid = (function () {
             var editable = options.isEditable(column, row);
             var isCursor = row === cursor.item && column.key === cursor.key;
             var classes = ['k-' + column.kind];
+            // Cells of a column group (the block Have (set) .. Left (total), also collapsed)
+            // carry the group, so that only they show the colour of the row state (#36).
+            if (column.group) classes.push('g-' + column.group);
             if (column.numeric) classes.push('num');
             if (editable) classes.push('edit');
             if (isCursor) classes.push('cursor');

@@ -641,17 +641,18 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
     right: 2px;
 }
 
-/* Row states: a coloured bar at the row start and tinted calculated cells */
+/* Row states: a coloured bar at the row start and the tinted block Have (set) .. Left (total)
+   (issue #36: not the other calculated or shown columns) */
 .grid tr.missing td:first-child {
     box-shadow: inset 4px 0 0 var(--missing);
 }
 .grid tr.surplus td:first-child {
     box-shadow: inset 4px 0 0 var(--surplus);
 }
-.grid tr.missing td.k-calc {
+.grid tr.missing td.g-calc {
     background: var(--missing-bg);
 }
-.grid tr.surplus td.k-calc {
+.grid tr.surplus td.g-calc {
     background: var(--surplus-bg);
 }
 .grid tr.ref td {
