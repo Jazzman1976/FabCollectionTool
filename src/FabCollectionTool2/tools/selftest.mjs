@@ -4,27 +4,32 @@
  * Usage (from the tool folder):
  *   node tools/selftest.mjs <example.ods> <fabrary-export.csv> [folder with source csv files]
  *       [--fabrary-current <current fabrary-export.csv>]
- * With --fabrary-current the shipped Fabrary mapping is checked against a current export of
- * Fabrary (before a release); without it these checks are skipped, e.g. in the GitHub Action.
+ * The shipped Fabrary mapping is checked against a current export of Fabrary (before a
+ * release): the file at .ignore/ressources/fabrary-export.csv (issue #31), or another file given
+ * with --fabrary-current. Without either, these checks are skipped, e.g. in the GitHub Action.
  *
  * The inputs are the user's own files; they are only read, never copied into the repository.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { loadApp, appRoot } from './load-app.mjs';
+import { loadApp, appRoot, fabraryExportFile } from './load-app.mjs';
 
 // Read the command line: positional arguments and the optional current Fabrary export.
 const args = process.argv.slice(2);
 const currentAt = args.indexOf('--fabrary-current');
-const currentFile = currentAt >= 0 ? args[currentAt + 1] : '';
+const givenFile = currentAt >= 0 ? args[currentAt + 1] : '';
 if (currentAt >= 0) args.splice(currentAt, 2);
 const [odsFile, fabraryFile, sourceDir] = args;
-if (!odsFile || !fabraryFile || (currentAt >= 0 && !currentFile)) {
+if (!odsFile || !fabraryFile || (currentAt >= 0 && !givenFile)) {
     console.error('Usage: node tools/selftest.mjs <example.ods> <fabrary-export.csv> ' +
         '[source folder] [--fabrary-current <current fabrary-export.csv>]');
     process.exit(1);
 }
+
+// The current Fabrary export: the file given, otherwise the one at the fixed local place.
+const currentFile = givenFile || (fs.existsSync(fabraryExportFile) ? fabraryExportFile : '');
+if (currentFile) console.log(`INFO current Fabrary export: ${currentFile}`);
 
 // Load all logic scripts. Node.js 18 cannot inflate raw deflate data via
 // DecompressionStream, so the ODS reader gets a zlib based replacement here.
@@ -151,13 +156,14 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
 }
 
 /*
- * Fabrary mapping against a current Fabrary export (issue #17, addendum; only with
- * --fabrary-current): with the shipped mapping every row of the export is written exactly as
- * in that export, except the printings Fabrary does not know; its quantities arrive, and the
- * comparison finds nothing left to map.
+ * Fabrary mapping against a current Fabrary export (issue #17, addendum; only with a current
+ * export, see the head of this file): with the shipped mapping every row of the export is
+ * written exactly as in that export, except the printings Fabrary does not know; its
+ * quantities arrive, and the comparison finds nothing left to map.
  */
 if (!currentFile) {
-    console.log('SKIP Fabrary mapping against a current Fabrary export (--fabrary-current)');
+    console.log('SKIP Fabrary mapping against a current Fabrary export ' +
+        '(none at .ignore/ressources/fabrary-export.csv, no --fabrary-current)');
 } else {
     const map = FCT.fabraryMap;
     const fab = FCT.exportFabrary;

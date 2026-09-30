@@ -11,7 +11,7 @@ dürfen länger als 100 Zeichen sein; die Zeilenlängen-Regel gilt für handgesc
 | `cards.js` | `[Karten-ID, Name, Pitch, Typzeile, L = Legendary, Cost, Power, Defense, Card Keywords, Kartentext, gedruckte Typzeile, nicht legal in]` | the-fab-cube `card.csv` (Legendary aus `Card Keywords`, „nicht legal in“ aus den Legal-Spalten) |
 | `printings.js` | `[Kartennummer, Set-Code, Edition, Art Treatment, Rarity, Foilings, Karten-ID, Bild, Artists]` | the-fab-cube `card-printing.csv` (Bild: Dateiname des üblichen Speicherorts oder volle URL, des einfachsten Foilings) |
 | `info.js` | Herkunft, Commit, Stand | Build-Skript |
-| `fabrary-map.js` | Fabrary-Zuordnung: `sets` (Set-Code → Fabrary-Setname) und `variants` (Schlüssel `Kartennummer\|Edition\|Foiling\|Treatments\|Identifier` → abweichende `identifier`, `set`, `treatment`) | `tools/build-fabrary-map.mjs` aus einem Sammlungsexport von Fabrary (liegt außerhalb des Repositorys) |
+| `fabrary-map.js` | Fabrary-Zuordnung: `sets` (Set-Code → Fabrary-Setname) und `variants` (Schlüssel `Kartennummer\|Edition\|Foiling\|Treatments\|Identifier` → abweichende `identifier`, `set`, `treatment`) | `tools/build-fabrary-map.mjs` aus einem Sammlungsexport von Fabrary (lokal unter `.ignore/ressources/fabrary-export.csv`, nie im Repository) |
 | `vocab.js` | Wertelisten und Code-Tabellen | von Hand gepflegt |
 
 **Aktueller Stand:** the-fab-cube/flesh-and-blood-cards, Branch `develop`, Commit
@@ -43,12 +43,14 @@ Fabrary nennt manche Sets, Identifier und Treatments anders; der Export schreibt
 Namen (`fabrary-map.js`). **Wann:** vor jedem Release, und nachdem die Stammdaten erneuert
 wurden.
 
-1. In Fabrary die Sammlung als CSV herunterladen und **außerhalb** des Repositorys ablegen
-   (sie enthält die eigene Sammlung mit Mengen).
-2. Im Ordner `src/FabCollectionTool2` ausführen:
-   `node tools/build-fabrary-map.mjs "<Fabrary-Export.csv>"`.
+1. In Fabrary die Sammlung als CSV herunterladen und als
+   `.ignore/ressources/fabrary-export.csv` (Wurzelordner der Repository) ablegen; eine ältere
+   Datei dort einfach überschreiben. Der Ordner ist von Git ignoriert, denn die Datei enthält
+   die eigene Sammlung mit Mengen.
+2. Im Ordner `src/FabCollectionTool2` ausführen: `node tools/build-fabrary-map.mjs`
+   (nimmt die Datei am festen Ort; eine andere Datei lässt sich als Argument angeben).
    Das Skript nennt unklare Fälle und Varianten, die es bei Fabrary nicht gibt; unklare
    bleiben draußen und lassen sich in der App je Bestand zuordnen.
-3. Selbsttest mit dieser Datei ausführen
-   (`node tools/selftest.mjs … --fabrary-current "<Fabrary-Export.csv>"`): „Fabrary mapping
-   meets Fabrary's export“ und „Fabrary comparison with the shipped mapping“ müssen grün sein.
+3. Selbsttest ausführen (`node tools/selftest.mjs …`; er nimmt die Datei am festen Ort
+   automatisch, eine andere per `--fabrary-current`): „Fabrary mapping meets Fabrary's
+   export“ und „Fabrary comparison with the shipped mapping“ müssen grün sein.
