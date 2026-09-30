@@ -858,7 +858,8 @@ FCT.grid = (function () {
                 [el('td', { colspan: span })]);
         }
 
-        // Group header: open/closed marker, name (centred) and a short summary of its rows.
+        // Group header: controls at the left edge (open/closed marker, then open all / close
+        // all of a set, issue #38), name (centred) and a short summary of its rows.
         function renderGroup(group, span) {
             var cards = 0;
             var missing = 0;
@@ -889,10 +890,12 @@ FCT.grid = (function () {
                 el('td', { colspan: span }, [
                     el('div', { className: 'group-title',
                         style: 'width:' + scroller.clientWidth + 'px' }, [
-                        el('span', { className: 'toggle', text: group.open ? '▾' : '▸' }),
+                        el('span', { className: 'group-controls' }, [
+                            el('span', { className: 'toggle', text: group.open ? '▾' : '▸' }),
+                            all
+                        ]),
                         el('span', { className: 'name', text: group.label }),
-                        el('span', { className: 'info', text: info }),
-                        all
+                        el('span', { className: 'info', text: info })
                     ])
                 ])
             ]);
@@ -929,6 +932,9 @@ FCT.grid = (function () {
             var editable = options.isEditable(column, row);
             var isCursor = row === cursor.item && column.key === cursor.key;
             var classes = ['k-' + column.kind];
+            // Cells of a column group (the block Have (set) .. Left (total), also collapsed)
+            // carry the group, so that only they show the colour of the row state (#36).
+            if (column.group) classes.push('g-' + column.group);
             if (column.numeric) classes.push('num');
             if (editable) classes.push('edit');
             if (isCursor) classes.push('cursor');
@@ -950,16 +956,16 @@ FCT.grid = (function () {
                 title: picture ? null : title || null });
             td._column = column;
             if (column.step && editable && isCursor) {
-                // "-" and "+" only in the active cell (also the keys - / + and Shift+Down /
-                // Shift+Up).
+                // "-" and "+" only in the active cell (also the keys - / +, Shift+Down /
+                // Shift+Up and Shift+Left / Shift+Right).
                 td.classList.add('stepper');
                 td.appendChild(el('button', { type: 'button', className: 'step minus',
-                    tabindex: '-1', 'data-step': '-1', title: 'Eins weniger (− oder Shift+↓)',
-                    text: '−' }));
+                    tabindex: '-1', 'data-step': '-1',
+                    title: 'Eins weniger (− oder Shift+↓ / Shift+←)', text: '−' }));
                 td.appendChild(el('span', { className: 'value', text: text }));
                 td.appendChild(el('button', { type: 'button', className: 'step plus',
-                    tabindex: '-1', 'data-step': '1', title: 'Eins mehr (+ oder Shift+↑)',
-                    text: '+' }));
+                    tabindex: '-1', 'data-step': '1',
+                    title: 'Eins mehr (+ oder Shift+↑ / Shift+→)', text: '+' }));
             } else {
                 td.textContent = text;
             }
@@ -1196,8 +1202,9 @@ FCT.grid = (function () {
          * Keyboard, as in a spreadsheet:
          *   arrows, Tab / Shift+Tab, Home / End, Ctrl+Home / Ctrl+End, Page Up / Page Down
          *   typing starts editing (replacing the value), F2 edits the value, Delete clears it
-         *   Enter moves down; + / - and Shift+Up / Shift+Down add or remove one of a quantity
-         *   (+ and - only in quantity columns; elsewhere they are typed as usual)
+         *   Enter moves down; + / -, Shift+Up / Shift+Down and Shift+Right / Shift+Left add
+         *   or remove one of a quantity (#37; only in quantity columns: elsewhere + and - are
+         *   typed as usual and Shift+Right / Shift+Left move the cursor)
          *   on a group header: Enter / Space toggles, Right opens, Left closes
          */
         scroller.addEventListener('keydown', function (e) {
@@ -1219,6 +1226,9 @@ FCT.grid = (function () {
                 setGroupOpen(item, false);
             } else if (e.shiftKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
                 if (column && column.step) step(item, column, key === 'ArrowUp' ? 1 : -1);
+            } else if (e.shiftKey && (key === 'ArrowRight' || key === 'ArrowLeft') &&
+                column && column.step) {
+                step(item, column, key === 'ArrowRight' ? 1 : -1);
             } else if ((key === '+' || key === '-') && column && column.step &&
                 !e.ctrlKey && !e.metaKey && !e.altKey) {
                 step(item, column, key === '+' ? 1 : -1);
@@ -1265,7 +1275,9 @@ FCT.grid = (function () {
         /*
          * Editing in place. Columns with a value list get a drop-down, all others a text
          * field. Enter saves and moves down, Tab moves right, Up/Down in a text field save
-         * and move, Escape cancels; leaving the cell saves.
+         * and move, Escape cancels; leaving the cell saves. Left/Right in a text field (#39),
+         * as in a spreadsheet: editing started by typing saves and moves at once; editing the
+         * old value (F2, double click) first moves the caret and leaves the cell at the edge.
          */
         function startEdit(typed, byMouse) {
             var column = cursorEditable();
@@ -1333,9 +1345,21 @@ FCT.grid = (function () {
                     else if (move === 'left') moveCursor(0, -1, true);
                 }
             }
+            var byTyping = typed != null;
+            function leavesSideways(e) {
+                if (list || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return false;
+                if (byTyping) return true;
+                var edge = e.key === 'ArrowLeft' ? 0 : input.value.length;
+                return input.selectionStart === edge && input.selectionEnd === edge;
+            }
             input.addEventListener('keydown', function (e) {
                 e.stopPropagation();
                 if (e.key === 'Enter') { e.preventDefault(); finish(true, 'down'); }
+                else if (leavesSideways(e)) {
+                    e.preventDefault();
+                    finish(true, e.key === 'ArrowLeft' ? 'left' : 'right');
+                }
                 else if (e.key === 'Tab') {
                     e.preventDefault();
                     finish(true, e.shiftKey ? 'left' : 'right');

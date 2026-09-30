@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css?v=2.4.0">
+    <link rel="stylesheet" href="app/style.css?v=2.5.0">
     <!-- Design (Auto, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
@@ -359,7 +359,8 @@
                 sie <strong>orange umrandet</strong> – bitte prüfen.</li>
             <li><strong>Dunkler grau:</strong> berechnet.</li>
             <li><strong>Gelb hinterlegt:</strong> im Editiermodus bearbeitbar.</li>
-            <li><strong>Rot getönt</strong> (Balken am Zeilenanfang und Rechenspalten): zum
+            <li><strong>Rot getönt</strong> (Balken am Zeilenanfang und die Rechenspalten
+                <em>Have (set)</em> bis <em>Left (total)</em>, zugeklappt die Spalte Σ): zum
                 Playset fehlen noch Karten. <strong>Grün:</strong> mehr als ein Playset in
                 diesem Set.</li>
         </ul>
@@ -428,6 +429,13 @@
                 Kartentext lesbar ist. Darunter stehen Kartennummer, Name und Variante sowie
                 ein Link, um das Bild in einem neuen Tab zu öffnen. <kbd>Esc</kbd>, ein Klick
                 daneben oder × schließt es.</li>
+            <li><strong>Details</strong> stehen rechts neben dem großen Bild (in einem schmalen
+                Fenster darunter): die Karte (Typzeile, Cost, Power, Defense, Keywords, wo sie
+                nicht legal ist), <em>Diese Variante</em> mit Set und Erscheinungsdatum,
+                Edition, Art Treatment, Seltenheit, Artist, Foilings und deinen Mengen, und
+                <em>Alle Varianten und Reprints</em> der Karte aus allen Sets – neueste zuerst,
+                jeweils mit deinem Bestand und zusammen im Verhältnis zum Playset. Ein Klick auf
+                eine Kartennummer in dieser Liste zeigt Bild und Details dieser Variante.</li>
         </ul>
         <p>Gezeigt wird das Bild genau dieser Variante (Edition, Art Treatment, bei
             doppelseitigen Karten die Seite zum Namen). Gibt es je Foiling eigene Bilder,
@@ -456,12 +464,18 @@
             <tr><td><kbd>F2</kbd>, Doppelklick, Klick auf die aktive Zelle</td>
                 <td>Bearbeiten mit dem bisherigen Wert</td></tr>
             <tr><td><kbd>Enter</kbd></td><td>Wert übernehmen und eine Zeile nach unten</td></tr>
+            <tr><td>beim Bearbeiten: <kbd>↑</kbd> / <kbd>↓</kbd>, <kbd>←</kbd> / <kbd>→</kbd></td>
+                <td>Wert übernehmen und in die Nachbarzelle. <kbd>←</kbd> / <kbd>→</kbd> tun das
+                sofort, wenn du durch Tippen begonnen hast; mit <kbd>F2</kbd> oder Doppelklick
+                bewegen sie zuerst die Einfügemarke und verlassen die Zelle erst am Anfang bzw.
+                Ende des Textes. In Auswahllisten wählen die Pfeiltasten den Wert.</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Bearbeiten abbrechen</td></tr>
             <tr><td><kbd>Entf</kbd> / <kbd>Rück</kbd></td><td>Zelle leeren</td></tr>
             <tr class="highlight"><td><kbd>+</kbd> / <kbd>−</kbd> <em>oder</em>
-                <kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>Shift</kbd>+<kbd>↓</kbd></td>
+                <kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>Shift</kbd>+<kbd>↓</kbd> <em>oder</em>
+                <kbd>Shift</kbd>+<kbd>→</kbd> / <kbd>Shift</kbd>+<kbd>←</kbd></td>
                 <td><strong>Menge +1 / −1</strong> (nie unter 0) in den Spalten ST, RF, CF, GF
-                und Playset. Beide Wege gehen gleichwertig, auch <kbd>+</kbd> / <kbd>−</kbd> am
+                und Playset. Alle Wege gehen gleichwertig, auch <kbd>+</kbd> / <kbd>−</kbd> am
                 Ziffernblock. Achtung: Das ist in Tabellenprogrammen <em>kein</em> Standard,
                 sondern eine Besonderheit dieser Anwendung; in anderen Spalten tippen
                 <kbd>+</kbd> und <kbd>−</kbd> ganz normal.</td></tr>
@@ -582,8 +596,9 @@
         <ul>
             <li><strong>1</strong> zeigt nur die Sets, <strong>2</strong> öffnet die Sets mit
                 ihren Talent/Klasse-Gruppen, <strong>3</strong> öffnet alles.</li>
-            <li>Nur für ein Set: <strong>⊞</strong> im Set-Kopf öffnet das Set mit allen
-                Talent/Klasse-Gruppen darunter, <strong>⊟</strong> schließt alle Gruppen und
+            <li>Nur für ein Set: <strong>⊞</strong> links im Set-Kopf (neben dem Auf/zu-Pfeil)
+                öffnet das Set mit allen Talent/Klasse-Gruppen darunter, <strong>⊟</strong>
+                schließt alle Gruppen und
                 lässt das Set offen – wie 3 bzw. 2, aber nur für dieses Set. Per Tastatur auf
                 der Set-Zeile: <kbd>Shift</kbd>+<kbd>→</kbd> / <kbd>Shift</kbd>+<kbd>←</kbd>.
                 Bei Gruppierung <em>nur Set</em> gibt es die Knöpfe nicht.</li>
@@ -817,8 +832,9 @@
                 angehakt heißt alle.</li>
             <li><strong>Menge:</strong> <em>fehlend gesamt</em> zieht vom Playset alle
                 Exemplare der Karte über alle Sets ab (ein Reprint, den du schon hast, zählt mit);
-                <em>fehlend je Set</em> betrachtet jedes Set für sich – dann steht der Setname immer
-                am Zeilenende.</li>
+                <em>fehlend je Set</em> betrachtet jedes Set für sich. Ohne Setnamen am
+                Zeilenende werden die Mengen einer Karte aus allen gewählten Sets zu einer Zeile
+                zusammengezählt.</li>
             <li><strong>Set am Zeilenende:</strong> nichts, Setname oder Setname und Edition.</li>
             <li><strong>Nur Zeilen der aktuellen Ansicht:</strong> nimmt nur die Zeilen, die
                 Suche und Filter gerade zeigen (auch in zugeklappten Gruppen).</li>

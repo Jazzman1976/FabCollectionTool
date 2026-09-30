@@ -111,16 +111,33 @@ FCT.exportCardmarket = (function () {
     }
 
     /*
+     * Lines of the same card from several sets as one line with the sum of their quantities
+     * (#35): "missing per set" without the set name at the line end. The key is the line as
+     * Cardmarket reads it (name and pitch as written), so no card appears twice. The entries
+     * are sorted by name and pitch, so the merged list stays sorted.
+     */
+    function mergeSets(entries) {
+        var byCard = new Map();
+        entries.forEach(function (entry) {
+            var key = FCT.util.fold(cardmarketName(entry.row) + ' ' + entry.pitch);
+            var merged = byCard.get(key);
+            if (merged) merged.quantity += entry.quantity;
+            else byCard.set(key, Object.assign({}, entry));
+        });
+        return Array.from(byCard.values());
+    }
+
+    /*
      * Main entry: collection -> { text, report, lines, cards }.
-     * options as for wants, plus suffix: 'none', 'set' or 'setEdition' (the set name is always
-     * written with basis 'set', so that Cardmarket can tell the lines apart).
+     * options as for wants, plus suffix: 'none', 'set' or 'setEdition'. With basis 'set' and
+     * no set name, the lines of a card from several sets are added up (mergeSets).
      */
     function exportCardmarket(collection, options) {
         var report = FCT.createReport('Export nach Cardmarket');
         var suffix = options.suffix || 'none';
-        if (options.basis === 'set' && suffix === 'none') suffix = 'set';
 
         var entries = wants(collection, options);
+        if (options.basis === 'set' && suffix === 'none') entries = mergeSets(entries);
         var cards = 0;
         var lines = entries.map(function (entry) {
             cards += entry.quantity;

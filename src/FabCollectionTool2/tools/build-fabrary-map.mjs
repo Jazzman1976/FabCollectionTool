@@ -6,18 +6,24 @@
  * findings are taken; unclear ones and printings Fabrary does not know are listed.
  *
  * Usage:
- *   node tools/build-fabrary-map.mjs <fabrary-export.csv>
+ *   node tools/build-fabrary-map.mjs [fabrary-export.csv]
+ * Without a file the export at the fixed local place .ignore/ressources/fabrary-export.csv
+ * is taken (issue #31).
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadApp, appRoot } from './load-app.mjs';
+import { loadApp, appRoot, fabraryExportFile } from './load-app.mjs';
 
-// Read the command line.
-const [fabraryFile] = process.argv.slice(2);
+// Read the command line: the file given, otherwise the one at the fixed local place.
+const fabraryFile = process.argv[2] ||
+    (fs.existsSync(fabraryExportFile) ? fabraryExportFile : '');
 if (!fabraryFile) {
-    console.error('Usage: node tools/build-fabrary-map.mjs <fabrary-export.csv>');
+    console.error('Usage: node tools/build-fabrary-map.mjs [fabrary-export.csv]');
+    console.error('Without a file the export at .ignore/ressources/fabrary-export.csv is ' +
+        'taken; there is none.');
     process.exit(1);
 }
+console.log(`Fabrary export: ${fabraryFile}`);
 
 // Load the app with the reference data; the comparison starts without any mapping.
 const FCT = loadApp({ withReference: true, extra: ['app/model.js', 'app/fabrary-map.js',

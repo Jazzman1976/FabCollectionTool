@@ -25,8 +25,9 @@ FCT.tour = (function () {
         { target: '#grid', title: 'Die Tabelle',
             text: 'Sie funktioniert wie die 1.0-Tabelle: Zelle anklicken, Zahl tippen, Enter ' +
                 'geht nach unten. Mengen zählst du mit den Tasten + / − hoch oder runter – ' +
-                'oder gleichwertig mit Shift+↑ / Shift+↓ (eine Besonderheit dieser App, kein ' +
-                'Tabellen-Standard). Sets und Talent/Class-Gruppen lassen sich auf- und ' +
+                'oder gleichwertig mit Shift+↑ / Shift+↓ bzw. Shift+→ / Shift+← (eine ' +
+                'Besonderheit dieser App, kein Tabellen-Standard). Sets und ' +
+                'Talent/Class-Gruppen lassen sich auf- und ' +
                 'zuklappen. Das Bildsymbol neben der Kartennummer zeigt beim Überfahren die ' +
                 'Karte, ein Klick zeigt sie groß.' },
         { target: '.grid thead th.status', title: 'Status jeder Zeile',
@@ -43,7 +44,7 @@ FCT.tour = (function () {
         { target: '#btn-outline-1', parent: 'fieldset', title: 'Gliederung',
             text: 'Wie die Gliederungsknöpfe der 1.0-Tabelle: 1 zeigt nur die Sets, 2 auch ' +
                 'die Talent/Class-Gruppen, 3 klappt alles auf. Für ein einzelnes Set ' +
-                'öffnen bzw. schließen ⊞ und ⊟ im Set-Kopf alle seine Gruppen.' },
+                'öffnen bzw. schließen ⊞ und ⊟ links im Set-Kopf alle seine Gruppen.' },
         { target: '#btn-reference-apply', parent: 'fieldset', title: 'Stammdaten',
             text: 'Kartendaten kommen automatisch online. Das Auswahlfeld wählt den Branch – ' +
                 'neue Sets gibt es oft zuerst in einem eigenen. „Übernehmen …“ zeigt alle ' +

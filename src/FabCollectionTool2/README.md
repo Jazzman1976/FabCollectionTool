@@ -1,4 +1,4 @@
-# FabCollectionTool 2.4.0
+# FabCollectionTool 2.5.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -41,7 +41,7 @@ Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.m
 | **Gliederung** | Gruppierung, Reihenfolge der Sets, Ebenen **1** / **2** / **3** |
 
 In der Tabelle: Kartenbilder in einer eigenen Spalte nach der Kartennummer (Vorschau beim
-Überfahren, groß per Klick; die
+Überfahren, groß per Klick mit Details und allen Reprints der Karte; die
 Bilder lädt der Browser aus dem Internet), einklappbarer Block der Rechenspalten, × zum Löschen
 eines Filters.
 
@@ -157,7 +157,9 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
   Zeilenlänge):
   `node tools/selftest.mjs <altes.ods> <fabrary-export.csv> [Ordner mit Quell-CSVs]
   [--fabrary-current <aktueller Fabrary-Export.csv>]`. Die GitHub Action ruft ihn mit
-  `docs/example.ods` und `docs/Fabrary Export Beispiel.csv` auf. Mit `--fabrary-current` wird
-  zusätzlich die Fabrary-Zuordnung an einem aktuellen Fabrary-Export geprüft (vor einem
-  Release); diese Datei liegt außerhalb des Repositorys, ohne sie werden die Prüfungen
-  übersprungen.
+  `docs/example.ods` und `docs/Fabrary Export Beispiel.csv` auf. Zusätzlich wird die
+  Fabrary-Zuordnung an einem aktuellen Fabrary-Export geprüft: an der Datei am festen lokalen
+  Ort `.ignore/ressources/fabrary-export.csv` (im Wurzelordner der Repository, von Git
+  ignoriert, weil sie die eigene Sammlung enthält) oder an einer anderen Datei per
+  `--fabrary-current`. Ohne beides werden diese Prüfungen übersprungen (so in der Action).
+  Die Datei vor jedem Release mit dem neuesten Sammlungsexport aus Fabrary überschreiben.

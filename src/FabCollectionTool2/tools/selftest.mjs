@@ -4,27 +4,32 @@
  * Usage (from the tool folder):
  *   node tools/selftest.mjs <example.ods> <fabrary-export.csv> [folder with source csv files]
  *       [--fabrary-current <current fabrary-export.csv>]
- * With --fabrary-current the shipped Fabrary mapping is checked against a current export of
- * Fabrary (before a release); without it these checks are skipped, e.g. in the GitHub Action.
+ * The shipped Fabrary mapping is checked against a current export of Fabrary (before a
+ * release): the file at .ignore/ressources/fabrary-export.csv (issue #31), or another file given
+ * with --fabrary-current. Without either, these checks are skipped, e.g. in the GitHub Action.
  *
  * The inputs are the user's own files; they are only read, never copied into the repository.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { loadApp, appRoot } from './load-app.mjs';
+import { loadApp, appRoot, fabraryExportFile } from './load-app.mjs';
 
 // Read the command line: positional arguments and the optional current Fabrary export.
 const args = process.argv.slice(2);
 const currentAt = args.indexOf('--fabrary-current');
-const currentFile = currentAt >= 0 ? args[currentAt + 1] : '';
+const givenFile = currentAt >= 0 ? args[currentAt + 1] : '';
 if (currentAt >= 0) args.splice(currentAt, 2);
 const [odsFile, fabraryFile, sourceDir] = args;
-if (!odsFile || !fabraryFile || (currentAt >= 0 && !currentFile)) {
+if (!odsFile || !fabraryFile || (currentAt >= 0 && !givenFile)) {
     console.error('Usage: node tools/selftest.mjs <example.ods> <fabrary-export.csv> ' +
         '[source folder] [--fabrary-current <current fabrary-export.csv>]');
     process.exit(1);
 }
+
+// The current Fabrary export: the file given, otherwise the one at the fixed local place.
+const currentFile = givenFile || (fs.existsSync(fabraryExportFile) ? fabraryExportFile : '');
+if (currentFile) console.log(`INFO current Fabrary export: ${currentFile}`);
 
 // Load all logic scripts. Node.js 18 cannot inflate raw deflate data via
 // DecompressionStream, so the ODS reader gets a zlib based replacement here.
@@ -151,13 +156,14 @@ check('Fabrary import', imported.collection && imported.collection.rows.length >
 }
 
 /*
- * Fabrary mapping against a current Fabrary export (issue #17, addendum; only with
- * --fabrary-current): with the shipped mapping every row of the export is written exactly as
- * in that export, except the printings Fabrary does not know; its quantities arrive, and the
- * comparison finds nothing left to map.
+ * Fabrary mapping against a current Fabrary export (issue #17, addendum; only with a current
+ * export, see the head of this file): with the shipped mapping every row of the export is
+ * written exactly as in that export, except the printings Fabrary does not know; its
+ * quantities arrive, and the comparison finds nothing left to map.
  */
 if (!currentFile) {
-    console.log('SKIP Fabrary mapping against a current Fabrary export (--fabrary-current)');
+    console.log('SKIP Fabrary mapping against a current Fabrary export ' +
+        '(none at .ignore/ressources/fabrary-export.csv, no --fabrary-current)');
 } else {
     const map = FCT.fabraryMap;
     const fab = FCT.exportFabrary;
@@ -266,11 +272,11 @@ if (!currentFile) {
     check('Cardmarket one line per card', new Set(keys).size === keys.length && !wrongNeed.length,
         `${keys.length - new Set(keys).size} duplicates, ${wrongNeed.length} wrong quantities`);
 
-    // Filters: one set, one rarity; "per set" always writes the set name.
+    // Filters: one set, one rarity; "per set" with the set name writes it at the line end.
     const someSet = entries[0].row.Set;
     const oneSet = cm.wants(ods.collection, { basis: 'total', sets: [someSet] });
     const rares = cm.wants(ods.collection, { basis: 'total', rarities: ['Rare'] });
-    const perSet = cm.exportCardmarket(ods.collection, { basis: 'set', suffix: 'none',
+    const perSet = cm.exportCardmarket(ods.collection, { basis: 'set', suffix: 'set',
         sets: [someSet] });
     const perSetLines = perSet.text.split('\n').filter(Boolean);
     check('Cardmarket set and rarity filter', oneSet.length > 0 &&
@@ -278,6 +284,33 @@ if (!currentFile) {
         rares.every((e) => e.row.Rarity === 'Rare') &&
         perSetLines.every((line) => line.endsWith(' (' + someSet + ')')),
         `${someSet}: ${oneSet.length}, Rare: ${rares.length}, per set: ${perSetLines.length}`);
+
+    // "Per set" without the set name (#35): one line per card with the sum of its lines per
+    // set, no set name at the line end, no card twice, no card lost.
+    // Expected: the lines with set name, the set name taken off, summed per remaining text.
+    const perSetAll = cm.wants(ods.collection, { basis: 'set' });
+    const named = cm.exportCardmarket(ods.collection, { basis: 'set', suffix: 'set' });
+    const plain = cm.exportCardmarket(ods.collection, { basis: 'set', suffix: 'none' });
+    const plainLines = plain.text.split('\n').filter(Boolean);
+    const sums = new Map();
+    named.text.split('\n').filter(Boolean).forEach((line, i) => {
+        const card = line.slice(0, -(' (' + perSetAll[i].set + ')').length)
+            .replace(/^\d+ /, '');
+        sums.set(card, (sums.get(card) || 0) + perSetAll[i].quantity);
+    });
+    const setNames = new Set(perSetAll.map((e) => ' (' + e.set + ')'));
+    const withSet = plainLines.filter((line) => [...setNames].some((s) => line.endsWith(s)));
+    const wrongSum = plainLines.filter((line) => {
+        const match = /^(\d+) (.*)$/.exec(line);
+        return sums.get(match[2]) !== Number(match[1]);
+    });
+    const cardsPerSet = perSetAll.reduce((sum, e) => sum + e.quantity, 0);
+    check('Cardmarket per set without set name', plainLines.length === sums.size &&
+        sums.size < perSetAll.length && !wrongSum.length && !withSet.length &&
+        plain.cards === cardsPerSet,
+        `${perSetAll.length} lines per set -> ${plainLines.length} lines, ` +
+        `${plain.cards} of ${cardsPerSet} cards, wrong sums ${wrongSum.length}, ` +
+        `with set name ${withSet.length}`);
 
     // Name exceptions of the first tool.
     const collection = FCT.model.create();
@@ -762,6 +795,23 @@ if (!currentFile) {
     check('Card pictures', without.length <= 10 && urls && variant,
         `${known.length - without.length} of ${known.length} rows with picture, ` +
         `urls ${urls}, variant ${variant}`);
+}
+
+// Reprints in the large picture (#26): all printings of the card of a row, one per card
+// number, edition and art treatment, the newest set first, the row's own printing among them.
+{
+    const r = FCT.reference;
+    const rhinar = r.reprints({ Id: '1HP001', Edition: '', 'Art Treatment': '', Name: '' });
+    const sets = new Set(rhinar.map((p) => p.setCode));
+    const keys = rhinar.map((p) => [p.id, p.edition, p.art].join('|'));
+    const dates = rhinar.map((p) => r.setDate(p.setCode));
+    const newestFirst = dates.every((d, i) => !i || dates[i - 1] >= d);
+    const same = rhinar.every((p) => p.cardId === rhinar[0].cardId);
+    const unknown = r.reprints({ Id: 'XXX999', Edition: '', 'Art Treatment': '', Name: '' });
+    check('Card reprints', sets.has('1HP') && sets.has('CRU') && sets.size > 2 &&
+        keys.includes('1HP001||') && new Set(keys).size === keys.length && newestFirst &&
+        same && !unknown.length,
+        `1HP001: ${rhinar.length} printings in ${sets.size} sets, newest first ${newestFirst}`);
 }
 
 // Branch of the reference data (2.0.4.0): the source URL follows the chosen branch.

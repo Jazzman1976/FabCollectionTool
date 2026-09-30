@@ -2443,9 +2443,6 @@ FCT.app = (function () {
         // Counts per set and the preview follow every change.
         function update() {
             var options = current();
-            var perSet = options.basis === 'set';
-            suffixInputs[0].disabled = perSet;
-            if (perSet && suffixInputs[0].checked) suffixInputs[1].checked = true;
             setBoxes.forEach(function (box) {
                 var count = FCT.exportCardmarket.wants(collection, Object.assign({}, options,
                     { sets: [box._set.name] })).reduce(function (sum, w) {
@@ -3611,11 +3608,143 @@ FCT.app = (function () {
     // Card pictures at the card number: preview while hovering, large window on click.
     function showCardImage(action, row, cell) {
         if (action === 'leave') { FCT.cardImage.leave(); return; }
-        var caption = [row.Id, row.Name, [row.Edition, row['Art Treatment']].filter(Boolean)
+        if (action === 'hover') {
+            FCT.cardImage.hover(FCT.reference.image(row, 'normal'), cell, cardCaption(row));
+        } else if (action === 'open') {
+            openCardView(row);
+        }
+    }
+
+    // "WTR001 · Name · Edition, Art Treatment" below a card picture.
+    function cardCaption(row) {
+        return [row.Id, row.Name, [row.Edition, row['Art Treatment']].filter(Boolean)
             .join(', ')].filter(Boolean).join(' · ');
-        if (action === 'hover') FCT.cardImage.hover(FCT.reference.image(row, 'normal'), cell,
-            caption);
-        else if (action === 'open') FCT.cardImage.open(FCT.reference.image(row, 'large'), caption);
+    }
+
+    /*
+     * Large card picture with details (issue #26): the card, this printing with the
+     * quantities of the collection, and all printings of the card (reprints and variants).
+     * A click on another printing shows its picture and details in the same window.
+     */
+    var FOILING_COLUMNS = { S: 'ST', R: 'RF', C: 'CF', G: 'GF' };
+
+    function openCardView(row) {
+        FCT.cardImage.open(FCT.reference.image(row, 'large'), cardCaption(row),
+            cardDetails(row));
+    }
+
+    // Collection rows of a printing variant (card number, edition, art treatment).
+    function ownRows(id, edition, art) {
+        var key = model.variantKey(id, edition, art);
+        return (state.rowsById.get(id) || []).filter(function (r) {
+            return !r._reference && model.variantKey(r.Id, r.Edition, r['Art Treatment']) === key;
+        });
+    }
+
+    // Copies owned in these rows, all foilings together.
+    function owned(rows) {
+        return rows.reduce(function (sum, r) {
+            return sum + ['ST', 'RF', 'CF', 'GF'].reduce(function (s, c) {
+                return s + (util.toInt(r[c]) || 0);
+            }, 0);
+        }, 0);
+    }
+
+    function cardDetails(row) {
+        var front = FCT.reference.printingFor(row);
+        if (!front) {
+            return el('div', { className: 'card-details' }, [el('p', { className: 'what',
+                text: 'Die Stammdaten kennen diese Kartennummer nicht.' })]);
+        }
+        var card = front.card;
+        var shownKey = model.variantKey(row.Id, row.Edition, row['Art Treatment']);
+
+        // Small helpers: a list of label/value pairs (empty values left out), a set date,
+        // foiling letters as the quantity columns.
+        function facts(pairs) {
+            return el('dl', {}, pairs.filter(function (p) { return p[1] !== ''; })
+                .reduce(function (list, p) {
+                    return list.concat([el('dt', { text: p[0] }), el('dd', { text: p[1] })]);
+                }, []));
+        }
+        function date(code) {
+            var value = FCT.reference.setDate(code);
+            return value ? new Date(value + 'T00:00:00').toLocaleDateString('de-DE') : '';
+        }
+        function foilings(letters) {
+            return String(letters || '').split('').map(function (l) {
+                return FOILING_COLUMNS[l] || l;
+            }).join(' ');
+        }
+
+        // The card itself, the same on every printing.
+        var stats = [['Cost', card.cost], ['Power', card.power], ['Defense', card.defense]]
+            .filter(function (s) { return s[1] !== ''; })
+            .map(function (s) { return s[0] + ' ' + s[1]; }).join(' · ');
+        var cardPart = [
+            el('h3', { text: card.name + (card.pitch ? ' (' + card.pitch + ')' : '') }),
+            facts([['Typ', card.typeText || card.types], ['Werte', stats],
+                ['Keywords', card.keywords], ['Nicht legal in', card.notLegal]])
+        ];
+
+        // This printing: quantities from the collection row, if the variant is in it.
+        var printings = FCT.reference.reprints(row);
+        var shown = printings.filter(function (p) {
+            return model.variantKey(p.id, p.edition, p.art) === shownKey;
+        })[0] || front;
+        var own = ownRows(row.Id, row.Edition, row['Art Treatment']);
+        var source = own[0] || row;
+        var quantities = ['ST', 'RF', 'CF', 'GF'].filter(function (c) {
+            return (util.toInt(source[c]) || 0) > 0;
+        }).map(function (c) { return c + ' ' + source[c]; }).join(' · ');
+        var inCollection = own.length ? (quantities || '0') +
+            (source.Playset ? ' (Playset ' + source.Playset + ')' : '') : 'nicht im Bestand';
+        var setText = FCT.reference.setName(shown.setCode) + ' (' + shown.setCode + ')' +
+            (date(shown.setCode) ? ', ' + date(shown.setCode) : '');
+        var printingPart = [el('h3', { text: 'Diese Variante' }), facts([
+            ['Nummer', row.Id], ['Set', setText], ['Edition', row.Edition || shown.edition],
+            ['Art Treatment', row['Art Treatment'] || ''], ['Seltenheit', shown.rarity],
+            ['Artist', shown.artists], ['Foilings', foilings(shown.foilings)],
+            ['Im Bestand', inCollection]
+        ])];
+
+        // All printings of the card; the one shown is marked, the others can be chosen.
+        var total = 0;
+        var items = printings.map(function (p) {
+            var have = owned(ownRows(p.id, p.edition, p.art));
+            total += have;
+            var current = model.variantKey(p.id, p.edition, p.art) === shownKey;
+            var number = current ? el('strong', { text: p.id }) : el('button', {
+                type: 'button', className: 'link', text: p.id,
+                title: 'Bild und Details dieser Variante zeigen',
+                onclick: function () {
+                    openCardView(ownRows(p.id, p.edition, p.art)[0] || { Id: p.id,
+                        Edition: p.edition, 'Art Treatment': p.art, Name: row.Name });
+                } });
+            return el('tr', { className: current ? 'current' : null }, [
+                el('td', {}, [number]),
+                el('td', { text: FCT.reference.setName(p.setCode), title: date(p.setCode) }),
+                el('td', { text: [p.edition, p.art].filter(Boolean).join(', ') }),
+                el('td', { text: p.rarity }),
+                el('td', { text: foilings(p.foilings) }),
+                el('td', { className: 'num', text: have ? String(have) : '–' })
+            ]);
+        });
+        var heads = ['Nummer', 'Set', 'Variante', 'Seltenheit', 'Foilings', 'Bestand'];
+        var listPart = [
+            el('h3', { text: 'Alle Varianten und Reprints (' + printings.length + ')' }),
+            el('table', { className: 'card-printings' }, [
+                el('thead', {}, [el('tr', {}, heads.map(function (t) {
+                    return el('th', { text: t });
+                }))]),
+                el('tbody', {}, items)
+            ]),
+            el('p', { className: 'what', text: 'Zusammen im Bestand: ' + total +
+                ' von Playset ' + (source.Playset || FCT.reference.playset(card)) })
+        ];
+
+        return el('div', { className: 'card-details' },
+            cardPart.concat(printingPart, listPart));
     }
 
     // Design: 'system' follows the operating system, 'light' and 'dark' are fixed.
@@ -3635,7 +3764,8 @@ FCT.app = (function () {
                 '(Doppelklick, Klick auf die aktive Zelle oder einfach tippen), feste Werte per ' +
                 'Auswahlliste. Werte, die von den Stammdaten abweichen, sind erlaubt und werden ' +
                 'mit einer violetten Ecke (✱) markiert. Mengen: Tasten + / − oder Shift+↑ / ' +
-                'Shift+↓ (kein Tabellen-Standard).', { buttons: [{ label: 'Beenden',
+                'Shift+↓ bzw. Shift+→ / Shift+← (kein Tabellen-Standard).',
+                { buttons: [{ label: 'Beenden',
                     onClick: function () { setEditMode(false); } }] });
         } else {
             FCT.notices.clear('edit');
