@@ -86,8 +86,13 @@ node tools/selftest.mjs ../../docs/example.ods "../../docs/Fabrary Export Beispi
 ```
 
 So ruft ihn auch die Action `pages.yml` vor jeder Veröffentlichung auf – Änderungen am
-Selbsttest immer auch so prüfen. Vor einem Release zusätzlich
-`--fabrary-current <aktueller Fabrary-Export.csv>` (Datei liegt außerhalb des Repositorys).
+Selbsttest immer auch so prüfen.
+
+**Aktueller Fabrary-Export:** fester lokaler Ort `.ignore/ressources/fabrary-export.csv`
+(von Git ignoriert, nie committen; daneben `readme.md`). Liegt die Datei dort, prüfen Selbsttest
+und `tools/build-fabrary-map.mjs` die Fabrary-Zuordnung automatisch damit; fehlt sie (Action,
+Cloud), werden diese Prüfungen übersprungen. Vor jedem Release die Datei mit dem neuesten
+Sammlungsexport aus Fabrary überschreiben. `--fabrary-current <Datei>` nur für eine andere Datei.
 
 ## Geplanter Planungs-Agent
 Ein geplanter Cloud-Agent darf **nur planen**: für Issues auf *Approved* ohne Kommentar

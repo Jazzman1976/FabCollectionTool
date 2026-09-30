@@ -2,3 +2,5 @@
 **/bin/
 **/obj
 **/dist/debug/
+# Local private files (e.g. the current Fabrary export in .ignore/ressources/, issue #31)
+.ignore/

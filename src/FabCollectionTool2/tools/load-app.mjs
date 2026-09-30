@@ -10,6 +10,11 @@ import { fileURLToPath } from 'node:url';
 const toolDir = path.dirname(fileURLToPath(import.meta.url));
 export const appRoot = path.join(toolDir, '..');
 
+// Fixed local place of the current Fabrary export (issue #31). It holds the user's own
+// collection, so it lives in .ignore/ at the repository root and is never committed.
+export const fabraryExportFile = path.join(appRoot, '..', '..', '.ignore', 'ressources',
+    'fabrary-export.csv');
+
 // Scripts that work without a browser page, in the same order as in index.html.
 const LOGIC_SCRIPTS = [
     'app/core.js',
