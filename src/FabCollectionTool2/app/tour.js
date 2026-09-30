@@ -25,8 +25,9 @@ FCT.tour = (function () {
         { target: '#grid', title: 'Die Tabelle',
             text: 'Sie funktioniert wie die 1.0-Tabelle: Zelle anklicken, Zahl tippen, Enter ' +
                 'geht nach unten. Mengen zählst du mit den Tasten + / − hoch oder runter – ' +
-                'oder gleichwertig mit Shift+↑ / Shift+↓ (eine Besonderheit dieser App, kein ' +
-                'Tabellen-Standard). Sets und Talent/Class-Gruppen lassen sich auf- und ' +
+                'oder gleichwertig mit Shift+↑ / Shift+↓ bzw. Shift+→ / Shift+← (eine ' +
+                'Besonderheit dieser App, kein Tabellen-Standard). Sets und ' +
+                'Talent/Class-Gruppen lassen sich auf- und ' +
                 'zuklappen. Das Bildsymbol neben der Kartennummer zeigt beim Überfahren die ' +
                 'Karte, ein Klick zeigt sie groß.' },
         { target: '.grid thead th.status', title: 'Status jeder Zeile',

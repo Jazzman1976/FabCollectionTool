@@ -956,16 +956,16 @@ FCT.grid = (function () {
                 title: picture ? null : title || null });
             td._column = column;
             if (column.step && editable && isCursor) {
-                // "-" and "+" only in the active cell (also the keys - / + and Shift+Down /
-                // Shift+Up).
+                // "-" and "+" only in the active cell (also the keys - / +, Shift+Down /
+                // Shift+Up and Shift+Left / Shift+Right).
                 td.classList.add('stepper');
                 td.appendChild(el('button', { type: 'button', className: 'step minus',
-                    tabindex: '-1', 'data-step': '-1', title: 'Eins weniger (− oder Shift+↓)',
-                    text: '−' }));
+                    tabindex: '-1', 'data-step': '-1',
+                    title: 'Eins weniger (− oder Shift+↓ / Shift+←)', text: '−' }));
                 td.appendChild(el('span', { className: 'value', text: text }));
                 td.appendChild(el('button', { type: 'button', className: 'step plus',
-                    tabindex: '-1', 'data-step': '1', title: 'Eins mehr (+ oder Shift+↑)',
-                    text: '+' }));
+                    tabindex: '-1', 'data-step': '1',
+                    title: 'Eins mehr (+ oder Shift+↑ / Shift+→)', text: '+' }));
             } else {
                 td.textContent = text;
             }
@@ -1202,8 +1202,9 @@ FCT.grid = (function () {
          * Keyboard, as in a spreadsheet:
          *   arrows, Tab / Shift+Tab, Home / End, Ctrl+Home / Ctrl+End, Page Up / Page Down
          *   typing starts editing (replacing the value), F2 edits the value, Delete clears it
-         *   Enter moves down; + / - and Shift+Up / Shift+Down add or remove one of a quantity
-         *   (+ and - only in quantity columns; elsewhere they are typed as usual)
+         *   Enter moves down; + / -, Shift+Up / Shift+Down and Shift+Right / Shift+Left add
+         *   or remove one of a quantity (#37; only in quantity columns: elsewhere + and - are
+         *   typed as usual and Shift+Right / Shift+Left move the cursor)
          *   on a group header: Enter / Space toggles, Right opens, Left closes
          */
         scroller.addEventListener('keydown', function (e) {
@@ -1225,6 +1226,9 @@ FCT.grid = (function () {
                 setGroupOpen(item, false);
             } else if (e.shiftKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
                 if (column && column.step) step(item, column, key === 'ArrowUp' ? 1 : -1);
+            } else if (e.shiftKey && (key === 'ArrowRight' || key === 'ArrowLeft') &&
+                column && column.step) {
+                step(item, column, key === 'ArrowRight' ? 1 : -1);
             } else if ((key === '+' || key === '-') && column && column.step &&
                 !e.ctrlKey && !e.metaKey && !e.altKey) {
                 step(item, column, key === '+' ? 1 : -1);
