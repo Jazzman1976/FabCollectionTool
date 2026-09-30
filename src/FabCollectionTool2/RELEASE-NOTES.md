@@ -6,6 +6,52 @@ die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>
 (z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
 GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.5.0 – 30.09.2026
+
+### Neu
+- **Details und Reprints in der großen Bildansicht** (#26): Neben dem großen Kartenbild (in
+  einem schmalen Fenster darunter) stehen jetzt
+  - die **Karte**: Typzeile, Cost, Power, Defense, Keywords und wo sie nicht legal ist;
+  - **Diese Variante**: Set mit Erscheinungsdatum, Edition, Art Treatment, Seltenheit,
+    Artist, Foilings und deine Mengen;
+  - **Alle Varianten und Reprints** der Karte aus allen Sets, neueste zuerst, jeweils mit
+    deinem Bestand und zusammen im Verhältnis zum Playset. Ein Klick auf eine Kartennummer
+    zeigt Bild und Details dieser Variante.
+- **Shift+→ / Shift+← ändern Mengen** (#37): In den Spalten ST, RF, CF, GF und Playset zählen
+  sie wie Shift+↑ / Shift+↓ bzw. + / − eins hoch oder runter. In anderen Spalten bewegen sie
+  weiter den Zellcursor, auf einer Set-Zeile klappen sie weiter alle Gruppen des Sets auf/zu.
+
+### Verbessert
+- **← / → beim Bearbeiten** (#39): Wie in Tabellenprogrammen übernehmen die seitlichen
+  Pfeiltasten den Wert und springen in die Nachbarzelle, wenn du durch Tippen zu bearbeiten
+  begonnen hast. Mit F2 oder Doppelklick bewegen sie zuerst die Einfügemarke und verlassen die
+  Zelle erst am Anfang bzw. Ende des Textes.
+- **Farbkennung nur im Rechenblock** (#36): Rot (fehlt zum Playset) und Grün (mehr als ein
+  Playset) färben nur noch die Spalten *Have (set)* bis *Left (total)*, eingeklappt die Spalte
+  Σ. Kartenbild, Typen, Cost … Kartentext bleiben neutral. Der Balken am Zeilenanfang bleibt.
+- **Gruppen-Knöpfe links** (#38): Im Set-Kopf liegen Auf/zu-Pfeil, **⊞** und **⊟** jetzt
+  zusammen am linken Rand. Der Titel bleibt mittig.
+- **Cardmarket: „Set am Zeilenende: nicht anhängen“ auch bei „fehlend je Set“** (#35): Die
+  Option war bisher abgeschaltet. Jetzt ist sie wählbar; die Mengen einer Karte aus allen
+  gewählten Sets stehen dann zusammengezählt in einer Zeile.
+
+### Korrigiert
+- Gruppenzeilen: Beim waagerechten Scrollen blieben Titel und Knöpfe nicht im sichtbaren
+  Bereich, sondern wanderten mit der Tabelle aus dem Bild (#38).
+
+### Stammdaten
+- the-fab-cube `develop` auf `18b2d9d` vom 30.09.2026 (vorher `e56071b` vom 21.08.2026):
+  Power von Hyper Inflation (Yellow 3, Blue 2), Fähigkeitstext von Redwood Hammer, Keyword
+  „Go again“ bei Meganetic Lockwave und Hyper Scrapper; die Variante FAB407 Gold Foil hat
+  the-fab-cube entfernt.
+
+### Entwicklung
+- **Fester Ort für den aktuellen Fabrary-Export** (#31): `.ignore/ressources/fabrary-export.csv`
+  (von Git ignoriert, auch per `.gitignore` der Repository). Selbsttest und
+  `tools/build-fabrary-map.mjs` nehmen die Datei automatisch; `--fabrary-current` nur noch für
+  eine andere Datei. Ohne Datei (z. B. in der Action) werden diese Prüfungen übersprungen.
+- Selbsttest: neue Prüfungen „Cardmarket per set without set name“ und „Card reprints“.
+
 ## 2.4.0 – 29.09.2026
 
 ### Neu
