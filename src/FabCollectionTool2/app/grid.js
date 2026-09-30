@@ -1265,7 +1265,9 @@ FCT.grid = (function () {
         /*
          * Editing in place. Columns with a value list get a drop-down, all others a text
          * field. Enter saves and moves down, Tab moves right, Up/Down in a text field save
-         * and move, Escape cancels; leaving the cell saves.
+         * and move, Escape cancels; leaving the cell saves. Left/Right in a text field (#39),
+         * as in a spreadsheet: editing started by typing saves and moves at once; editing the
+         * old value (F2, double click) first moves the caret and leaves the cell at the edge.
          */
         function startEdit(typed, byMouse) {
             var column = cursorEditable();
@@ -1333,9 +1335,21 @@ FCT.grid = (function () {
                     else if (move === 'left') moveCursor(0, -1, true);
                 }
             }
+            var byTyping = typed != null;
+            function leavesSideways(e) {
+                if (list || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return false;
+                if (byTyping) return true;
+                var edge = e.key === 'ArrowLeft' ? 0 : input.value.length;
+                return input.selectionStart === edge && input.selectionEnd === edge;
+            }
             input.addEventListener('keydown', function (e) {
                 e.stopPropagation();
                 if (e.key === 'Enter') { e.preventDefault(); finish(true, 'down'); }
+                else if (leavesSideways(e)) {
+                    e.preventDefault();
+                    finish(true, e.key === 'ArrowLeft' ? 'left' : 'right');
+                }
                 else if (e.key === 'Tab') {
                     e.preventDefault();
                     finish(true, e.shiftKey ? 'left' : 'right');
