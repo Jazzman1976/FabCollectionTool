@@ -41,7 +41,7 @@ Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.m
 | **Gliederung** | Gruppierung, Reihenfolge der Sets, Ebenen **1** / **2** / **3** |
 
 In der Tabelle: Kartenbilder in einer eigenen Spalte nach der Kartennummer (Vorschau beim
-Überfahren, groß per Klick; die
+Überfahren, groß per Klick mit Details und allen Reprints der Karte; die
 Bilder lädt der Browser aus dem Internet), einklappbarer Block der Rechenspalten, × zum Löschen
 eines Filters.
 

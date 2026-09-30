@@ -65,20 +65,24 @@ FCT.cardImage = (function () {
 
     /*
      * Large window: the picture in the size of the data set's large image (546 x 762), at most
-     * as high as the window, with card number, name and variant below it. Closes with Esc, a
-     * click next to it or ×.
+     * as high as the window, with card number, name and variant below it. details (optional,
+     * issue #26) is shown next to the picture, or below it in a narrow window. Closes with
+     * Esc, a click next to it or ×.
      */
-    function open(url, caption) {
+    function open(url, caption, details) {
         leave();
         close();
-        if (!url) return;
-        var box = el('div', { className: 'card-viewer-box' }, [
+        if (!url && !details) return;
+        var image = url ? picture(url, caption, 'card-viewer-image')
+            : el('div', { className: 'card-viewer-image missing', text: 'Kein Bild verfügbar' });
+        var link = url ? [' · ', el('a', { href: url, target: '_blank', rel: 'noopener',
+            text: 'Bild in neuem Tab' })] : [];
+        var box = el('div', { className: 'card-viewer-box' + (details ? ' with-details' : '') }, [
             el('button', { type: 'button', className: 'card-viewer-close', title: 'Schließen (Esc)',
                 text: '×', onclick: close }),
-            picture(url, caption, 'card-viewer-image'),
-            el('div', { className: 'card-caption' }, [caption, ' · ',
-                el('a', { href: url, target: '_blank', rel: 'noopener',
-                    text: 'Bild in neuem Tab' })])
+            el('div', { className: 'card-viewer-figure' }, [image,
+                el('div', { className: 'card-caption' }, [caption].concat(link))]),
+            details || null
         ]);
         var overlay = el('div', { className: 'card-viewer', role: 'dialog',
             'aria-label': caption }, [box]);
