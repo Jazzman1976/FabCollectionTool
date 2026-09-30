@@ -2,7 +2,7 @@
 FCT.DATA.info = {
     "source": "the-fab-cube/flesh-and-blood-cards",
     "branch": "develop",
-    "commit": "e56071b41b6e784b652eeada1ff86e6d8538f554",
-    "commitDate": "2026-08-21",
-    "built": "2026-09-25"
+    "commit": "18b2d9d74e2f57a025bb62820bf35a13477a895b",
+    "commitDate": "2026-09-30",
+    "built": "2026-09-30"
 };

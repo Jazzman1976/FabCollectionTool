@@ -4299,7 +4299,6 @@ FCT.DATA.printings = [
 ["FAB402","FAB","","Alternate Art, Full Art","Promo","C","qBqzbKjQwMKKnBtM7GJGH","FAB402-CF","Thomas Ressuge"],
 ["FAB405","FAB","","Extended Art","Promo","G","qtGQDP6NNRnFFgNhKjCkd","FAB405-GF","Jessada Sutthi"],
 ["FAB406","FAB","","","Promo","G","gBQnWLRkrTJNGGm7dWPBN","FAB406-GF","Simon Dominic"],
-["FAB407","FAB","","","Promo","G","HrWqnWfcFNdKB7TLnBLtC","FAB407-GF","Alexandra Malygina"],
 ["FAB408","FAB","","","Promo","G","TGJ8mNQ6DnfnLqzH7WMFg","FAB408-GF","bimawithpencil"],
 ["FAB409","FAB","","","Promo","G","dQB8pPfdFTDkKJwz9LQbD","FAB409-GF","Yolanda Felicia"],
 ["FAB410","FAB","","Extended Art","Promo","G","HGKWRtMqN8D6rtGHkb7RB","FAB410-GF","Nikko Wahyudi"],
