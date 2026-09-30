@@ -858,7 +858,8 @@ FCT.grid = (function () {
                 [el('td', { colspan: span })]);
         }
 
-        // Group header: open/closed marker, name (centred) and a short summary of its rows.
+        // Group header: controls at the left edge (open/closed marker, then open all / close
+        // all of a set, issue #38), name (centred) and a short summary of its rows.
         function renderGroup(group, span) {
             var cards = 0;
             var missing = 0;
@@ -889,10 +890,12 @@ FCT.grid = (function () {
                 el('td', { colspan: span }, [
                     el('div', { className: 'group-title',
                         style: 'width:' + scroller.clientWidth + 'px' }, [
-                        el('span', { className: 'toggle', text: group.open ? '▾' : '▸' }),
+                        el('span', { className: 'group-controls' }, [
+                            el('span', { className: 'toggle', text: group.open ? '▾' : '▸' }),
+                            all
+                        ]),
                         el('span', { className: 'name', text: group.label }),
-                        el('span', { className: 'info', text: info }),
-                        all
+                        el('span', { className: 'info', text: info })
                     ])
                 ])
             ]);
