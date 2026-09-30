@@ -3635,7 +3635,8 @@ FCT.app = (function () {
                 '(Doppelklick, Klick auf die aktive Zelle oder einfach tippen), feste Werte per ' +
                 'Auswahlliste. Werte, die von den Stammdaten abweichen, sind erlaubt und werden ' +
                 'mit einer violetten Ecke (✱) markiert. Mengen: Tasten + / − oder Shift+↑ / ' +
-                'Shift+↓ (kein Tabellen-Standard).', { buttons: [{ label: 'Beenden',
+                'Shift+↓ bzw. Shift+→ / Shift+← (kein Tabellen-Standard).',
+                { buttons: [{ label: 'Beenden',
                     onClick: function () { setEditMode(false); } }] });
         } else {
             FCT.notices.clear('edit');
