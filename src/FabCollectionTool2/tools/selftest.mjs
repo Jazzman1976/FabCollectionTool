@@ -764,6 +764,23 @@ if (!currentFile) {
         `urls ${urls}, variant ${variant}`);
 }
 
+// Reprints in the large picture (#26): all printings of the card of a row, one per card
+// number, edition and art treatment, the newest set first, the row's own printing among them.
+{
+    const r = FCT.reference;
+    const rhinar = r.reprints({ Id: '1HP001', Edition: '', 'Art Treatment': '', Name: '' });
+    const sets = new Set(rhinar.map((p) => p.setCode));
+    const keys = rhinar.map((p) => [p.id, p.edition, p.art].join('|'));
+    const dates = rhinar.map((p) => r.setDate(p.setCode));
+    const newestFirst = dates.every((d, i) => !i || dates[i - 1] >= d);
+    const same = rhinar.every((p) => p.cardId === rhinar[0].cardId);
+    const unknown = r.reprints({ Id: 'XXX999', Edition: '', 'Art Treatment': '', Name: '' });
+    check('Card reprints', sets.has('1HP') && sets.has('CRU') && sets.size > 2 &&
+        keys.includes('1HP001||') && new Set(keys).size === keys.length && newestFirst &&
+        same && !unknown.length,
+        `1HP001: ${rhinar.length} printings in ${sets.size} sets, newest first ${newestFirst}`);
+}
+
 // Branch of the reference data (2.0.4.0): the source URL follows the chosen branch.
 {
     const t = FCT.referenceTransform;

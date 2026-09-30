@@ -36,20 +36,25 @@ FCT.reference = (function () {
                 typeText: card[10] || '', notLegal: card[11] || '' });
         });
 
+        // Printings by card number, and by card (unique id) for its reprints (#26).
         var printingsById = new Map();
+        var printingsByCard = new Map();
         data.printings.forEach(function (p) {
             var card = cards.get(p[6]) || { name: '', pitch: '', types: '' };
             var printing = {
                 id: p[0], setCode: p[1], edition: p[2], art: p[3], rarity: p[4],
-                foilings: p[5], card: card, image: p[7] || '', artists: p[8] || ''
+                foilings: p[5], card: card, cardId: p[6], image: p[7] || '',
+                artists: p[8] || ''
             };
             if (!printingsById.has(printing.id)) printingsById.set(printing.id, []);
             printingsById.get(printing.id).push(printing);
+            if (!printingsByCard.has(printing.cardId)) printingsByCard.set(printing.cardId, []);
+            printingsByCard.get(printing.cardId).push(printing);
         });
 
         state = {
             data: data, info: info, setNames: setNames, setDates: setDates, cards: cards,
-            printingsById: printingsById
+            printingsById: printingsById, printingsByCard: printingsByCard
         };
     }
 
@@ -229,6 +234,31 @@ FCT.reference = (function () {
         return found ? found.front : null;
     }
 
+    /*
+     * All printings of the card of a row (#26): reprints in other sets and other variants,
+     * one entry per card number, edition and art treatment (foilings joined), newest set
+     * first. Empty if the card number is unknown.
+     */
+    function reprints(row) {
+        var front = printingFor(row);
+        if (!front) return [];
+        var byVariant = new Map();
+        (state.printingsByCard.get(front.cardId) || []).forEach(function (p) {
+            var key = [p.id, p.edition, p.art].join('|');
+            var known = byVariant.get(key);
+            if (!known) { byVariant.set(key, Object.assign({}, p)); return; }
+            String(p.foilings || '').split('').forEach(function (letter) {
+                if (known.foilings.indexOf(letter) < 0) known.foilings += letter;
+            });
+        });
+        return Array.from(byVariant.values()).sort(function (a, b) {
+            var da = setDate(a.setCode);
+            var db = setDate(b.setCode);
+            if (da !== db) return da < db ? 1 : -1;
+            return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+        });
+    }
+
     // URL of the card image of a row ('small', 'normal' or 'large'), or '' if there is none.
     function image(row, size) {
         var found = row && row.Id ? printingOf(row) : null;
@@ -269,6 +299,7 @@ FCT.reference = (function () {
         expected: expected,
         foilings: foilings,
         printingFor: printingFor,
+        reprints: reprints,
         image: image,
         info: function () { return state ? state.info : null; },
         data: function () { return state ? state.data : null; },
