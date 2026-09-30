@@ -2443,9 +2443,6 @@ FCT.app = (function () {
         // Counts per set and the preview follow every change.
         function update() {
             var options = current();
-            var perSet = options.basis === 'set';
-            suffixInputs[0].disabled = perSet;
-            if (perSet && suffixInputs[0].checked) suffixInputs[1].checked = true;
             setBoxes.forEach(function (box) {
                 var count = FCT.exportCardmarket.wants(collection, Object.assign({}, options,
                     { sets: [box._set.name] })).reduce(function (sum, w) {
