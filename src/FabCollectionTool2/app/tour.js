@@ -43,7 +43,7 @@ FCT.tour = (function () {
         { target: '#btn-outline-1', parent: 'fieldset', title: 'Gliederung',
             text: 'Wie die Gliederungsknöpfe der 1.0-Tabelle: 1 zeigt nur die Sets, 2 auch ' +
                 'die Talent/Class-Gruppen, 3 klappt alles auf. Für ein einzelnes Set ' +
-                'öffnen bzw. schließen ⊞ und ⊟ im Set-Kopf alle seine Gruppen.' },
+                'öffnen bzw. schließen ⊞ und ⊟ links im Set-Kopf alle seine Gruppen.' },
         { target: '#btn-reference-apply', parent: 'fieldset', title: 'Stammdaten',
             text: 'Kartendaten kommen automatisch online. Das Auswahlfeld wählt den Branch – ' +
                 'neue Sets gibt es oft zuerst in einem eigenen. „Übernehmen …“ zeigt alle ' +

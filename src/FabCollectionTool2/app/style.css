@@ -735,11 +735,15 @@ body.edit-mode .grid td.no-printing {
     text-align: center;
     user-select: none;
     padding: 0;
+    /* clip instead of hidden: a cell with overflow hidden becomes the scroll container of
+       its sticky title, which then no longer follows horizontal scrolling (issue #38) */
+    overflow: clip;
 }
 .grid .group-title {
     position: sticky;
     left: 0;
     box-sizing: border-box;
+    padding: 0 6em;     /* the centred title never runs under the controls at the left */
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -755,13 +759,23 @@ body.edit-mode .grid td.no-printing {
     border-right: 0;
     font-weight: 600;
 }
-.grid tr.group .toggle {
+/* Controls at the left edge: open/closed marker, then open all / close all (issue #38) */
+.grid tr.group .group-controls {
     position: absolute;
+    top: 0;
+    bottom: 0;
     left: 0.6em;
-    color: var(--group1-line);
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
 }
-.grid tr.group.level2 .toggle {
+.grid tr.group.level2 .group-controls {
     left: 1.8em;
+}
+.grid tr.group .toggle {
+    display: inline-block;
+    width: 1em;
+    color: var(--group1-line);
 }
 .grid tr.group .info {
     margin-left: 1em;
@@ -770,11 +784,12 @@ body.edit-mode .grid td.no-printing {
 }
 /* Set header: open or close all its talent/class groups (issue #27) */
 .grid tr.group .group-all {
-    margin-left: 0.8em;
+    display: flex;
+    gap: 2px;
 }
 .grid tr.group .group-all button {
     padding: 0 3px;
-    margin: 0 1px;
+    margin: 0;
     border: 1px solid transparent;
     background: transparent;
     color: var(--group1-line);
