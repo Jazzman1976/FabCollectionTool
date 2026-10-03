@@ -280,7 +280,9 @@
             in anderer Edition, Sprache oder Art Treatment ist eine eigene Zeile.
             Die Mengen stehen nebeneinander je Foiling – wie in der 1.0-Tabelle. Die Spalten
             stehen in derselben Reihenfolge wie in der gespeicherten <code>collection.csv</code>,
-            damit du die Datei auch in anderen Programmen wiedererkennst.</p>
+            damit du die Datei auch in einer Tabellenkalkulation wiedererkennst. Für andere
+            Programme ist die Datei nicht gedacht: Fabrary und Cardmarket bekommen eigene
+            Exportdateien (siehe Import/Export).</p>
         <h3>Karte, Variante, Printing</h3>
         <ul>
             <li><strong>Karte:</strong> eine Kartennummer wie <code>MON062</code> mit Name,
@@ -296,29 +298,11 @@
         <table>
             <tr><th>Spalte</th><th>Bedeutung</th></tr>
             <tr><td>Set</td><td>Name des Sets, z. B. „Monarch“</td></tr>
-            <tr><td>Edition</td><td>Sammler-Edition (Alpha, First, Unlimited); leer bei Sets,
-                die keine Editionen haben – das sind alle neueren</td></tr>
-            <tr><td>Language</td><td>Sprache der Karte (EN, DE, FR, ES, IT, JP), nie leer:
-                ohne Angabe gilt EN. Die Sprache ist deine eigene Angabe – die Stammdaten kennen
-                nur die englischen Printings; im Editiermodus änderbar. Dateien älterer Versionen
-                hatten die Sprache in <em>Edition</em>; sie wird beim Öffnen umgestellt</td>
-            </tr>
             <tr><td>Id</td><td>Kartennummer, z. B. <code>MON062</code>; die ersten drei Zeichen
                 sind der Set-Code</td></tr>
             <tr><td>Bild-Symbol</td><td>Spalte „Kartenbild“ direkt nach Id: zeigt das
                 Kartenbild (siehe <a href="#bilder">Kartenbilder</a>); ausblendbar, nie in
                 <code>collection.csv</code></td></tr>
-            <tr><td>First In</td><td>Set-Code des Sets, in dem die Karte zuerst erschien. Der
-                Wert kommt aus den Stammdaten (frühestes Erscheinungsdatum; bei gleichem Datum
-                das größere Set, Sets ohne Datum zuletzt). Weicht er vom eigenen Set ab, ist
-                die Karte ein <strong>Reprint</strong> und der Wert hervorgehoben. Ein von Hand
-                eingetragener, abweichender Wert bleibt als lokale Änderung (✱) erhalten</td>
-            </tr>
-            <tr><td>Exklusiv</td><td>nur Anzeige, nie in <code>collection.csv</code>:
-                <em>ja</em>, wenn es die Karte nur in diesem einen Set gibt (kein Reprint, auch
-                nicht als Promo; dieselbe Karte in anderem Pitch zählt als eigene Karte). Der
-                Wert folgt den Stammdaten und entfällt, sobald ein anderes Set die Karte
-                nachdruckt</td></tr>
             <tr><td>Rarity</td><td>Seltenheit (Common, Rare, Majestic, …)</td></tr>
             <tr><td>Metatype</td><td>Metatyp der Karte, z. B. Event, Rosetta, High Seas
                 (selten)</td></tr>
@@ -341,6 +325,25 @@
                 Foil. Der Spaltentitel erklärt das auch beim Überfahren.</td></tr>
             <tr><td>Have / Need / Left (set, total)</td><td>berechnet, siehe unten; als Block
                 einklappbar</td></tr>
+            <tr><td>Edition</td><td>hinter dem Rechenblock, wie die drei folgenden Spalten:
+                Sammler-Edition (Alpha, First, Unlimited); leer bei Sets,
+                die keine Editionen haben – das sind alle neueren</td></tr>
+            <tr><td>Language</td><td>Sprache der Karte (EN, DE, FR, ES, IT, JP), nie leer:
+                ohne Angabe gilt EN. Die Sprache ist deine eigene Angabe – die Stammdaten kennen
+                nur die englischen Printings; im Editiermodus änderbar. Dateien älterer Versionen
+                hatten die Sprache in <em>Edition</em>; sie wird beim Öffnen umgestellt</td>
+            </tr>
+            <tr><td>First In</td><td>Set-Code des Sets, in dem die Karte zuerst erschien. Der
+                Wert kommt aus den Stammdaten (frühestes Erscheinungsdatum; bei gleichem Datum
+                das größere Set, Sets ohne Datum zuletzt). Weicht er vom eigenen Set ab, ist
+                die Karte ein <strong>Reprint</strong> und der Wert hervorgehoben. Ein von Hand
+                eingetragener, abweichender Wert bleibt als lokale Änderung (✱) erhalten</td>
+            </tr>
+            <tr><td>Exklusiv</td><td>nur Anzeige, nie in <code>collection.csv</code>:
+                <em>ja</em>, wenn es die Karte nur in diesem einen Set gibt (kein Reprint, auch
+                nicht als Promo; dieselbe Karte in anderem Pitch zählt als eigene Karte). Der
+                Wert folgt den Stammdaten und entfällt, sobald ein anderes Set die Karte
+                nachdruckt</td></tr>
             <tr><td>Note</td><td>deine Notiz</td></tr>
             <tr><td>Typen (Stammdaten)</td><td>die vollständige Typzeile aus den Stammdaten (zum
                 Nachsehen)</td></tr>

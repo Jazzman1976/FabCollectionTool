@@ -773,10 +773,14 @@ if (!currentFile) {
 
 // Column order (2.0.4.0): table and collection.csv share one order (Pitch right before
 // Playset, Backside Name before Translated Name); files in the old order are read by name.
+// Edition, Language and First In stand behind the quantities and before the note (issue #62).
 {
     const cols = FCT.model.COLUMNS;
     const typeLine = FCT.model.TYPE_COLUMNS;
-    const order = cols.indexOf('Pitch') === cols.indexOf('Playset') - 1 &&
+    const details = cols.slice(0, 3).join(',') === 'Set,Id,Rarity' &&
+        cols.slice(cols.indexOf('GF'), cols.indexOf('Note') + 1).join(',') ===
+            'GF,Edition,Language,First In,Note';
+    const order = details && cols.indexOf('Pitch') === cols.indexOf('Playset') - 1 &&
         cols.indexOf('Backside Name') === cols.indexOf('Translated Name') - 1 &&
         cols.indexOf('Art Treatment') < cols.indexOf('Pitch') &&
         cols.slice(cols.indexOf('Metatype'), cols.indexOf('Sub3') + 1).join('|') ===
@@ -971,7 +975,7 @@ if (!currentFile) {
 {
     const m = FCT.model;
     const cols = m.COLUMNS;
-    const order = cols.slice(0, 4).join(',') === 'Set,Edition,Language,Id';
+    const order = cols.indexOf('Language') === cols.indexOf('Edition') + 1;
     const vocab = FCT.DATA.vocab;
     const lists = vocab.editions.join(',') === 'Alpha,First,Unlimited' &&
         vocab.languages[0] === 'EN' && vocab.languages.indexOf('DE') > 0;
@@ -990,7 +994,7 @@ if (!currentFile) {
     // Saved in the new format and read again: nothing changes, nothing is reported.
     const newText = m.toCsv(loaded.collection);
     const again = m.fromCsv(newText);
-    const stable = FCT.csv.parse(newText)[0].slice(0, 4).join(',') === 'Set,Edition,Language,Id' &&
+    const stable = FCT.csv.parse(newText)[0].join(',') === cols.join(',') &&
         m.toCsv(again.collection) === newText &&
         !JSON.stringify(again.report.groups).includes('Language');
 

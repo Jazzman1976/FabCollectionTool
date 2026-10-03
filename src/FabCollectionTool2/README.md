@@ -76,15 +76,24 @@ CSV nach RFC 4180, UTF-8, jedes Feld in Anführungszeichen, eine Zeile je Varian
 Language + Art Treatment):
 
 ```
-Set,Edition,Language,Id,First In,Rarity,Metatype,Talent1,Talent2,Class1,Class2,Type1,Type2,
-Sub1,Sub2,Sub3,Name,Backside Name,Translated Name,Translated Backside Name,Peculiarity,
-Art Treatment,Pitch,Playset,ST,RF,CF,GF,Note,Overrides
+Set,Id,Rarity,Metatype,Talent1,Talent2,Class1,Class2,Type1,Type2,Sub1,Sub2,Sub3,Name,
+Backside Name,Translated Name,Translated Backside Name,Peculiarity,Art Treatment,Pitch,
+Playset,ST,RF,CF,GF,Edition,Language,First In,Note,Overrides
 ```
 
 (im Original eine Zeile). Die Reihenfolge ist **dieselbe wie in der Tabelle der Anwendung**
-(ohne die berechneten Spalten), damit die Datei in externen Tools genauso aussieht. Dateien
+(ohne die berechneten Spalten): Es gibt nur eine Spaltenliste, und die Datei sieht in einer
+Tabellenkalkulation aus wie in der App. Sie kann sich mit der Ansicht ändern (zuletzt mit
+Issue #62: `Edition`, `Language` und `First In` hinter die Mengen). Dateien
 älterer Versionen mit anderer Reihenfolge werden über die Spaltennamen gelesen; beim nächsten
-Speichern schreibt die Anwendung die aktuelle Reihenfolge. Metatype bis Sub3 folgen der
+Speichern schreibt die Anwendung die aktuelle Reihenfolge.
+
+**`collection.csv` ist keine unterstützte Schnittstelle für externe Tools.** Sie kann als
+Quelle herhalten, es gibt aber keine bekannten Abhängigkeiten und keine Zusage zu Aufbau oder
+Reihenfolge. Für unterstützte externe Tools gibt es stets eine eigene Exportdatei, die aus dem
+Bestand aufbereitet wird (Fabrary, Cardmarket).
+
+Metatype bis Sub3 folgen der
 Typzeile der Karte (Regelwerk 2.14.1); die Spalte `Talent` bis 2.0.4.0 wird beim Lesen in
 `Talent1` und `Talent2` aufgeteilt. `First In` ist der Set-Code des Sets, in dem die Karte zuerst
 erschien; seit Issue #51 kommt er aus den Stammdaten (frühestes Erscheinungsdatum, bei gleichem

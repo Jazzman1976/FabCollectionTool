@@ -40,12 +40,11 @@ FCT.app = (function () {
      * after the quantities. The default view shows the columns asked for in the feedback.
      * Widths are in em, so they follow the font size.
      */
-    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Language', 'Id', '_image', '_exclusive', 'Rarity',
-        'Metatype', 'Talent1',
+    var DEFAULT_COLUMNS = ['Set', 'Id', '_image', 'Rarity', 'Metatype', 'Talent1',
         'Talent2', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name',
         'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
-        '_leftTotal'];
+        '_leftTotal', 'Edition', 'Language', '_exclusive'];
     var WIDTHS = {
         Set: 12, Edition: 5.5, Language: 6, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5,
         Talent1: 6.5,
@@ -175,14 +174,14 @@ FCT.app = (function () {
             hint: 'ja = die Karte gibt es nur in diesem einen Set (kein Reprint, keine Promo)',
             value: function (row) { return FCT.reference.isExclusive(row) ? 'ja' : ''; } };
 
+        // The picture follows the card number, the calculated columns the quantities, and
+        // "Exklusiv" the first set (behind the calculated columns since issue #62).
         var keys = columns.map(function (c) { return c.key; });
         var id = keys.indexOf('Id') + 1;
-        var firstIn = keys.indexOf('First In') + 1;
         var at = keys.indexOf('GF') + 1;
-        var note = keys.indexOf('Note');
-        var all = columns.slice(0, id).concat([picture], columns.slice(id, firstIn), [exclusive],
-            columns.slice(firstIn, at), calculated, columns.slice(at, note), columns.slice(note),
-            [types], shown);
+        var firstIn = keys.indexOf('First In') + 1;
+        var all = columns.slice(0, id).concat([picture], columns.slice(id, at), calculated,
+            columns.slice(at, firstIn), [exclusive], columns.slice(firstIn), [types], shown);
 
         // Visibility: as last chosen by the user, otherwise the default view. Art Treatment
         // belongs to the default view since 2.0.4.0, Metatype, Talent1 and Talent2 replace
