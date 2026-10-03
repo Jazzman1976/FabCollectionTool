@@ -40,9 +40,8 @@ FCT.app = (function () {
      * after the quantities. The default view shows the columns asked for in the feedback.
      * Widths are in em, so they follow the font size.
      */
-    var DEFAULT_COLUMNS = ['Set', 'Id', '_image', 'Rarity', 'Metatype', 'Talent1',
-        'Talent2', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name',
-        'Art Treatment', 'Pitch', 'Playset',
+    var DEFAULT_COLUMNS = ['Set', 'Id', '_image', 'Rarity', 'Metatype', '_talent', '_class',
+        '_type', '_subtype', '_name', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
         '_leftTotal', 'Edition', 'Language', '_exclusive'];
     var WIDTHS = {
@@ -51,9 +50,32 @@ FCT.app = (function () {
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
         'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
-        Peculiarity: 7, 'Art Treatment': 8.5, Note: 15
+        Peculiarity: 7, 'Art Treatment': 8.5, Note: 15,
+        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 17, _backside: 10
+    };
+    // The name column has a fixed width instead of that of its longest content (review of
+    // issue #69): 17em hold 90 % of the rows of the example collection (docs/example.ods with
+    // its gaps; 90th percentile 15.6em of text plus padding). Longer names end in "…", the
+    // tooltip shows them in full.
+    var FIXED_WIDTH = ['_name'];
+
+    // Explanations of the combined columns (issue #69).
+    var COMBINED_HINTS = {
+        _talent: 'Talent1 und Talent2 in einer Zelle',
+        _class: 'Class1 und Class2 in einer Zelle',
+        _type: 'Type1 und Type2 in einer Zelle',
+        _subtype: 'Sub1, Sub2 und Sub3 in einer Zelle',
+        _name: 'Name, dahinter in Klammern das Art Treatment (nur wenn es nicht Standard ' +
+            'ist) und die Übersetzung mit Sprache – z. B. „Name (Full Art) (DE: …)“',
+        _backside: 'Name der Rückseite, dahinter in Klammern die Übersetzung mit Sprache'
     };
     var STEP_WIDTH = 5.5;
+
+    // Columns that cannot be hidden: those that tell the variants apart (model.
+    // VARIANT_COLUMNS), with the name column in place of "Art Treatment", which it shows.
+    var FIXED_COLUMNS = model.VARIANT_COLUMNS.map(function (key) {
+        return key === 'Art Treatment' ? '_name' : key;
+    });
 
     // Explanations shown when hovering over a column title (feedback on 2.0.5.0).
     var HINTS = {
@@ -174,6 +196,28 @@ FCT.app = (function () {
             hint: 'ja = die Karte gibt es nur in diesem einen Set (kein Reprint, keine Promo)',
             value: function (row) { return FCT.reference.isExclusive(row) ? 'ja' : ''; } };
 
+        // Combined columns (issue #69): the parts of a kind in one cell, each in front of
+        // its first part. The parts stay columns of their own ("Einzelspalten"), hidden in
+        // the default view. A combined cell is edited in a window with its single fields.
+        model.COMBINED_COLUMNS.forEach(function (combined) {
+            var column = {
+                key: combined.key, label: combined.label, kind: 'reference',
+                parts: combined.parts, list: !!combined.words,
+                fit: FIXED_WIDTH.indexOf(combined.key) < 0,
+                width: WIDTHS[combined.key], hint: COMBINED_HINTS[combined.key] +
+                    '. Bearbeiten öffnet ein Fenster mit den Einzelfeldern',
+                value: function (row) { return model.combinedValue(row, combined); },
+                filterValues: combined.words
+                    ? function (row) { return model.combinedParts(row, combined); } : null
+            };
+            columns.forEach(function (c) {
+                if (combined.parts.indexOf(c.key) >= 0) c.single = true;
+            });
+            var first = columns.map(function (c) { return c.key; })
+                .indexOf(combined.parts[0]);
+            columns.splice(first, 0, column);
+        });
+
         // The picture follows the card number, the calculated columns the quantities, and
         // "Exklusiv" the first set (behind the calculated columns since issue #62).
         var keys = columns.map(function (c) { return c.key; });
@@ -214,9 +258,21 @@ FCT.app = (function () {
             settings.set('columnsExclusive', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
-        // The columns of a variant are always shown (since 2.0.6.3).
+        // Combined columns replace their parts (issue #69); a remembered choice is converted
+        // once: whoever showed a part gets the combined column instead.
+        if (!settings.get('columnsCombined', false)) {
+            model.COMBINED_COLUMNS.forEach(function (combined) {
+                var had = visible.some(function (k) { return combined.parts.indexOf(k) >= 0; });
+                visible = visible.filter(function (k) { return combined.parts.indexOf(k) < 0; });
+                if (had && visible.indexOf(combined.key) < 0) visible.push(combined.key);
+            });
+            settings.set('columnsCombined', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
+        // The columns of a variant are always shown (since 2.0.6.3). The art treatment is
+        // part of the name column, which stands in for it (issue #69).
         all.forEach(function (c) {
-            c.fixed = model.VARIANT_COLUMNS.indexOf(c.key) >= 0;
+            c.fixed = FIXED_COLUMNS.indexOf(c.key) >= 0;
             c.hidden = !c.fixed && visible.indexOf(c.key) < 0;
         });
         return all;
@@ -2624,6 +2680,12 @@ FCT.app = (function () {
     // marked deviations from the reference data also outside edit mode (see model).
     function isEditable(column, row) {
         if (column.kind === 'calc') return false;
+        // A combined cell can be edited as soon as one of its fields can.
+        if (column.parts) {
+            return column.parts.some(function (part) {
+                return model.isEditable(row, part, state.editMode);
+            });
+        }
         return model.isEditable(row, column.key, state.editMode);
     }
 
@@ -2658,14 +2720,32 @@ FCT.app = (function () {
 
     // Value of the reference data for a cell, offered first in its drop-down (or null).
     function referenceValue(column, row) {
-        if (model.columnKind(column.key) !== 'reference') return null;
+        if (column.parts || model.columnKind(column.key) !== 'reference') return null;
         var expected = FCT.reference.expected(row);
         return expected ? expected[column.key] : null;
     }
 
     // Marks of a row: locally changed reference values, deviations from the reference data
-    // and unknown card numbers.
+    // and unknown card numbers. A combined cell carries the marks of its fields.
     function rowMarks(row) {
+        var marks = fieldMarks(row);
+        model.COMBINED_COLUMNS.forEach(function (combined) {
+            var own = combined.parts.filter(function (part) { return marks[part]; });
+            if (!own.length) return;
+            // A deviation counts more than a local change.
+            var classes = own.map(function (part) { return marks[part].className; });
+            var className = ['stale', 'override'].filter(function (name) {
+                return classes.indexOf(name) >= 0;
+            })[0] || '';
+            marks[combined.key] = { className: className, title: own.map(function (part) {
+                return part + ': ' + marks[part].title;
+            }).join('\n') };
+        });
+        return marks;
+    }
+
+    // Marks of the single fields of a row (see rowMarks).
+    function fieldMarks(row) {
         var marks = {};
         if (row._unknownId) {
             marks.Id = { className: 'unknown', title: 'Kartennummer nicht in den Stammdaten' };
@@ -2753,9 +2833,11 @@ FCT.app = (function () {
         return true;
     }
 
-    // Values for the drop-downs of the edit mode.
+    // Values for the drop-downs of the edit mode. A combined column of words has the values
+    // of its first part (they order its check box filter).
     function choices(column) {
-        return model.choices(column.key, state.collection.rows);
+        var key = column.parts ? (column.filterValues ? column.parts[0] : null) : column.key;
+        return key ? model.choices(key, state.collection.rows) : null;
     }
 
     // Title and release date of a set group, e.g. "Monarch (MON)". The code is the most
@@ -2958,17 +3040,21 @@ FCT.app = (function () {
     /*
      * Row dialog: all fields of a row; for reference columns the value of the reference data
      * is shown next to it and can be restored per field or for all fields at once.
+     * With a combined column (issue #69) the same dialog shows only the fields of that cell,
+     * one below the other; fields that may not be edited now (see model.isEditable) are
+     * locked.
      */
-    function editRow(row) {
+    function editRow(row, column) {
         var expected = FCT.reference.expected(row);
         var overridden = model.overrides(row);
         var inputs = {};
 
-        var lines = model.COLUMNS.filter(function (key) {
+        var lines = (column ? column.parts : model.COLUMNS.filter(function (key) {
             return model.columnKind(key) !== 'internal';
-        }).map(function (key) {
+        })).map(function (key) {
             var kind = model.columnKind(key);
             var input = fieldInput(key, row[key] || '', kind);
+            input.disabled = !!column && !model.isEditable(row, key, state.editMode);
             inputs[key] = input;
 
             var reference = '';
@@ -2976,7 +3062,7 @@ FCT.app = (function () {
             if (kind === 'reference' && expected) {
                 reference = expected[key];
                 reset = el('button', {
-                    type: 'button', className: 'reset', text: '↺',
+                    type: 'button', className: 'reset', text: '↺', hidden: input.disabled,
                     title: 'Auf den Stammdatenwert zurücksetzen',
                     onclick: function () {
                         setField(input, expected[key]);
@@ -3032,6 +3118,7 @@ FCT.app = (function () {
         function takeReference(all) {
             if (!expected) return;
             model.REFERENCE_COLUMNS.forEach(function (key) {
+                if (!inputs[key] || inputs[key].disabled) return;
                 if (key === 'Backside Name' && !expected[key]) return;
                 if (!all && overridden.indexOf(key) >= 0) return;
                 if (inputs[key].value === expected[key]) return;
@@ -3041,8 +3128,9 @@ FCT.app = (function () {
             });
         }
 
+        var title = [row.Id, row.Name].filter(Boolean).join(' – ') || 'Neue Zeile';
         return openDialog({
-            title: [row.Id, row.Name].filter(Boolean).join(' – ') || 'Neue Zeile',
+            title: column ? title + ' – ' + column.label : title,
             body: table,
             hint: hint,
             wide: true,
@@ -3059,6 +3147,7 @@ FCT.app = (function () {
             var changed = false;
             Object.keys(inputs).forEach(function (key) {
                 var input = inputs[key];
+                if (input.disabled) return;
                 var action = input.getAttribute('data-reset') ? 'Zurückgesetzt' : 'Geändert';
                 if (changeCell(row, key, input.value, action)) changed = true;
             });
@@ -3798,9 +3887,11 @@ FCT.app = (function () {
         if (on) {
             FCT.notices.show('edit', 'info', 'Editiermodus: alle Spalten sind bearbeitbar ' +
                 '(Doppelklick, Klick auf die aktive Zelle oder einfach tippen), feste Werte per ' +
-                'Auswahlliste. Werte, die von den Stammdaten abweichen, sind erlaubt und werden ' +
-                'mit einer violetten Ecke (✱) markiert. Mengen: Tasten + / − oder Shift+↑ / ' +
-                'Shift+↓ bzw. Shift+→ / Shift+← (kein Tabellen-Standard).',
+                'Auswahlliste; zusammengelegte Zellen (Talent, Class, Type, Subtype, Name) ' +
+                'öffnen ein Fenster mit ihren Einzelfeldern. Werte, die von den Stammdaten ' +
+                'abweichen, sind erlaubt und werden mit einer violetten Ecke (✱) markiert. ' +
+                'Mengen: Tasten + / − oder Shift+↑ / Shift+↓ bzw. Shift+→ / Shift+← (kein ' +
+                'Tabellen-Standard).',
                 { buttons: [{ label: 'Beenden',
                     onClick: function () { setEditMode(false); } }] });
         } else {
@@ -3815,7 +3906,16 @@ FCT.app = (function () {
     function buildColumnChooser() {
         var list = $('columns-list');
         list.textContent = '';
-        grid.columns().forEach(function (column) {
+        // The parts of the combined columns (issue #69) follow under a heading of their own.
+        var combined = grid.columns().filter(function (c) { return !c.single; });
+        var single = grid.columns().filter(function (c) { return c.single; });
+        combined.concat([null], single).forEach(function (column) {
+            if (!column) {
+                list.appendChild(el('div', { className: 'columns-heading',
+                    text: 'Einzelspalten', title: 'Die einzelnen Felder der ' +
+                        'zusammengelegten Spalten, wie sie in der Bestandsdatei stehen' }));
+                return;
+            }
             var box = el('input', { type: 'checkbox', disabled: !!column.fixed });
             box.checked = !column.hidden;
             box.addEventListener('change', function () {
@@ -3864,7 +3964,7 @@ FCT.app = (function () {
 
         grid = FCT.grid.create($('grid'), {
             columns: buildColumns(),
-            searchKeys: ['Id', 'Name', 'Translated Name', 'Backside Name',
+            searchKeys: ['Id', 'Name', 'Art Treatment', 'Translated Name', 'Backside Name',
                 'Translated Backside Name', 'Set', 'Note', cardText],
             isEditable: isEditable,
 
@@ -3885,6 +3985,9 @@ FCT.app = (function () {
             setInfo: setInfo,
             matchesMode: matchesMode,
             onEdit: onEdit,
+            onEditParts: function (row, column) {
+                guarded(function () { return editRow(row, column); })();
+            },
             onAction: function (action, row) {
                 guarded(function () { return onAction(action, row); })();
             },
