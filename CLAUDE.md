@@ -27,7 +27,11 @@ Maintainer ist **Elmar** (GitHub `Jazzman1976`). Er entscheidet, merged und ver�
 - Kartenbestandteile (Metatyp, Talent, Klasse, Typ, Untertyp …) bekommen je eine eigene,
   gespeicherte Spalte in der Reihenfolge der Karte.
 - Die Spaltenfolge von `collection.csv` ist **genau** die der Tabelle (`model.COLUMNS`, ohne
-  berechnete Spalten) – externe Tools lesen die Datei. Keine „nur Anzeige“-Umsortierung.
+  berechnete Spalten). Keine „nur Anzeige“-Umsortierung; die Reihenfolge darf sich aber mit
+  der Ansicht ändern (alte Dateien werden über die Spaltennamen gelesen).
+- **`collection.csv` ist keine Quelle für externe Tools.** Sie kann als Quelle herhalten, es
+  gibt aber keine bekannten Abhängigkeiten, und wir supporten das nicht. Für unterstützte
+  externe Tools gibt es stets eine eigene Exportdatei, die aus dem Bestand aufbereitet wird.
 - In der Bestands-CSV nur relevante Daten, keine leeren Zeilen. Was dauerhaft zum Bestand gehört,
   aber nicht in die CSV passt, kommt in `<bestand>-config.json` im Arbeitsordner, nicht in
   Browser-Speicher (der ist nur für Ansichtseinstellungen).
