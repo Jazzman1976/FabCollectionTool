@@ -40,7 +40,9 @@ Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.m
 | **Filter** | Suche, Schnellfilter, *Spalten*, *Filter zurücksetzen*; in der Tabelle Häkchen- und Textfilter je Spalte |
 | **Gliederung** | Gruppierung, Reihenfolge der Sets, Ebenen **1** / **2** / **3** |
 
-In der Tabelle: Kartenbilder in einer eigenen Spalte nach der Kartennummer (Vorschau beim
+In der Tabelle: Spalte *Exklusiv* und gleichnamiger Schnellfilter für Karten, die es nur in
+einem einzigen Set gibt (nur Anzeige, aus den Stammdaten). Kartenbilder in einer eigenen Spalte
+nach der Kartennummer (Vorschau beim
 Überfahren, groß per Klick mit Details und allen Reprints der Karte; die
 Bilder lädt der Browser aus dem Internet), einklappbarer Block der Rechenspalten, × zum Löschen
 eines Filters.
@@ -84,7 +86,11 @@ Art Treatment,Pitch,Playset,ST,RF,CF,GF,Note,Overrides
 älterer Versionen mit anderer Reihenfolge werden über die Spaltennamen gelesen; beim nächsten
 Speichern schreibt die Anwendung die aktuelle Reihenfolge. Metatype bis Sub3 folgen der
 Typzeile der Karte (Regelwerk 2.14.1); die Spalte `Talent` bis 2.0.4.0 wird beim Lesen in
-`Talent1` und `Talent2` aufgeteilt. `ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
+`Talent1` und `Talent2` aufgeteilt. `First In` ist der Set-Code des Sets, in dem die Karte zuerst
+erschien; seit Issue #51 kommt er aus den Stammdaten (frühestes Erscheinungsdatum, bei gleichem
+Datum das größere Set, Sets ohne Datum zuletzt). Ein leerer Wert wird beim Laden ergänzt, ein
+abweichender bleibt als `Overrides`-Eintrag `First In` erhalten.
+`ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
 Cold, Gold). `Edition` ist `Alpha`, `First`, `Unlimited` oder leer (Sets ohne Editionen),
 `Language` die Sprache (`EN`, `DE`, `FR`, `ES`, `IT`, `JP`; nie leer, Standard `EN`). Bis 2.5.0
 stand die Sprache in `Edition`; Dateien ohne die Spalte `Language` werden beim Lesen umgestellt

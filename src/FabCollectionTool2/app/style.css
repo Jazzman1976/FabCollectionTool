@@ -678,6 +678,15 @@ body.edit-mode .grid td.no-printing {
     content: '●';
     margin-right: 0.3em;
 }
+/* First In (issue #51): reprints stand out, first printings step back. "tr" in the selector
+   lets a reprint stand out in rows not yet in the collection (tr.ref) as well. */
+.grid tr td.reprint {
+    color: var(--accent);
+    font-weight: 600;
+}
+.grid tr td.first-print {
+    color: var(--muted);
+}
 .pitch-red::before { color: var(--pitch-red); }
 .pitch-yellow::before { color: var(--pitch-yellow); }
 .pitch-blue::before { color: var(--pitch-blue); }

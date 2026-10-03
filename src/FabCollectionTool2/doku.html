@@ -308,8 +308,17 @@
             <tr><td>Bild-Symbol</td><td>Spalte „Kartenbild“ direkt nach Id: zeigt das
                 Kartenbild (siehe <a href="#bilder">Kartenbilder</a>); ausblendbar, nie in
                 <code>collection.csv</code></td></tr>
-            <tr><td>First In</td><td>Set, in dem die Karte zuerst erschien (für Reprints)</td>
+            <tr><td>First In</td><td>Set-Code des Sets, in dem die Karte zuerst erschien. Der
+                Wert kommt aus den Stammdaten (frühestes Erscheinungsdatum; bei gleichem Datum
+                das größere Set, Sets ohne Datum zuletzt). Weicht er vom eigenen Set ab, ist
+                die Karte ein <strong>Reprint</strong> und der Wert hervorgehoben. Ein von Hand
+                eingetragener, abweichender Wert bleibt als lokale Änderung (✱) erhalten</td>
             </tr>
+            <tr><td>Exklusiv</td><td>nur Anzeige, nie in <code>collection.csv</code>:
+                <em>ja</em>, wenn es die Karte nur in diesem einen Set gibt (kein Reprint, auch
+                nicht als Promo; dieselbe Karte in anderem Pitch zählt als eigene Karte). Der
+                Wert folgt den Stammdaten und entfällt, sobald ein anderes Set die Karte
+                nachdruckt</td></tr>
             <tr><td>Rarity</td><td>Seltenheit (Common, Rare, Majestic, …)</td></tr>
             <tr><td>Metatype</td><td>Metatyp der Karte, z. B. Event, Rosetta, High Seas
                 (selten)</td></tr>
@@ -452,7 +461,8 @@
         <h2 id="bearbeiten">5. Bearbeiten und Tastatur</h2>
         <p>Die Tabelle funktioniert wie eine Tabellenkalkulation. Ein Klick setzt den
             <strong>Zellcursor</strong> (blauer Rahmen). Bewegst du dich mit der Tastatur, bleibt
-            die aktive Zeile in der Mitte des sichtbaren Bereichs, und die Liste scrollt mit.
+            die Liste stehen, solange die aktive Zelle im Bild ist; sie scrollt erst mit, wenn
+            der Cursor den oberen oder unteren Rand erreicht.
             Ein weiterer Klick auf die aktive Zelle oder ein Doppelklick bearbeitet sie; Spalten
             mit festen Werten öffnen dabei direkt ihre Auswahlliste.</p>
         <table>
@@ -579,8 +589,11 @@
         <h3>Schnellfilter</h3>
         <p>Das Auswahlfeld neben der Suche beantwortet häufige Fragen: nur Bestand (ohne fehlende
             Varianten), im Besitz, fehlt zum Playset (gesamt oder in diesem Set), überzählig, noch
-            nicht im Bestand, weicht von den Stammdaten ab, auffällige Zeilen (unbekannte
-            Kartennummer, ungültige Zahl).</p>
+            nicht im Bestand, exklusiv (Karten, die es nur in einem einzigen Set gibt), weicht
+            von den Stammdaten ab, auffällige Zeilen (unbekannte Kartennummer, ungültige
+            Zahl). Welche exklusiven Karten noch fehlen, zeigt der Schnellfilter
+            <em>Exklusiv</em> zusammen mit dem Spaltenfilter <em>Need (set)</em>
+            (<code>&gt;0</code>).</p>
         <p>Ein aktiver Filter zeigt rechts ein <strong>×</strong>, das ihn mit einem Klick
             löscht – im Suchfeld, in Textfiltern und bei Häkchenfiltern (dann sind wieder alle
             Werte angehakt). <em>Filter zurücksetzen</em> leert Suche, alle Filter und die

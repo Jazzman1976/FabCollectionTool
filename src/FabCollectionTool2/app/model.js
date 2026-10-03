@@ -36,9 +36,11 @@ FCT.reference = (function () {
                 typeText: card[10] || '', notLegal: card[11] || '' });
         });
 
-        // Printings by card number, and by card (unique id) for its reprints (#26).
+        // Printings by card number, and by card (unique id) for its reprints (#26); the cards
+        // of each set code tell how large a set is (#51).
         var printingsById = new Map();
         var printingsByCard = new Map();
+        var setCards = new Map();
         data.printings.forEach(function (p) {
             var card = cards.get(p[6]) || { name: '', pitch: '', types: '' };
             var printing = {
@@ -50,11 +52,14 @@ FCT.reference = (function () {
             printingsById.get(printing.id).push(printing);
             if (!printingsByCard.has(printing.cardId)) printingsByCard.set(printing.cardId, []);
             printingsByCard.get(printing.cardId).push(printing);
+            if (!setCards.has(printing.setCode)) setCards.set(printing.setCode, new Set());
+            setCards.get(printing.setCode).add(printing.cardId);
         });
 
         state = {
             data: data, info: info, setNames: setNames, setDates: setDates, cards: cards,
-            printingsById: printingsById, printingsByCard: printingsByCard
+            printingsById: printingsById, printingsByCard: printingsByCard,
+            setCards: setCards, cardSets: new Map()
         };
     }
 
@@ -71,6 +76,48 @@ FCT.reference = (function () {
     // Release date of a set (YYYY-MM-DD), or '' if the reference data knows none.
     function setDate(code) {
         return (state && state.setDates.get(code)) || '';
+    }
+
+    /*
+     * Set codes a card (unique id) was printed in, in the order of their first appearance
+     * (issue #51): the earliest release date first; on the same date the set with more cards
+     * (a main set before the decks released with it, "MON" before "CHN"); sets without a date
+     * (promo collections, sets of a preview branch) last. Cached per card.
+     */
+    function cardSets(cardId) {
+        if (!state) return [];
+        var known = state.cardSets.get(cardId);
+        if (known) return known;
+        var codes = [];
+        (state.printingsByCard.get(cardId) || []).forEach(function (p) {
+            if (codes.indexOf(p.setCode) < 0) codes.push(p.setCode);
+        });
+        function size(code) {
+            return state.setCards.has(code) ? state.setCards.get(code).size : 0;
+        }
+        codes.sort(function (a, b) {
+            var da = setDate(a);
+            var db = setDate(b);
+            if (da !== db) return !da ? 1 : !db ? -1 : da < db ? -1 : 1;
+            return size(b) - size(a) || (a < b ? -1 : a > b ? 1 : 0);
+        });
+        state.cardSets.set(cardId, codes);
+        return codes;
+    }
+
+    // Set code of the set the card of a printing appeared in first. If no set of the card
+    // has a release date, nothing is known about the order and the printing's own set counts.
+    function firstSet(printing) {
+        var codes = cardSets(printing.cardId);
+        return codes.length && setDate(codes[0]) ? codes[0] : printing.setCode;
+    }
+
+    // True if the card of a row is exclusive to one set (issue #54): all its printings lie in
+    // the same set. A card in another pitch is a card of its own; any reprint, also as a
+    // promo, ends the exclusivity. False for unknown card numbers.
+    function isExclusive(row) {
+        var front = printingFor(row);
+        return !!front && cardSets(front.cardId).length === 1;
     }
 
     // Type line of a card number, e.g. "Guardian, Weapon, Hammer, 1H".
@@ -275,6 +322,7 @@ FCT.reference = (function () {
         if (!card.split) card.split = splitTypes(card.types, card.typeText);
         var result = {
             Set: setName(front.setCode),
+            'First In': firstSet(front),
             Rarity: front.rarity,
             Name: card.name,
             'Backside Name': back ? back.card.name : '',
@@ -296,6 +344,8 @@ FCT.reference = (function () {
         expected: expected,
         foilings: foilings,
         printingFor: printingFor,
+        cardSets: cardSets,
+        isExclusive: isExclusive,
         reprints: reprints,
         image: image,
         info: function () { return state ? state.info : null; },
@@ -332,8 +382,9 @@ FCT.model = (function () {
     // the reference data and identity columns describe the printing - both only in edit mode.
     // "Overrides" lists the reference columns the user changed on purpose (";" separated).
     // Playset is a reference column since 2.0.3.0: it follows from the card and never changes.
+    // "First In" is one since issue #51: the set the card appeared in first.
     var INPUT_COLUMNS = QUANTITIES.concat(['Note']);
-    var REFERENCE_COLUMNS = ['Set', 'Rarity'].concat(TYPE_COLUMNS,
+    var REFERENCE_COLUMNS = ['Set', 'First In', 'Rarity'].concat(TYPE_COLUMNS,
         ['Name', 'Backside Name', 'Pitch', 'Playset']);
     var OVERRIDES = 'Overrides';
 
@@ -670,27 +721,39 @@ FCT.model = (function () {
     }
 
     /*
-     * Playsets of earlier versions were typed in by hand. Where such a value differs from the
-     * reference data, it is kept as a change on purpose (override), so that nothing changes
-     * silently. An empty playset carries no information and is filled in from the reference
-     * data. Runs on every load; returns { kept, filled } (card numbers of the rows).
+     * Values of a column that were typed in by hand in earlier versions and come from the
+     * reference data now. Where such a value differs from the reference data, it is kept as a
+     * change on purpose (override), so that nothing changes silently. An empty value carries
+     * no information and is filled in from the reference data. Returns { kept, filled }
+     * (card numbers of the rows).
      */
-    function keepPlaysets(rows) {
+    function keepOwnValues(rows, column) {
         var result = { kept: [], filled: [] };
         rows.forEach(function (row) {
-            if (overrides(row).indexOf('Playset') >= 0) return;
+            if (overrides(row).indexOf(column) >= 0) return;
             var expected = FCT.reference.expected(row);
-            if (!deviates(row, 'Playset', expected)) return;
-            if (String(row.Playset || '').trim() === '') {
-                row.Playset = expected.Playset;
+            if (!deviates(row, column, expected)) return;
+            if (String(row[column] || '').trim() === '') {
+                row[column] = expected[column];
                 result.filled.push(row.Id);
             } else {
-                setOverride(row, 'Playset', true);
-                result.kept.push(row.Id + ' ' + row.Name + ': ' + row.Playset + ' (Stammdaten ' +
-                    expected.Playset + ')');
+                setOverride(row, column, true);
+                result.kept.push(row.Id + ' ' + row.Name + ': ' + row[column] +
+                    ' (Stammdaten ' + expected[column] + ')');
             }
         });
         return result;
+    }
+
+    // Playsets of earlier versions (see keepOwnValues). Runs on every load.
+    function keepPlaysets(rows) {
+        return keepOwnValues(rows, 'Playset');
+    }
+
+    // "First In" of earlier versions and of the old spreadsheet (issue #51, see
+    // keepOwnValues). Runs on every load.
+    function keepFirstIn(rows) {
+        return keepOwnValues(rows, 'First In');
     }
 
     // Adds the result of keepPlaysets to a report.
@@ -702,6 +765,19 @@ FCT.model = (function () {
         result.filled.forEach(function (id) {
             report.add('info', 'Playset war leer und wurde aus den Stammdaten ergänzt', id);
         });
+    }
+
+    // Adds the result of keepFirstIn to a report; filled rows are only counted, since a new
+    // set fills hundreds of them.
+    function reportFirstIn(report, result) {
+        result.kept.forEach(function (text) {
+            report.add('info', 'First In weicht von den Stammdaten ab und bleibt als lokale ' +
+                'Änderung (✱) erhalten', text);
+        });
+        if (result.filled.length) {
+            report.add('info', 'First In war leer und wurde aus den Stammdaten ergänzt',
+                result.filled.length + ' Zeilen');
+        }
     }
 
     /*
@@ -769,6 +845,7 @@ FCT.model = (function () {
         reportPitchUpgrade(report, purple);
         if (noLanguage) reportLanguageUpgrade(report, languages, collection.rows.length);
         reportPlaysets(report, keepPlaysets(collection.rows));
+        reportFirstIn(report, keepFirstIn(collection.rows));
         return { collection: collection, report: report };
     }
 
@@ -884,10 +961,11 @@ FCT.model = (function () {
                 Playset: String(defaultPlayset(front))
             });
 
-            // Talent, classes, types and subtypes as the reference data expects them.
+            // First set, talent, classes, types and subtypes as the reference data expects
+            // them.
             var values = FCT.reference.expected(row);
             if (values) {
-                TYPE_COLUMNS.forEach(function (c) { row[c] = values[c]; });
+                ['First In'].concat(TYPE_COLUMNS).forEach(function (c) { row[c] = values[c]; });
             }
             row._reference = true;
             rows.push(row);
@@ -991,13 +1069,13 @@ FCT.model = (function () {
 
     /*
      * True if a row carries nothing of its own (issue #18): no quantity above 0, no note, no
-     * first-in or translation, no local change (✱, which also covers a changed playset) and no
+     * translation, no local change (✱, which also covers a changed playset or first set) and no
      * value in extra columns - and it is exactly a printing variant of the reference data, so
      * that it shows up again as a gap (○) when it is taken out of the collection. Rows in
      * another language than the default and unknown card numbers never count as empty.
      */
-    var OWN_COLUMNS = ['First In', 'Translated Name', 'Translated Backside Name', 'Peculiarity',
-        'Note', OVERRIDES];
+    var OWN_COLUMNS = ['Translated Name', 'Translated Backside Name', 'Peculiarity', 'Note',
+        OVERRIDES];
 
     function isEmptyRow(row, collection) {
         if (!row.Id || (row[LANGUAGE] || defaultLanguage()) !== defaultLanguage() ||
@@ -1270,6 +1348,8 @@ FCT.model = (function () {
         totals: totals,
         keepPlaysets: keepPlaysets,
         reportPlaysets: reportPlaysets,
+        keepFirstIn: keepFirstIn,
+        reportFirstIn: reportFirstIn,
         variantKey: variantKey,
         VARIANT_COLUMNS: VARIANT_COLUMNS,
         identityKey: identityKey,
