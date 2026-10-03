@@ -1,10 +1,10 @@
-# Closes the issues of a pull request as soon as it is merged into develop.
-# GitHub itself only closes issues named with "Closes #n" when the pull request goes into the
-# default branch (main). Our feature branches are merged into develop, so this is done here.
-# Closing the issue lets the project board's built-in workflow "Item closed" set it to "Done".
+# Notes on the issues of a pull request that it was merged into develop.
+# The issues stay open: on the project board "Done" means merged into develop but not released
+# yet, and an issue is only closed (board status "Closed") when its release is finished or when
+# it is rejected. The board status "Done" is set by hand after the merge.
 # Only description lines like "Closes #7" count (see the script), so that examples in running
-# text do not close issues - that happened once with the description of pull request #10.
-name: Close issues merged into develop
+# text do not touch issues - that happened once with the description of pull request #10.
+name: Note merge into develop on issues
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ permissions:
   issues: write
 
 jobs:
-  close:
+  note:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
@@ -45,10 +45,8 @@ jobs:
               if (issue.pull_request || issue.state === 'closed') continue;
               await github.rest.issues.createComment({
                 ...context.repo, issue_number: number,
-                body: `Mit #${pr.number} nach \`develop\` gemergt.` });
-              await github.rest.issues.update({
-                ...context.repo, issue_number: number,
-                state: 'closed', state_reason: 'completed' });
-              core.info(`Issue #${number} geschlossen`);
+                body: `Mit #${pr.number} nach \`develop\` gemergt. Das Issue bleibt bis zum ` +
+                  'Release offen (Board: Done).' });
+              core.info(`Issue #${number}: Merge vermerkt`);
             }
             if (!numbers.size) core.info('Keine "Closes #n"-Angabe im Pull Request');
