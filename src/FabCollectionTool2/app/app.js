@@ -51,8 +51,13 @@ FCT.app = (function () {
         Sub3: 4.5, Name: 16,
         'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
         Peculiarity: 7, 'Art Treatment': 8.5, Note: 15,
-        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 14, _backside: 10
+        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 17, _backside: 10
     };
+    // The name column has a fixed width instead of that of its longest content (review of
+    // issue #69): 17em hold 90 % of the rows of the example collection (docs/example.ods with
+    // its gaps; 90th percentile 15.6em of text plus padding). Longer names end in "…", the
+    // tooltip shows them in full.
+    var FIXED_WIDTH = ['_name'];
 
     // Explanations of the combined columns (issue #69).
     var COMBINED_HINTS = {
@@ -197,7 +202,8 @@ FCT.app = (function () {
         model.COMBINED_COLUMNS.forEach(function (combined) {
             var column = {
                 key: combined.key, label: combined.label, kind: 'reference',
-                parts: combined.parts, fit: true, list: !!combined.words,
+                parts: combined.parts, list: !!combined.words,
+                fit: FIXED_WIDTH.indexOf(combined.key) < 0,
                 width: WIDTHS[combined.key], hint: COMBINED_HINTS[combined.key] +
                     '. Bearbeiten öffnet ein Fenster mit den Einzelfeldern',
                 value: function (row) { return model.combinedValue(row, combined); },
