@@ -13,6 +13,15 @@ Kurzfassung je veröffentlichter Version, neueste zuerst. Ausführlich mit allen
 [`src/FabCollectionTool2/RELEASE-NOTES.md`](src/FabCollectionTool2/RELEASE-NOTES.md).
 Die Nummern in Klammern sind die Issues.
 
+### 2.7.0 – 03.10.2026
+- **Detailspalten nach hinten** (#62): `Edition`, `Language`, `First In` und „Exklusiv“ stehen
+  hinter *Left (total)*; Mengen und *Have / Need / Left* sind ohne Scrollen im Bild.
+- Geändert: `collection.csv` folgt der neuen Spaltenfolge
+  (`Set, Id, Rarity, …, GF, Edition, Language, First In, Note, Overrides`). Bestehende Bestände
+  werden über die Spaltennamen gelesen und beim nächsten Speichern umgeschrieben.
+- `collection.csv` ist keine Schnittstelle für externe Tools; dafür gibt es die Exporte
+  (Fabrary, Cardmarket).
+
 ### 2.6.0 – 03.10.2026
 - **Neu: Edition und Sprache getrennt** (#53). `Edition` enthält nur noch Alpha, First oder
   Unlimited; die Sprache steht in der neuen Spalte `Language` (EN, DE, …; Standard EN).

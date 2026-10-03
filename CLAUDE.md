@@ -27,7 +27,11 @@ Maintainer ist **Elmar** (GitHub `Jazzman1976`). Er entscheidet, merged und ver�
 - Kartenbestandteile (Metatyp, Talent, Klasse, Typ, Untertyp …) bekommen je eine eigene,
   gespeicherte Spalte in der Reihenfolge der Karte.
 - Die Spaltenfolge von `collection.csv` ist **genau** die der Tabelle (`model.COLUMNS`, ohne
-  berechnete Spalten) – externe Tools lesen die Datei. Keine „nur Anzeige“-Umsortierung.
+  berechnete Spalten). Keine „nur Anzeige“-Umsortierung; die Reihenfolge darf sich aber mit
+  der Ansicht ändern (alte Dateien werden über die Spaltennamen gelesen).
+- **`collection.csv` ist keine Quelle für externe Tools.** Sie kann als Quelle herhalten, es
+  gibt aber keine bekannten Abhängigkeiten, und wir supporten das nicht. Für unterstützte
+  externe Tools gibt es stets eine eigene Exportdatei, die aus dem Bestand aufbereitet wird.
 - In der Bestands-CSV nur relevante Daten, keine leeren Zeilen. Was dauerhaft zum Bestand gehört,
   aber nicht in die CSV passt, kommt in `<bestand>-config.json` im Arbeitsordner, nicht in
   Browser-Speicher (der ist nur für Ansichtseinstellungen).
@@ -40,7 +44,15 @@ Maintainer ist **Elmar** (GitHub `Jazzman1976`). Er entscheidet, merged und ver�
 
 ## Arbeitsablauf (GitHub-Projekt-Board + GitFlow)
 Board: <https://github.com/users/Jazzman1976/projects/1>, Spalten Backlog, Approved, Ready,
-Ready for dev, In progress, In review, Done. Remote heißt lokal `github`, in der Cloud `origin`.
+Ready for dev, Changes requested, In progress, In review, Done, Closed. Remote heißt lokal
+`github`, in der Cloud `origin`.
+
+- **Done** = Entwicklung fertig und nach `develop` gemergt, aber noch nicht veröffentlicht.
+  Das Issue bleibt **offen**.
+- **Closed** = wirklich zu Ende: veröffentlicht, abgelehnt oder nicht reproduzierbar. Spalte
+  „Closed“ und geschlossenes Issue gehören zusammen (abgelehnt: „Close as not planned“).
+- **Changes requested** = Elmar hat beim Test in *In review* etwas gefunden; was zu ändern
+  ist, steht als Kommentar im PR oder Issue.
 
 1. **Approved** = Elmar hat das Issue freigegeben. Issue samt Bildern und Code lesen, offene
    Fragen klären.
@@ -56,11 +68,17 @@ Ready for dev, In progress, In review, Done. Remote heißt lokal `github`, in de
    `develop`** mit einer eigenen Zeile `Closes #<n>` (nie Beispielzeilen dieser Form in
    PR-Texte schreiben). In die PR-Beschreibung: **Umsetzung und Abweichungen** vom Plan und
    **Ergebnis der Abnahme**. Board **In review**.
-6. **Elmar testet und merged.** Eine Action schließt die Issues, das Board setzt Done.
-7. Nach jedem Merge `develop` per Merge (kein Rebase, kein Force-Push) in offene
+6. **Elmar testet.** Fällt etwas auf, setzt er **Changes requested** und kommentiert; dann
+   auf demselben Branch nachbessern (Board **In progress**), pushen, PR-Beschreibung
+   ergänzen, Board wieder **In review**.
+7. **Elmar merged** und setzt das Issue auf **Done** (oder meldet den Merge, dann setzt Claude
+   es). Die Action `note-merge-on-develop.yml` vermerkt den Merge im Issue; das Issue bleibt
+   offen bis zum Release.
+8. Nach jedem Merge `develop` per Merge (kein Rebase, kein Force-Push) in offene
    Feature-Branches holen.
 
-- Label **„in development“** gehört an jedes Issue mit Status außer Backlog und Done.
+- Label **„in development“** gehört an jedes Issue mit Status außer Backlog und Closed – auch
+  an Done, denn das Release steht noch aus.
 - **`develop` und `main` werden nie gelöscht**, nie direkt beschrieben (nur per PR), nie
   force-gepusht. Aufräumen: nur `feature/`-Branches, die nachweislich gemergt sind.
 - Merges nach `develop` oder `main` macht nur Elmar. Einzige Ausnahme: der Release-Abschluss
@@ -87,6 +105,8 @@ Ready for dev, In progress, In review, Done. Remote heißt lokal `github`, in de
   5. Aufräumen: alle weiteren Branches außer `develop` und `main` löschen, die sicher gelöscht
      werden können (nachweislich gemergt), auf GitHub und lokal. Was nicht gemergt ist, bleibt
      und wird genannt.
+  6. Alle Issues mit Board-Status *Done* sind damit veröffentlicht: Issue schließen, Board
+     **Closed**, Label „in development“ entfernen.
 - Gemergt wird über die PRs (Merge-Commit, kein Force-Push, kein direkter Push). SourceTrees
   „Finish Release“ passt nicht dazu: Es merged lokal und scheitert am Push auf die geschützten
   Branches.
