@@ -1007,11 +1007,13 @@ FCT.grid = (function () {
             cursor.item = at >= 0 ? viewRows[at] : null;
         }
 
+        // scroll: true only makes the cursor visible (keyboard, issue #52), 'centre' puts a
+        // row that is out of sight into the middle (jump from outside), false does not scroll.
         function setCursor(item, key, scroll) {
             cursor.item = item || null;
             if (key) cursor.key = key;
             if (!cursor.key) cursor.key = (cursorColumns()[0] || {}).key || null;
-            if (scroll) scrollToCursor(true);
+            if (scroll) scrollToCursor(scroll === 'centre');
             render();
             viewChanged();
         }
@@ -1038,7 +1040,7 @@ FCT.grid = (function () {
         }
 
         // Scrolls so that the cursor cell is visible (vertically and sideways).
-        // centre: the row goes to the middle (keyboard); otherwise it is only made visible.
+        // centre: a row out of sight goes to the middle; otherwise it is only made visible.
         function scrollToCursor(centre) {
             var index = cursorIndex();
             if (index < 0) return;
@@ -1060,17 +1062,21 @@ FCT.grid = (function () {
             }
         }
 
-        // Scrolls so that a row is visible and renders immediately. With centre, the row
-        // stands in the middle of the visible rows (feedback on 2.0.5.0: moving with the
-        // keyboard keeps the active row centred, downwards as upwards); near the start and the
-        // end of the list the browser limits it.
+        // Scrolls so that a row is visible and renders immediately. The list only moves when
+        // the row is out of sight: by just as much as needed (moving with the keyboard scrolls
+        // at the upper and lower edge only, issue #52) or, with centre, so that the row stands
+        // in the middle of the visible rows (jump to a row somewhere else); near the start and
+        // the end of the list the browser limits it.
         function scrollToRow(index, centre) {
             var top = index * rowHeight;
             var visible = scroller.clientHeight - table.tHead.offsetHeight - rowHeight;
+            var above = top < scroller.scrollTop;
+            var below = top > scroller.scrollTop + visible;
             scrollWatch.own = Date.now();
-            if (centre) scroller.scrollTop = Math.max(0, Math.round(top - visible / 2));
-            else if (top < scroller.scrollTop) scroller.scrollTop = top;
-            else if (top > scroller.scrollTop + visible) scroller.scrollTop = top - visible;
+            if (centre && (above || below)) {
+                scroller.scrollTop = Math.max(0, Math.round(top - visible / 2));
+            } else if (above) scroller.scrollTop = top;
+            else if (below) scroller.scrollTop = top - visible;
             render();
         }
 
@@ -1449,7 +1455,7 @@ FCT.grid = (function () {
                     if (section) states.set(section.key, true);
                     applyView();
                 }
-                setCursor(row, null, true);
+                setCursor(row, null, 'centre');
             },
             // Number of rows matching search and filters, including those in closed groups.
             viewCount: function () { return matchCount; },
