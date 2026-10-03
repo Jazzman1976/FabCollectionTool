@@ -40,7 +40,9 @@ Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.m
 | **Filter** | Suche, Schnellfilter, *Spalten*, *Filter zurücksetzen*; in der Tabelle Häkchen- und Textfilter je Spalte |
 | **Gliederung** | Gruppierung, Reihenfolge der Sets, Ebenen **1** / **2** / **3** |
 
-In der Tabelle: Kartenbilder in einer eigenen Spalte nach der Kartennummer (Vorschau beim
+In der Tabelle: Spalte *Exklusiv* und gleichnamiger Schnellfilter für Karten, die es nur in
+einem einzigen Set gibt (nur Anzeige, aus den Stammdaten). Kartenbilder in einer eigenen Spalte
+nach der Kartennummer (Vorschau beim
 Überfahren, groß per Klick mit Details und allen Reprints der Karte; die
 Bilder lädt der Browser aus dem Internet), einklappbarer Block der Rechenspalten, × zum Löschen
 eines Filters.
