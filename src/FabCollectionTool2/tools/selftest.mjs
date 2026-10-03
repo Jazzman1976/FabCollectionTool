@@ -1035,6 +1035,52 @@ if (!currentFile) {
         `variant columns ${m.VARIANT_COLUMNS.join(', ')}`);
 }
 
+/*
+ * Combined columns (issue #69): the table shows the parts of a kind in one cell, the file
+ * keeps one column per part. Words are joined by spaces and filtered one by one; the names
+ * follow "Name (Art Treatment) (DE: Translated Name)" and "Backside Name (DE: ...)", every
+ * part only if it is filled. No combined column is part of collection.csv.
+ */
+{
+    const m = FCT.model;
+    const by = (key) => m.COMBINED_COLUMNS.find((c) => c.key === key);
+    const text = (key, row) => m.combinedValue(row, by(key));
+    const row = m.newRow({ Id: 'XXX001', Talent1: 'Light', Talent2: 'Shadow', Class2: 'Runeblade',
+        Type1: 'Action', Sub1: 'Demon', Sub3: 'Ally', Name: 'Front' });
+    const words = text('_talent', row) === 'Light Shadow' && text('_class', row) === 'Runeblade' &&
+        text('_type', row) === 'Action' && text('_subtype', row) === 'Demon Ally' &&
+        text('_talent', m.newRow({})) === '' &&
+        m.combinedParts(row, by('_subtype')).join('|') === 'Demon|Ally' &&
+        m.combinedParts(m.newRow({}), by('_class')).length === 0;
+
+    const full = Object.assign({}, row, { 'Art Treatment': 'Full Art', Language: 'DE',
+        'Translated Name': 'Vorne', 'Backside Name': 'Back',
+        'Translated Backside Name': 'Hinten' });
+    const names = text('_name', row) === 'Front' && text('_backside', row) === '' &&
+        text('_name', Object.assign({}, row, { 'Art Treatment': 'Full Art' })) ===
+            'Front (Full Art)' &&
+        text('_name', Object.assign({}, full, { 'Art Treatment': '' })) === 'Front (DE: Vorne)' &&
+        text('_name', full) === 'Front (Full Art) (DE: Vorne)' &&
+        text('_backside', full) === 'Back (DE: Hinten)' &&
+        text('_backside', Object.assign({}, full, { 'Translated Backside Name': '' })) === 'Back';
+
+    // Every part is a column of the file, in the order of the file; the file knows no
+    // combined column and is written exactly as before.
+    const parts = m.COMBINED_COLUMNS.every((c) => c.parts.every((p) => m.COLUMNS.includes(p)) &&
+        !m.COLUMNS.includes(c.key));
+    const once = m.toCsv(m.fromCsv(m.toCsv(ods.collection)).collection);
+    const header = FCT.csv.parse(once.replace(/^﻿/, ''))[0];
+    const file = header.join() === m.COLUMNS.concat(ods.collection.extraColumns).join() &&
+        m.toCsv(m.fromCsv(once).collection) === once;
+
+    // The longest subtype cell of the example has more than one part.
+    const most = ods.collection.rows.reduce((max, r) =>
+        Math.max(max, m.combinedParts(r, by('_subtype')).length), 0);
+    check('Combined columns', words && names && parts && file && most > 1,
+        `words ${words}, names ${names}, parts ${parts}, file ${file}, ` +
+        `up to ${most} subtypes in one cell`);
+}
+
 // Version 2.0.7.0: a new collection is called "collection.csv" (or "collection-2.csv" if the
 // folder has one); the picture column is only shown, never part of collection.csv; the setup
 // assistant is loaded by the page.

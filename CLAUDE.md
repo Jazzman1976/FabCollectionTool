@@ -29,6 +29,10 @@ Maintainer ist **Elmar** (GitHub `Jazzman1976`). Er entscheidet, merged und ver�
 - Die Spaltenfolge von `collection.csv` ist **genau** die der Tabelle (`model.COLUMNS`, ohne
   berechnete Spalten). Keine „nur Anzeige“-Umsortierung; die Reihenfolge darf sich aber mit
   der Ansicht ändern (alte Dateien werden über die Spaltennamen gelesen).
+- Die Tabelle darf Bestandteile einer Art **zusammengelegt** in einer Zelle zeigen (Talent,
+  Class, Type, Subtype, Name und Art Treatment, Backside Name – `model.COMBINED_COLUMNS`),
+  an der Stelle der ersten Einzelspalte. Die CSV behält die Einzelspalten; bearbeitet wird
+  in einem Fenster mit den Einzelfeldern.
 - **`collection.csv` ist keine Quelle für externe Tools.** Sie kann als Quelle herhalten, es
   gibt aber keine bekannten Abhängigkeiten, und wir supporten das nicht. Für unterstützte
   externe Tools gibt es stets eine eigene Exportdatei, die aus dem Bestand aufbereitet wird.
