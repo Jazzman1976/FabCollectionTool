@@ -56,6 +56,8 @@ FCT.app = (function () {
 
     // Explanations shown when hovering over a column title (feedback on 2.0.5.0).
     var HINTS = {
+        'First In': 'Set, in dem die Karte zuerst erschien (aus den Stammdaten: frühestes ' +
+            'Erscheinungsdatum). Hervorgehoben = Reprint aus einem anderen Set',
         ST: 'Standard: die regulären (Regular) Printings – bei Cardmarket heißen sie ' +
             '„Standard“',
         RF: 'Rainbow Foil',
@@ -92,6 +94,13 @@ FCT.app = (function () {
         return PITCH_CLASSES[value] || null;
     }
 
+    // "First In" (issue #51): a reprint - first printed in another set than the row's own -
+    // stands out, a first printing steps back. Without a row (filter list) nothing is marked.
+    function firstInClass(value, row) {
+        if (!value || !row) return null;
+        return value === model.setCode(row.Id) ? 'first-print' : 'reprint';
+    }
+
     function buildColumns() {
         var columns = model.COLUMNS.filter(function (key) {
             return model.columnKind(key) !== 'internal';
@@ -101,7 +110,8 @@ FCT.app = (function () {
                 key: key, label: key, numeric: numeric, kind: model.columnKind(key),
                 step: numeric, width: numeric ? STEP_WIDTH : WIDTHS[key] || 7,
                 list: model.choices(key) !== null, hint: HINTS[key] || '',
-                valueClass: key === 'Pitch' ? pitchClass : null
+                valueClass: key === 'Pitch' ? pitchClass : key === 'First In' ? firstInClass
+                    : null
             };
         });
 
@@ -1928,6 +1938,8 @@ FCT.app = (function () {
                 if (result.collection) {
                     model.reportPlaysets(result.report,
                         model.keepPlaysets(result.collection.rows));
+                    model.reportFirstIn(result.report,
+                        model.keepFirstIn(result.collection.rows));
                     var check = model.validate(result.collection);
                     check.groups.forEach(function (g) { result.report.groups.push(g); });
                 }

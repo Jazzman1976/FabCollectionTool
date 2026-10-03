@@ -303,7 +303,11 @@
             <tr><td>Bild-Symbol</td><td>Spalte „Kartenbild“ direkt nach Id: zeigt das
                 Kartenbild (siehe <a href="#bilder">Kartenbilder</a>); ausblendbar, nie in
                 <code>collection.csv</code></td></tr>
-            <tr><td>First In</td><td>Set, in dem die Karte zuerst erschien (für Reprints)</td>
+            <tr><td>First In</td><td>Set-Code des Sets, in dem die Karte zuerst erschien. Der
+                Wert kommt aus den Stammdaten (frühestes Erscheinungsdatum; bei gleichem Datum
+                das größere Set, Sets ohne Datum zuletzt). Weicht er vom eigenen Set ab, ist
+                die Karte ein <strong>Reprint</strong> und der Wert hervorgehoben. Ein von Hand
+                eingetragener, abweichender Wert bleibt als lokale Änderung (✱) erhalten</td>
             </tr>
             <tr><td>Rarity</td><td>Seltenheit (Common, Rare, Majestic, …)</td></tr>
             <tr><td>Metatype</td><td>Metatyp der Karte, z. B. Event, Rosetta, High Seas

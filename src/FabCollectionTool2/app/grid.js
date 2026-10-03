@@ -945,7 +945,7 @@ FCT.grid = (function () {
             if (text === '' && mark && /\b(stale|override)\b/.test(mark.className)) {
                 classes.push('empty-mark');
             }
-            var valueClass = column.valueClass && column.valueClass(text);
+            var valueClass = column.valueClass && column.valueClass(text, row);
             if (valueClass) classes.push(valueClass);
 
             var title = mark && mark.title ? text + '\n' + mark.title : text;
