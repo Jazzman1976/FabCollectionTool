@@ -26,7 +26,8 @@ FCT.gridFilter = (function () {
      *   anchor     the button that opens the panel
      *   title      heading of the panel
      *   values     [{ value, label, count }] in the order to show
-     *   valueClass(value)   optional: extra class of a value's label (e.g. the pitch colour)
+     *   valueClass(value)   optional: extra class of a value's label (e.g. the pitch colour);
+     *                       the table also passes the row as second argument
      *   selected   Set of ticked values, or null for "all ticked" (no filter)
      *   onChange(selected)   called on every change; null means "all ticked"
      *   onClose()  called when the panel closes

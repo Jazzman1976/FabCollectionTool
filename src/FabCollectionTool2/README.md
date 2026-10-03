@@ -84,7 +84,11 @@ Art Treatment,Pitch,Playset,ST,RF,CF,GF,Note,Overrides
 älterer Versionen mit anderer Reihenfolge werden über die Spaltennamen gelesen; beim nächsten
 Speichern schreibt die Anwendung die aktuelle Reihenfolge. Metatype bis Sub3 folgen der
 Typzeile der Karte (Regelwerk 2.14.1); die Spalte `Talent` bis 2.0.4.0 wird beim Lesen in
-`Talent1` und `Talent2` aufgeteilt. `ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
+`Talent1` und `Talent2` aufgeteilt. `First In` ist der Set-Code des Sets, in dem die Karte zuerst
+erschien; seit Issue #51 kommt er aus den Stammdaten (frühestes Erscheinungsdatum, bei gleichem
+Datum das größere Set, Sets ohne Datum zuletzt). Ein leerer Wert wird beim Laden ergänzt, ein
+abweichender bleibt als `Overrides`-Eintrag `First In` erhalten.
+`ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
 Cold, Gold). `Edition` ist eine Edition (`Alpha`, `First`, `Unlimited`) oder eine Sprache (`EN`,
 `DE`, …). Alle Werte bleiben so erhalten, wie sie in der Datei stehen; ungültige Zahlen werden
 gemeldet und rot markiert, aber nicht verändert. Zusätzliche Spalten bleiben erhalten.

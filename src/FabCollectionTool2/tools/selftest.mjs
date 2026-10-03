@@ -54,8 +54,13 @@ function check(name, ok, detail) {
         ST: '1', Note: 'Zeile 1\nZeile 2 mit "Anführungszeichen"' }));
     collection.rows.push(FCT.model.newRow({ Id: 'MON254', Name: 'Tremor of íArathael',
         Note: 'Ünïcödé ✓' }));
-    // Playsets as the reference data expects them (an empty one would be filled in on load).
-    collection.rows.forEach((row) => { row.Playset = FCT.reference.expected(row).Playset; });
+    // Playset and first set as the reference data expects them (empty ones would be filled
+    // in on load).
+    collection.rows.forEach((row) => {
+        const expected = FCT.reference.expected(row);
+        row.Playset = expected.Playset;
+        row['First In'] = expected['First In'];
+    });
     const text = FCT.model.toCsv(collection);
     const back = FCT.model.fromCsv('﻿' + text).collection;
     check('CSV round trip', FCT.model.toCsv(back) === text &&
@@ -651,6 +656,52 @@ if (!currentFile) {
         FCT.model.differences(a).length === 0;
     check('Playset from reference data', rules && transition,
         `rules ${rules}, kept as override / filled in ${transition}`);
+}
+
+// First In from the reference data (issue #51): the set with the earliest release date; on the
+// same date the larger set; sets without a date last, and if no set has a date the own set.
+// A differing value of a file is kept as override, an empty one is filled in, and a row that
+// only carries the first set still counts as empty.
+{
+    const m = FCT.model;
+    const first = (id) => FCT.reference.expected(m.newRow({ Id: id }))['First In'];
+    const data = FCT.reference.data();
+    const dateOf = (code) => FCT.reference.setDate(code);
+    // Every printing: the first set is never younger than any dated set of the card.
+    const earliest = data.printings.every((p) => {
+        const codes = FCT.reference.cardSets(p[6]);
+        const dated = codes.filter(dateOf);
+        const head = codes[0];
+        return !dated.length || dated.every((code) => dateOf(head) && dateOf(head) <= dateOf(code));
+    });
+    // Ghostly Visit: Monarch and the Chane deck share the date, the larger set wins; the
+    // undated promo printing shows the same first set (a reprint).
+    const rules = earliest && first('MON203') === 'MON' && first('CHN021') === 'MON' &&
+        first('FAB038') === 'MON' && first('WTR001') === 'WTR';
+    const undatedCard = data.printings.find((p) => !FCT.reference.cardSets(p[6]).some(dateOf));
+    const undated = !undatedCard || first(undatedCard[0]) === undatedCard[1];
+
+    const collection = m.create();
+    const differs = m.newRow({ Id: 'CHN021', 'First In': 'CHN', ST: '1' });
+    const empty = m.newRow({ Id: 'MON203', 'First In': '', ST: '2' });
+    [differs, empty].forEach((row) => {
+        const expected = FCT.reference.expected(row);
+        Object.keys(expected).filter((key) => key !== 'First In')
+            .forEach((key) => { row[key] = expected[key]; });
+    });
+    collection.rows.push(differs, empty);
+    const loaded = m.fromCsv(m.toCsv(collection));
+    const [a, b] = loaded.collection.rows;
+    const transition = a['First In'] === 'CHN' && a.Overrides === 'First In' &&
+        b['First In'] === 'MON' && b.Overrides === '' && m.differences(a).length === 0 &&
+        m.columnKind('First In') === 'reference';
+
+    const gaps = m.setRows(m.create(), ['CHN']);
+    const filled = gaps.length > 0 && gaps.every((row) => row['First In'] !== '') &&
+        gaps.find((row) => row.Id === 'CHN021')['First In'] === 'MON' &&
+        m.isEmptyRow(gaps[0], collection);
+    check('First In from reference data', rules && undated && transition && filled,
+        `rules ${rules}, undated ${undated}, kept / filled in ${transition}, gaps ${filled}`);
 }
 
 // Which cells can be edited (2.0.3.0): input always; a value that differs from the reference
