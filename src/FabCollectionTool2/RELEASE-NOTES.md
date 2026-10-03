@@ -6,6 +6,57 @@ die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>
 (z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
 GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.8.0 – 03.10.2026
+
+### Neu
+- **Zusammengelegte Spalten** (#69, #72): Die Tabelle zeigt die Bestandteile einer Art in
+  einer Zelle statt in vielen meist leeren Spalten – **Talent**, **Class**, **Type** und
+  **Subtype** (z. B. „Demon Ally“) sowie **Name** mit der Übersetzung dahinter
+  (`Name (DE: Übersetzter Name)`). *Backside Name* zeigt ebenso die Übersetzung der Rückseite
+  und ist wie bisher nicht in der Standardansicht. Die Tabelle wird dadurch deutlich schmaler.
+  - **Filtern:** Talent, Class, Type und Subtype haben den Häkchenfilter über die einzelnen
+    Werte – „Runeblade“ findet die Karte auch, wenn es an zweiter Stelle steht. Die
+    Namensspalten haben einen Textfilter über den angezeigten Text.
+  - **Bearbeiten:** F2, Doppelklick oder Lostippen öffnet immer ein Fenster mit den
+    Einzelfeldern der Zelle untereinander (z. B. Sub1, Sub2, Sub3) – wie *Zeile bearbeiten*,
+    nur auf diese Felder beschränkt. <kbd>Entf</kbd> leert eine zusammengelegte Zelle nicht.
+  - **Breite:** Die zusammengelegten Spalten sind so breit wie ihr längster Inhalt. *Name* ist
+    fest so breit, dass rund 90 % der Namen hineinpassen; längere enden mit „…“, der Tooltip
+    zeigt sie vollständig.
+  - **Einzelspalten** (Talent1, Class2, Sub3, Translated Name …) gibt es weiter: unter
+    *Spalten* im Abschnitt „Einzelspalten“. Eine gemerkte Spaltenauswahl wird einmalig
+    umgestellt.
+  - *Art Treatment* bleibt eine eigene, immer sichtbare Spalte mit Häkchenfilter; die Suche
+    oben findet es jetzt ebenfalls.
+  - **`collection.csv` ändert sich nicht:** Die Datei behält ihre Einzelspalten in derselben
+    Reihenfolge.
+
+### Geändert
+- **„Sets anzeigen“ statt „Sets aufnehmen“** (#67): Welche Sets die Tabelle zeigt, ist nur
+  noch eine Frage der Ansicht und ändert die Bestandsdatei nie. Der Dialog *Sets in der Liste
+  anzeigen* hat eine Liste aller Sets (neueste zuerst, Suche, „nur angezeigte“); der Haken
+  bedeutet „in der Tabelle anzeigen“, daneben steht, wie viele Zeilen du davon hast.
+  - **Sets ausblenden:** Auch ein Set mit Zeilen lässt sich abhaken. Es verschwindet aus der
+    Tabelle; die Zeilen bleiben unverändert in `collection.csv`, zählen weiter in *Have /
+    Need / Left (total)* und gehen weiter in den Fabrary- und Cardmarket-Export. Wieder
+    anhaken bringt alles zurück.
+  - Die Statuszeile nennt ausgeblendete Sets mit Zeilen („2 Sets ausgeblendet“). Führt *Zur
+    Zeile* oder *Rückgängig* im Protokoll zu einer ausgeblendeten Zeile, bietet ein Hinweis
+    *Set anzeigen* an.
+  - Die Auswahl steht in `<bestand>-config.json` (`hiddenSets`, nur wenn es welche gibt).
+  - **Entfallen:** „Als Zeilen mit leeren Mengen in den Bestand schreiben“. Eine Zeile entsteht
+    weiter, sobald du eine Menge einträgst.
+
+### Stammdaten
+- Vor dem Release geprüft: the-fab-cube `develop` unverändert auf `18b2d9d` vom 30.09.2026.
+- Fabrary-Zuordnung gegen den Sammlungsexport vom 03.10.2026 geprüft: unverändert.
+
+### Entwicklung
+- `CLAUDE.md`: Die Tabelle darf Bestandteile einer Art zusammengelegt zeigen; die CSV behält
+  die Einzelspalten.
+- Selbsttest: neue Prüfungen *Combined columns*, *Hide a set with rows*, *Show a hidden set
+  again* und *Show and hide a set without rows*.
+
 ## 2.7.0 – 03.10.2026
 
 ### Verbessert
