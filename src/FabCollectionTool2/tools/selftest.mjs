@@ -474,7 +474,7 @@ if (!currentFile) {
     const text = FCT.csv.stringify([log.HEADER].concat(log.toRecords(log.pending())));
     const records = FCT.csv.parse(text);
     log.markWritten();
-    check('Change log round trip', records.length === 3 && records[1][4] === 'Alpha' &&
+    check('Change log round trip', records.length === 3 && records[1][4] === 'Alpha, EN' &&
         records[2][6] === 'ST=2 "x"' && log.pending().length === 0);
 }
 
@@ -619,7 +619,7 @@ if (!currentFile) {
     const withZero = Object.assign({}, empty, { ST: '0' });
     const withNote = Object.assign({}, empty, { Note: 'x' });
     const withOverride = Object.assign({}, empty, { Overrides: 'Playset' });
-    const language = Object.assign({}, empty, { Edition: 'DE' });
+    const language = Object.assign({}, empty, { Language: 'DE' });
     const unknown = Object.assign({}, empty, { Id: 'ZZZ999' });
     check('Empty rows', m.isEmptyRow(empty, collection) && m.isEmptyRow(withZero, collection) &&
         !m.isEmptyRow(withQuantity, collection) && !m.isEmptyRow(withNote, collection) &&
@@ -964,17 +964,68 @@ if (!currentFile) {
         `moved ${moved.join(' ') || '-'}`);
 }
 
+// Edition and language are two columns (issue #53). A file without the column "Language" is
+// converted: a language in "Edition" moves over, every other row is English; quantities and
+// the covered variants stay the same. Rows from the reference data are English, a row in
+// another language never counts as empty, and the language is part of a row's identity.
+{
+    const m = FCT.model;
+    const cols = m.COLUMNS;
+    const order = cols.slice(0, 4).join(',') === 'Set,Edition,Language,Id';
+    const vocab = FCT.DATA.vocab;
+    const lists = vocab.editions.join(',') === 'Alpha,First,Unlimited' &&
+        vocab.languages[0] === 'EN' && vocab.languages.indexOf('DE') > 0;
+
+    const oldHeader = cols.filter((c) => c !== 'Language');
+    const record = (id, edition, st) => oldHeader.map((c) => (c === 'Id' ? id
+        : c === 'Edition' ? edition : c === 'ST' ? st : ''));
+    const oldText = FCT.csv.stringify([oldHeader, record('WTR001', 'Unlimited', '1'),
+        record('MON203', 'EN', '2'), record('MON203', 'DE', '3'), record('MON204', '', '4')]);
+    const loaded = m.fromCsv(oldText);
+    const got = loaded.collection.rows.map((r) => [r.Edition, r.Language, r.ST].join('/'));
+    const moved = got.join(' ') === 'Unlimited/EN/1 /EN/2 /DE/3 /EN/4';
+    const reported = JSON.stringify(loaded.report.groups).includes('2 von 4');
+    const noWarning = !JSON.stringify(loaded.report.groups).includes('Spalte fehlt');
+
+    // Saved in the new format and read again: nothing changes, nothing is reported.
+    const newText = m.toCsv(loaded.collection);
+    const again = m.fromCsv(newText);
+    const stable = FCT.csv.parse(newText)[0].slice(0, 4).join(',') === 'Set,Edition,Language,Id' &&
+        m.toCsv(again.collection) === newText &&
+        !JSON.stringify(again.report.groups).includes('Language');
+
+    const [, en, de] = loaded.collection.rows;
+    const identity = m.identityKey(en) !== m.identityKey(de) &&
+        m.variantKey(en.Id, en.Edition, en['Art Treatment']) ===
+            m.variantKey(de.Id, de.Edition, de['Art Treatment']);
+    const gap = m.setRows(m.create(), ['MON'])[0];
+    const german = Object.assign({}, gap, { Language: 'DE' });
+    const rows = gap.Language === 'EN' && m.newRow({ Id: 'X' }).Language === 'EN' &&
+        m.isEmptyRow(gap, loaded.collection) && !m.isEmptyRow(german, loaded.collection);
+    const valid = m.validate(again.collection);
+    const known = !JSON.stringify(valid.groups).includes('Unbekannter Wert');
+
+    // The example spreadsheet keeps languages in "Edition": none may be left there.
+    const odsClean = ods.collection.rows.every((r) => vocab.languages.indexOf(r.Edition) < 0 &&
+        vocab.languages.indexOf(r.Language) >= 0);
+    const odsLanguages = new Set(ods.collection.rows.map((r) => r.Language));
+    check('Edition and language', order && lists && moved && reported && noWarning && stable &&
+        identity && rows && known && odsClean,
+        `order ${order}, old file ${moved}, reported ${reported}, stable ${stable}, ` +
+        `identity ${identity}, rows ${rows}, ODS ${[...odsLanguages].join('/')}`);
+}
+
 // Variants not yet in the collection (2.0.6.3): foilings of exactly the variant; quantity cells
 // of foilings that do not exist are locked outside edit mode; the columns of a variant.
 {
     const m = FCT.model;
     const alpha = { Id: 'WTR000', Edition: 'Alpha', 'Art Treatment': '' };
     const foils = JSON.stringify(FCT.reference.foilings(alpha));
-    const language = FCT.reference.foilings({ Id: 'WTR000', Edition: 'DE',
+    const language = FCT.reference.foilings({ Id: 'WTR000', Edition: '', Language: 'DE',
         'Art Treatment': '' });
     const locked = !m.isEditable(alpha, 'ST', false) && m.isEditable(alpha, 'CF', false) &&
         m.isEditable(alpha, 'ST', true) && !m.noPrinting(alpha, 'Note');
-    const columns = m.VARIANT_COLUMNS.join(',') === 'Id,Edition,Art Treatment';
+    const columns = m.VARIANT_COLUMNS.join(',') === 'Id,Edition,Language,Art Treatment';
     check('Variants: foilings and columns', foils === '["CF"]' && language === null &&
         locked && columns, `WTR000 Alpha ${foils}, DE ${language}, locked ${locked}, ` +
         `variant columns ${m.VARIANT_COLUMNS.join(', ')}`);

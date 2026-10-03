@@ -73,11 +73,11 @@ und `*.ods` aus; den Arbeitsordner am besten ganz außerhalb des Checkouts anleg
 ### `collection.csv` (eigener Bestand)
 
 CSV nach RFC 4180, UTF-8, jedes Feld in Anführungszeichen, eine Zeile je Variante (Id + Edition +
-Art Treatment):
+Language + Art Treatment):
 
 ```
-Set,Edition,Id,First In,Rarity,Metatype,Talent1,Talent2,Class1,Class2,Type1,Type2,Sub1,
-Sub2,Sub3,Name,Backside Name,Translated Name,Translated Backside Name,Peculiarity,
+Set,Edition,Language,Id,First In,Rarity,Metatype,Talent1,Talent2,Class1,Class2,Type1,Type2,
+Sub1,Sub2,Sub3,Name,Backside Name,Translated Name,Translated Backside Name,Peculiarity,
 Art Treatment,Pitch,Playset,ST,RF,CF,GF,Note,Overrides
 ```
 
@@ -91,8 +91,11 @@ erschien; seit Issue #51 kommt er aus den Stammdaten (frühestes Erscheinungsdat
 Datum das größere Set, Sets ohne Datum zuletzt). Ein leerer Wert wird beim Laden ergänzt, ein
 abweichender bleibt als `Overrides`-Eintrag `First In` erhalten.
 `ST`, `RF`, `CF`, `GF` sind die Mengen je Foiling (Standard, Rainbow,
-Cold, Gold). `Edition` ist eine Edition (`Alpha`, `First`, `Unlimited`) oder eine Sprache (`EN`,
-`DE`, …). Alle Werte bleiben so erhalten, wie sie in der Datei stehen; ungültige Zahlen werden
+Cold, Gold). `Edition` ist `Alpha`, `First`, `Unlimited` oder leer (Sets ohne Editionen),
+`Language` die Sprache (`EN`, `DE`, `FR`, `ES`, `IT`, `JP`; nie leer, Standard `EN`). Bis 2.5.0
+stand die Sprache in `Edition`; Dateien ohne die Spalte `Language` werden beim Lesen umgestellt
+(Sprache wandert nach `Language`, alle anderen Zeilen werden `EN`), ebenso die 1.0-Tabelle beim
+ODS-Import. Alle Werte bleiben so erhalten, wie sie in der Datei stehen; ungültige Zahlen werden
 gemeldet und rot markiert, aber nicht verändert. Zusätzliche Spalten bleiben erhalten.
 `Overrides` listet (mit `;` getrennt) die Stammdatenspalten einer Zeile, die bewusst lokal
 geändert wurden. Dateien von 2.0.0.0 ohne diese Spalte lassen sich weiter öffnen.

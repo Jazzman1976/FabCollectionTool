@@ -40,14 +40,15 @@ FCT.app = (function () {
      * after the quantities. The default view shows the columns asked for in the feedback.
      * Widths are in em, so they follow the font size.
      */
-    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Id', '_image', '_exclusive', 'Rarity', 'Metatype',
-        'Talent1',
+    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Language', 'Id', '_image', '_exclusive', 'Rarity',
+        'Metatype', 'Talent1',
         'Talent2', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name',
         'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
         '_leftTotal'];
     var WIDTHS = {
-        Set: 12, Edition: 5.5, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5, Talent1: 6.5,
+        Set: 12, Edition: 5.5, Language: 6, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5,
+        Talent1: 6.5,
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
         'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
@@ -57,6 +58,8 @@ FCT.app = (function () {
 
     // Explanations shown when hovering over a column title (feedback on 2.0.5.0).
     var HINTS = {
+        Edition: 'Alpha, First oder Unlimited; leer bei Sets ohne Editionen',
+        Language: 'Sprache der Karte (EN, DE, …); ohne Angabe EN',
         'First In': 'Set, in dem die Karte zuerst erschien (aus den Stammdaten: frühestes ' +
             'Erscheinungsdatum). Hervorgehoben = Reprint aus einem anderen Set',
         ST: 'Standard: die regulären (Regular) Printings – bei Cardmarket heißen sie ' +
@@ -2845,7 +2848,7 @@ FCT.app = (function () {
      */
     function newRowValues(row) {
         var id = model.nextId(row.Id);
-        var values = { Set: row.Set, Edition: row.Edition, Id: id };
+        var values = { Set: row.Set, Edition: row.Edition, Language: row.Language, Id: id };
         var common = id ? model.commonValues(id) : null;
         var copied = common || { Metatype: row.Metatype, Talent1: row.Talent1,
             Talent2: row.Talent2, Class1: row.Class1, Class2: row.Class2,
@@ -3731,6 +3734,7 @@ FCT.app = (function () {
             (date(shown.setCode) ? ', ' + date(shown.setCode) : '');
         var printingPart = [el('h3', { text: 'Diese Variante' }), facts([
             ['Nummer', row.Id], ['Set', setText], ['Edition', row.Edition || shown.edition],
+            ['Sprache', row.Language || ''],
             ['Art Treatment', row['Art Treatment'] || ''], ['Seltenheit', shown.rarity],
             ['Artist', shown.artists], ['Foilings', foilings(shown.foilings)],
             ['Im Bestand', inCollection]
