@@ -47,7 +47,11 @@ FCT.grid = (function () {
     //   columns     [{ key, label, width (em), numeric, kind, hidden, step, list, group,
     //                  value(row) }]
     //               kind is 'input', 'reference', 'identity' or 'calc'; list = check box
-    //               filter (fixed values) instead of a text filter; columns with the same
+    //               filter (fixed values) instead of a text filter; filterValues(row)
+    //               gives several values of a row for that filter (a row passes if one of
+    //               them is ticked); parts marks a combined column, which is edited in a
+    //               window (onEditParts) instead of in place; fit = at least as wide as
+    //               its longest content; columns with the same
     //               group can be collapsed into one narrow column; sparse = numbers that
     //               may be missing (an empty value matches no number comparison); hint =
     //               explanation shown when hovering over the title; fixed = always shown,
@@ -74,6 +78,7 @@ FCT.grid = (function () {
     //   hasImage(row)             whether a row has a card picture
     //   onImage(action, row, td)  'hover' (show preview), 'leave' (hide it), 'open' (large)
     //   onEdit(row, key, text), onAction(action, row), onView(count)
+    //   onEditParts(row, column)  edit a cell of a combined column (column.parts)
     //   rowKey(row)               stable key of a row, to find it again (remembered view)
     //   onViewChange()            groups opened or closed, or scrolled (to remember the view)
     function create(container, options) {
@@ -146,23 +151,59 @@ FCT.grid = (function () {
          */
         var fitted = {};
         var measure = null;
+        var contentWidths = {};     // widest content of the columns with "fit", in em
+
+        // Sets the font of the canvas used for measuring (titles are bold, cells are not);
+        // returns the font size in pixels.
+        function measureFont(weight) {
+            if (!measure) measure = document.createElement('canvas').getContext('2d');
+            var style = window.getComputedStyle(headRow.cells[0] || table);
+            var size = parseFloat(style.fontSize) || 14;
+            measure.font = weight + ' ' + size + 'px ' + style.fontFamily;
+            return size;
+        }
 
         function widthOf(column) {
             if (column.placeholder || column.icon) return column.width;
             if (fitted[column.key] == null) {
-                if (!measure) measure = document.createElement('canvas').getContext('2d');
-                var style = window.getComputedStyle(headRow.cells[0] || table);
-                var size = parseFloat(style.fontSize) || 14;
-                measure.font = '700 ' + size + 'px ' + style.fontFamily;
+                var size = measureFont(700);
                 var text = measure.measureText(String(column.label)).width;
                 // Padding left (5px), sort marker at the right (1.3em), the collapse button of
                 // a group's first column, and a little air.
                 var extra = 5 / size + 1.3 + (column.group && firstOfGroup(column) ? 1.9 : 0) +
                     0.3;
-                fitted[column.key] = Math.max(column.width,
+                fitted[column.key] = Math.max(column.width, contentWidths[column.key] || 0,
                     Math.ceil((text / size + extra) * 10) / 10);
             }
             return fitted[column.key];
+        }
+
+        /*
+         * Columns with "fit" (the combined columns, issue #69) are as wide as their longest
+         * content, so that nothing is cut off. Measured over all rows, not only those in view,
+         * so that the widths stay put while filtering; every text is measured once. Returns
+         * true if a width changed.
+         */
+        function fitContent() {
+            var size = 0;
+            var changed = false;
+            columns.forEach(function (column) {
+                if (!column.fit) return;
+                if (!size) size = measureFont(400);
+                var seen = new Set();
+                var widest = 0;
+                allRows.forEach(function (row) {
+                    var text = cellValue(row, column);
+                    if (!text || seen.has(text)) return;
+                    seen.add(text);
+                    widest = Math.max(widest, measure.measureText(text).width);
+                });
+                // Padding left and right (5px each), the border and a little air.
+                var width = widest ? Math.ceil((widest / size + 11 / size + 0.4) * 10) / 10 : 0;
+                if (width !== (contentWidths[column.key] || 0)) changed = true;
+                contentWidths[column.key] = width;
+            });
+            return changed;
         }
 
         // Widens columns whose title is wider than the column (only possible while the table
@@ -191,6 +232,7 @@ FCT.grid = (function () {
 
         function refit() {
             fitted = {};
+            fitContent();
             buildHeader();
             render();
         }
@@ -387,13 +429,23 @@ FCT.grid = (function () {
             return value == null ? '' : String(value);
         }
 
+        // Values of a row for a check box filter: one, or several for a combined column
+        // (each of its parts; an empty cell has the one value '').
+        function rowListValues(row, key) {
+            var column = key === STATUS_KEY ? null : columnByKey(key);
+            if (!column || !column.filterValues) return [listValue(row, key)];
+            var values = column.filterValues(row);
+            return values.length ? values : [''];
+        }
+
         // Values of a column with their number of rows, in the order of the value list.
         function listValues(column) {
             var counts = new Map();
             allRows.forEach(function (row) {
                 if (!passes(row, column.key)) return;
-                var value = listValue(row, column.key);
-                counts.set(value, (counts.get(value) || 0) + 1);
+                rowListValues(row, column.key).forEach(function (value) {
+                    counts.set(value, (counts.get(value) || 0) + 1);
+                });
             });
             if (column.key === STATUS_KEY) {
                 return (options.statusValues || []).map(function (s) {
@@ -538,13 +590,19 @@ FCT.grid = (function () {
             }
             var keys = Object.keys(checks);
             for (var k = 0; k < keys.length; k++) {
-                if (keys[k] !== except && !checks[keys[k]].has(listValue(row, keys[k]))) {
-                    return false;
-                }
+                if (keys[k] !== except && !ticked(row, keys[k])) return false;
             }
             return columns.every(function (c) {
                 if (c.key === except || !filters[c.key] || !filters[c.key].trim()) return true;
                 return matchesFilter(cellValue(row, c), filters[c.key], c.numeric, c.sparse);
+            });
+        }
+
+        // True if a value of the row is ticked in the check box filter of a column.
+        function ticked(row, key) {
+            var selected = checks[key];
+            return rowListValues(row, key).some(function (value) {
+                return selected.has(value);
             });
         }
 
@@ -1266,7 +1324,8 @@ FCT.grid = (function () {
             } else if (key === 'F2') {
                 if (column) startEdit(null);
             } else if (key === 'Delete' || key === 'Backspace') {
-                if (column && (item[column.key] || '') !== '') {
+                // (never clears a combined cell: that would empty several fields at once)
+                if (column && !column.parts && (item[column.key] || '') !== '') {
                     options.onEdit(item, column.key, '');
                 }
             } else if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1284,10 +1343,16 @@ FCT.grid = (function () {
          * and move, Escape cancels; leaving the cell saves. Left/Right in a text field (#39),
          * as in a spreadsheet: editing started by typing saves and moves at once; editing the
          * old value (F2, double click) first moves the caret and leaves the cell at the edge.
+         * A cell of a combined column (issue #69) is never edited in place: however editing
+         * starts, a window with its single fields opens (options.onEditParts).
          */
         function startEdit(typed, byMouse) {
             var column = cursorEditable();
             if (!column || editor) return;
+            if (column.parts) {
+                options.onEditParts(cursor.item, column);
+                return;
+            }
             scrollToCursor();
             var td = cursorCell();
             if (!td) return;
@@ -1394,6 +1459,10 @@ FCT.grid = (function () {
             // Replaces all rows and re-applies search, filters, grouping and sort.
             setRows: function (rows) {
                 allRows = rows;
+                if (fitContent()) {
+                    fitted = {};
+                    buildHeader();
+                }
                 applyView();
             },
             // Redraws without filtering again, so an edited row does not vanish from view.

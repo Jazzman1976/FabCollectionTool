@@ -1,4 +1,4 @@
-# FabCollectionTool 2.7.0
+# FabCollectionTool 2.8.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -22,7 +22,7 @@ Bestand startet der Einrichtungs-Assistent, danach eine kurze Tour (wiederholbar
 
 **Die ausführliche Anleitung für Anwender steht in [`doku.html`](doku.html)** (in der App:
 *Hilfe → Dokumentation*): Arbeitsordner und Speichern, Spalten, Tastatur, Status und
-Kartenbilder, Editiermodus, Filter mit Häkchen und Platzhaltern, Gliederung, Sets aufnehmen,
+Kartenbilder, Editiermodus, Filter mit Häkchen und Platzhaltern, Gliederung, Sets anzeigen,
 Stammdaten mit Branch-Auswahl, Protokoll und Rückgängig, Import/Export, Backup, Diagnose,
 häufige Fragen.
 
@@ -32,7 +32,7 @@ Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.m
 
 | Bereich | Funktion |
 |---|---|
-| **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets aufnehmen …* |
+| **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets anzeigen …* |
 | **Import / Export** | Import: ODS (die FabCollectionTool-1.0-Tabelle), Fabrary · Export: Fabrary, Cardmarket (Wants-Liste) |
 | **Stammdaten** | Branch des Datensatzes, Stand, *Aktualisieren*, *Übernehmen …* (je Karte), *Info* |
 | **Ansicht** | Design (Auto, Hell, Dunkel), Schriftgröße, Lage der Meldungen, *Editiermodus* |
@@ -83,7 +83,10 @@ Playset,ST,RF,CF,GF,Edition,Language,First In,Note,Overrides
 
 (im Original eine Zeile). Die Reihenfolge ist **dieselbe wie in der Tabelle der Anwendung**
 (ohne die berechneten Spalten): Es gibt nur eine Spaltenliste, und die Datei sieht in einer
-Tabellenkalkulation aus wie in der App. Sie kann sich mit der Ansicht ändern (zuletzt mit
+Tabellenkalkulation aus wie in der App. Seit Issue #69 zeigt die Tabelle die Bestandteile einer
+Art zusammengelegt in einer Zelle (Talent, Class, Type, Subtype, Name mit Übersetzung,
+Backside Name; `model.COMBINED_COLUMNS`), jeweils an der Stelle der ersten Einzelspalte; die
+Datei behält die Einzelspalten, und in der Spaltenauswahl sind sie weiter einblendbar. Sie kann sich mit der Ansicht ändern (zuletzt mit
 Issue #62: `Edition`, `Language` und `First In` hinter die Mengen). Dateien
 älterer Versionen mit anderer Reihenfolge werden über die Spaltennamen gelesen; beim nächsten
 Speichern schreibt die Anwendung die aktuelle Reihenfolge.
@@ -170,7 +173,7 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
 - `tools/selftest.mjs`: automatische Prüfungen (CSV, ODS-Import, Fabrary-Import/-Export,
   Round-Trip, Fabrary-Zeilen aus den Stammdaten, Fabrary-Zuordnung, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
   Gruppen, Änderungsprotokoll, Erscheinungsdaten, Lückenfüllung, Übernehmen ohne Änderung
-  des Bestands, Wertelisten, Platzhalter, Sets aufnehmen, Playset, bearbeitbare Zellen,
+  des Bestands, Wertelisten, Platzhalter, Sets anzeigen und ausblenden, Playset, bearbeitbare Zellen,
   Grenzen von Protokoll und Diagnose-Log, Spaltenreihenfolge, Kartenbilder, Branch-URL,
   Zeilenlänge):
   `node tools/selftest.mjs <altes.ods> <fabrary-export.csv> [Ordner mit Quell-CSVs]

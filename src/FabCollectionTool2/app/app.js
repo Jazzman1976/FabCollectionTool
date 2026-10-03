@@ -19,6 +19,7 @@ FCT.app = (function () {
         logCandidate: null,    // remembered log file handle, access not yet checked
         dirty: false,
         shownRows: [],         // collection plus gap rows, as passed to the grid
+        hiddenRows: [],        // rows of hidden sets: in the collection, but not shown (#67)
         rowsById: new Map(),   // rows of the collection per card number (see rebuild)
         editMode: false,
         writable: false,       // the opened file may be written without asking (autosave)
@@ -40,9 +41,8 @@ FCT.app = (function () {
      * after the quantities. The default view shows the columns asked for in the feedback.
      * Widths are in em, so they follow the font size.
      */
-    var DEFAULT_COLUMNS = ['Set', 'Id', '_image', 'Rarity', 'Metatype', 'Talent1',
-        'Talent2', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name',
-        'Art Treatment', 'Pitch', 'Playset',
+    var DEFAULT_COLUMNS = ['Set', 'Id', '_image', 'Rarity', 'Metatype', '_talent', '_class',
+        '_type', '_subtype', '_name', 'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
         '_leftTotal', 'Edition', 'Language', '_exclusive'];
     var WIDTHS = {
@@ -51,9 +51,30 @@ FCT.app = (function () {
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
         'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
-        Peculiarity: 7, 'Art Treatment': 8.5, Note: 15
+        Peculiarity: 7, 'Art Treatment': 8.5, Note: 15,
+        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 13.5, _backside: 10
+    };
+    // The name column has a fixed width instead of that of its longest content (review of
+    // issue #69). Since the art treatment is a column of its own again (issue #72), 13.5em
+    // hold 90 % of the rows of the example collection (docs/example.ods with its gaps; 90th
+    // percentile 12.0em of text plus 1.2em of padding). Longer names end in "…", the tooltip
+    // shows them in full.
+    var FIXED_WIDTH = ['_name'];
+
+    // Explanations of the combined columns (issue #69).
+    var COMBINED_HINTS = {
+        _talent: 'Talent1 und Talent2 in einer Zelle',
+        _class: 'Class1 und Class2 in einer Zelle',
+        _type: 'Type1 und Type2 in einer Zelle',
+        _subtype: 'Sub1, Sub2 und Sub3 in einer Zelle',
+        _name: 'Name, bei Sprachvarianten dahinter in Klammern die Übersetzung mit Sprache ' +
+            '– z. B. „Name (DE: …)“',
+        _backside: 'Name der Rückseite, dahinter in Klammern die Übersetzung mit Sprache'
     };
     var STEP_WIDTH = 5.5;
+
+    // Columns that cannot be hidden: those that tell the variants apart.
+    var FIXED_COLUMNS = model.VARIANT_COLUMNS;
 
     // Explanations shown when hovering over a column title (feedback on 2.0.5.0).
     var HINTS = {
@@ -174,6 +195,28 @@ FCT.app = (function () {
             hint: 'ja = die Karte gibt es nur in diesem einen Set (kein Reprint, keine Promo)',
             value: function (row) { return FCT.reference.isExclusive(row) ? 'ja' : ''; } };
 
+        // Combined columns (issue #69): the parts of a kind in one cell, each in front of
+        // its first part. The parts stay columns of their own ("Einzelspalten"), hidden in
+        // the default view. A combined cell is edited in a window with its single fields.
+        model.COMBINED_COLUMNS.forEach(function (combined) {
+            var column = {
+                key: combined.key, label: combined.label, kind: 'reference',
+                parts: combined.parts, list: !!combined.words,
+                fit: FIXED_WIDTH.indexOf(combined.key) < 0,
+                width: WIDTHS[combined.key], hint: COMBINED_HINTS[combined.key] +
+                    '. Bearbeiten öffnet ein Fenster mit den Einzelfeldern',
+                value: function (row) { return model.combinedValue(row, combined); },
+                filterValues: combined.words
+                    ? function (row) { return model.combinedParts(row, combined); } : null
+            };
+            columns.forEach(function (c) {
+                if (combined.parts.indexOf(c.key) >= 0) c.single = true;
+            });
+            var first = columns.map(function (c) { return c.key; })
+                .indexOf(combined.parts[0]);
+            columns.splice(first, 0, column);
+        });
+
         // The picture follows the card number, the calculated columns the quantities, and
         // "Exklusiv" the first set (behind the calculated columns since issue #62).
         var keys = columns.map(function (c) { return c.key; });
@@ -214,9 +257,20 @@ FCT.app = (function () {
             settings.set('columnsExclusive', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
+        // Combined columns replace their parts (issue #69); a remembered choice is converted
+        // once: whoever showed a part gets the combined column instead.
+        if (!settings.get('columnsCombined', false)) {
+            model.COMBINED_COLUMNS.forEach(function (combined) {
+                var had = visible.some(function (k) { return combined.parts.indexOf(k) >= 0; });
+                visible = visible.filter(function (k) { return combined.parts.indexOf(k) < 0; });
+                if (had && visible.indexOf(combined.key) < 0) visible.push(combined.key);
+            });
+            settings.set('columnsCombined', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
         // The columns of a variant are always shown (since 2.0.6.3).
         all.forEach(function (c) {
-            c.fixed = model.VARIANT_COLUMNS.indexOf(c.key) >= 0;
+            c.fixed = FIXED_COLUMNS.indexOf(c.key) >= 0;
             c.hidden = !c.fixed && visible.indexOf(c.key) < 0;
         });
         return all;
@@ -227,7 +281,8 @@ FCT.app = (function () {
      */
 
     // Recalculates everything and shows the current rows. Sets that occur in the collection
-    // are shown complete: missing printings appear as gap rows at their place.
+    // are shown complete: missing printings appear as gap rows at their place. Rows of hidden
+    // sets (issue #67) are not shown, but count in the calculation.
     function rebuild() {
         state.rowsById = new Map();
         state.collection.rows.forEach(function (row) {
@@ -236,7 +291,8 @@ FCT.app = (function () {
         });
         var rows = model.withGaps(state.collection);
         state.shownRows = rows;
-        model.calculate(rows);
+        state.hiddenRows = model.hiddenRows(state.collection);
+        model.calculate(rows.concat(state.hiddenRows));
         rows.forEach(markProblems);
         grid.setRows(rows);
         updateStatus();
@@ -251,14 +307,21 @@ FCT.app = (function () {
 
     function updateStatus() {
         var totals = model.totals(state.collection.rows);
-        var gaps = state.shownRows.length - state.collection.rows.length;
+        var hidden = state.hiddenRows || [];
+        var gaps = state.shownRows.length - (state.collection.rows.length - hidden.length);
+        var hiddenSets = new Set(hidden.map(function (row) { return model.setCode(row.Id); }));
         var name = state.file ? state.file.name : 'kein Bestand geöffnet';
         $('status-file').textContent = name + (state.dirty ? ' • ungespeicherte Änderungen' : '');
         $('status-file').className = state.dirty ? 'dirty' : '';
         $('status-rows').textContent = totals.rows.toLocaleString('de-DE') +
             ' Zeilen im Bestand · ' + totals.cards.toLocaleString('de-DE') + ' Karten · ' +
             Math.max(0, gaps).toLocaleString('de-DE') + ' fehlende Varianten · ' +
-            grid.viewCount().toLocaleString('de-DE') + ' angezeigt';
+            grid.viewCount().toLocaleString('de-DE') + ' angezeigt' +
+            (hiddenSets.size ? ' · ' + hiddenSets.size + (hiddenSets.size === 1
+                ? ' Set ausgeblendet' : ' Sets ausgeblendet') : '');
+        $('status-rows').title = hiddenSets.size ? 'Ausgeblendet (Zeilen bleiben im Bestand ' +
+            'und zählen mit): ' + Array.from(hiddenSets).sort().join(', ') +
+            ' – ändern unter „Sets anzeigen …“' : '';
         updateSaveStatus();
         $('status-clipboard').textContent = state.clipboard
             ? 'Kopiert: ' + state.clipboard.Id + ' ' + state.clipboard.Name : '';
@@ -446,7 +509,7 @@ FCT.app = (function () {
         }
         // Rows by card number, to find the row of an entry quickly.
         var byId = new Map();
-        (state.shownRows || state.collection.rows).forEach(function (row) {
+        state.shownRows.concat(state.hiddenRows).forEach(function (row) {
             if (!byId.has(row.Id)) byId.set(row.Id, []);
             byId.get(row.Id).push(row);
         });
@@ -491,7 +554,7 @@ FCT.app = (function () {
         if (row) {
             buttons.push(el('button', { type: 'button', className: 'log-action',
                 text: 'Zur Zeile', title: 'Die Zeile in der Tabelle zeigen',
-                onclick: function () { grid.select(row); grid.focus(); } }));
+                onclick: function () { if (selectRow(row)) grid.focus(); } }));
         }
         if (row && e.column && UNDOABLE.indexOf(e.action) >= 0) {
             buttons.push(el('button', { type: 'button', className: 'log-action',
@@ -522,7 +585,7 @@ FCT.app = (function () {
         if (current !== e.new) {
             showMessage('Rückgängig nicht möglich', e.id + ' ' + e.column + ' wurde inzwischen ' +
                 'geändert (jetzt „' + current + '“). Bitte direkt in der Tabelle anpassen.');
-            grid.select(row);
+            selectRow(row);
             return;
         }
         changeCell(row, e.column, e.old, 'Rückgängig');
@@ -628,7 +691,7 @@ FCT.app = (function () {
      * asks for the name and the place of the new file (the working folder, or the folder of
      * the file opened last) and explains that the current collection stays a file that
      * "Öffnen" loads again. Only after confirming does the current collection give way.
-     * options.thenAddSets: open "Sets aufnehmen" afterwards (first set of an empty folder).
+     * options.thenAddSets: open "Sets anzeigen" afterwards (first set of an empty folder).
      */
     function newCollection(options) {
         options = options && !options.type ? options : {};
@@ -771,7 +834,7 @@ FCT.app = (function () {
         rememberCurrent();
         updateStatus();
         showMessage('Neuer Bestand', created.name + ' ist angelegt und noch leer. Zeilen ' +
-            'kommen über „Sets aufnehmen …“ (Gruppe Bestand), einen Import oder ＋ dazu.');
+            'kommen über „Sets anzeigen …“ (Gruppe Bestand), einen Import oder ＋ dazu.');
         var asked = created.handle ? askAutosave(created.handle, null) : null;
         return Promise.resolve(asked).then(function () {
             return options.thenAddSets ? addSets() : null;
@@ -1105,9 +1168,10 @@ FCT.app = (function () {
     /*
      * Configuration file <name>-config.json next to the collection (issue #18, decided by
      * Elmar: what has to be kept besides the collection and its log goes into a file, which
-     * lasts longer than the browser storage). It holds the sets collected without any row in
-     * the CSV and the collection's own Fabrary mapping (issue #17, addendum), written only if
-     * there is one. It is read when a collection is opened from the working folder and
+     * lasts longer than the browser storage). It holds the sets shown without any row in the
+     * CSV, the hidden sets (issue #67) and the collection's own Fabrary mapping (issue #17,
+     * addendum), the latter two written only if there are any. It is read when a collection
+     * is opened from the working folder and
      * written with the collection (also by autosave), only if its content changed. Without a
      * working folder it is kept in the copy in the browser only.
      */
@@ -1121,6 +1185,10 @@ FCT.app = (function () {
     // The values kept in the configuration, as an object.
     function configValues() {
         var config = { collectedSets: (state.collection.collectedSets || []).slice().sort() };
+        // Hidden sets (issue #67) are only written if there are any, so that configuration
+        // files without them stay as they are.
+        var hidden = (state.collection.hiddenSets || []).slice().sort();
+        if (hidden.length) config.hiddenSets = hidden;
         var own = state.collection.fabraryOverrides;
         if (!FCT.fabraryMap.isEmpty(own)) config.fabrary = sortedMap(own);
         return config;
@@ -1141,13 +1209,16 @@ FCT.app = (function () {
         return JSON.stringify(config, null, 2) + '\n';
     }
 
-    // Takes the values of a configuration ({ collectedSets, fabrary }) into the open
-    // collection.
+    // Takes the values of a configuration ({ collectedSets, hiddenSets, fabrary }) into the
+    // open collection.
     function applyConfig(config) {
-        var sets = config && Array.isArray(config.collectedSets) ? config.collectedSets : [];
-        state.collection.collectedSets = sets.filter(function (code) {
-            return typeof code === 'string' && /^[A-Z0-9]{3}$/.test(code);
-        });
+        function codes(list) {
+            return (Array.isArray(list) ? list : []).filter(function (code) {
+                return typeof code === 'string' && /^[A-Z0-9]{3}$/.test(code);
+            });
+        }
+        state.collection.collectedSets = codes(config && config.collectedSets);
+        state.collection.hiddenSets = codes(config && config.hiddenSets);
         state.collection.fabraryOverrides = FCT.fabraryMap.normalize(config && config.fabrary);
     }
 
@@ -1167,8 +1238,8 @@ FCT.app = (function () {
             }).catch(function (error) {
                 FCT.log.warn('config', 'Konfigurationsdatei nicht lesbar', error);
                 showMessage('Konfiguration', configName() + ' ließ sich nicht lesen (' +
-                    (error && error.message) + '). Sets ohne Zeilen und die eigene ' +
-                    'Fabrary-Zuordnung fehlen deshalb.');
+                    (error && error.message) + '). Die Auswahl der angezeigten Sets und die ' +
+                    'eigene Fabrary-Zuordnung fehlen deshalb.');
             });
         }
         if (last && last.config) { applyConfig(last.config); rebuild(); }
@@ -1182,11 +1253,12 @@ FCT.app = (function () {
         var text = configText();
         if (!fileInFolder()) {
             var keep = state.collection.collectedSets.length ||
+                (state.collection.hiddenSets || []).length ||
                 !FCT.fabraryMap.isEmpty(state.collection.fabraryOverrides);
             if (keep && !state.configNoticeShown) {
                 state.configNoticeShown = true;
-                FCT.notices.show('config', 'info', 'Die Sets, die du ohne Zeilen sammelst ' +
-                    '(grau), und deine Fabrary-Zuordnung stehen nur mit Arbeitsordner in ' +
+                FCT.notices.show('config', 'info', 'Welche Sets die Tabelle zeigt oder ' +
+                    'ausblendet und deine Fabrary-Zuordnung stehen nur mit Arbeitsordner in ' +
                     'einer eigenen Datei neben dem Bestand. Ohne Arbeitsordner merkt sie sich ' +
                     'nur dieser Browser.', { closable: true });
             }
@@ -2391,7 +2463,7 @@ FCT.app = (function () {
             return a.label.localeCompare(b.label);
         });
 
-        // Set list with search, as in "Sets aufnehmen".
+        // Set list with search, as in "Sets anzeigen".
         var setBoxes = [];
         var setList = el('ul', { className: 'cards set-list' });
         sets.forEach(function (set) {
@@ -2588,7 +2660,7 @@ FCT.app = (function () {
         return released.length;
     }
 
-    // The set of a row that leaves the collection stays collected, also when it was its last
+    // The set of a row that leaves the collection stays shown, also when it was its last
     // row: its printings then show up grey (○) instead of the set disappearing (issue #18).
     function keepCollected(row) {
         var code = model.setCode(row.Id);
@@ -2597,7 +2669,13 @@ FCT.app = (function () {
     }
 
     // Selects a row after a rebuild; a row that went back to a gap is found by its variant.
+    // A row of a hidden set cannot be shown: a notice offers to show the set (issue #67).
+    // Returns true if a row was selected.
     function selectRow(row) {
+        if (state.hiddenRows.indexOf(row) >= 0) {
+            offerHiddenSet(row);
+            return false;
+        }
         if (state.shownRows.indexOf(row) < 0) {
             row = state.shownRows.filter(function (r) {
                 return r.Id === row.Id && r.Edition === row.Edition &&
@@ -2605,6 +2683,25 @@ FCT.app = (function () {
             })[0] || null;
         }
         if (row) grid.select(row);
+        return !!row;
+    }
+
+    // Notice for a row that is not in the table because its set is hidden, with a button that
+    // shows the set and goes to the row.
+    function offerHiddenSet(row) {
+        var code = model.setCode(row.Id);
+        var name = shownSetLabel(code);
+        FCT.notices.show('hidden-set', 'info', row.Id + ' ' + row.Name + ' steht nicht in der ' +
+            'Tabelle: Das Set ' + name + ' ist ausgeblendet.', {
+                closable: true,
+                buttons: [{ label: 'Set anzeigen', onClick: function () {
+                    FCT.notices.clear('hidden-set');
+                    changeShownSets([code], []);
+                    setDirty(true);
+                    rebuild();
+                    selectRow(row);
+                } }]
+            });
     }
 
     // Called by the grid after a cell was edited or a quantity button was pressed.
@@ -2624,6 +2721,12 @@ FCT.app = (function () {
     // marked deviations from the reference data also outside edit mode (see model).
     function isEditable(column, row) {
         if (column.kind === 'calc') return false;
+        // A combined cell can be edited as soon as one of its fields can.
+        if (column.parts) {
+            return column.parts.some(function (part) {
+                return model.isEditable(row, part, state.editMode);
+            });
+        }
         return model.isEditable(row, column.key, state.editMode);
     }
 
@@ -2658,14 +2761,32 @@ FCT.app = (function () {
 
     // Value of the reference data for a cell, offered first in its drop-down (or null).
     function referenceValue(column, row) {
-        if (model.columnKind(column.key) !== 'reference') return null;
+        if (column.parts || model.columnKind(column.key) !== 'reference') return null;
         var expected = FCT.reference.expected(row);
         return expected ? expected[column.key] : null;
     }
 
     // Marks of a row: locally changed reference values, deviations from the reference data
-    // and unknown card numbers.
+    // and unknown card numbers. A combined cell carries the marks of its fields.
     function rowMarks(row) {
+        var marks = fieldMarks(row);
+        model.COMBINED_COLUMNS.forEach(function (combined) {
+            var own = combined.parts.filter(function (part) { return marks[part]; });
+            if (!own.length) return;
+            // A deviation counts more than a local change.
+            var classes = own.map(function (part) { return marks[part].className; });
+            var className = ['stale', 'override'].filter(function (name) {
+                return classes.indexOf(name) >= 0;
+            })[0] || '';
+            marks[combined.key] = { className: className, title: own.map(function (part) {
+                return part + ': ' + marks[part].title;
+            }).join('\n') };
+        });
+        return marks;
+    }
+
+    // Marks of the single fields of a row (see rowMarks).
+    function fieldMarks(row) {
         var marks = {};
         if (row._unknownId) {
             marks.Id = { className: 'unknown', title: 'Kartennummer nicht in den Stammdaten' };
@@ -2753,9 +2874,11 @@ FCT.app = (function () {
         return true;
     }
 
-    // Values for the drop-downs of the edit mode.
+    // Values for the drop-downs of the edit mode. A combined column of words has the values
+    // of its first part (they order its check box filter).
     function choices(column) {
-        return model.choices(column.key, state.collection.rows);
+        var key = column.parts ? (column.filterValues ? column.parts[0] : null) : column.key;
+        return key ? model.choices(key, state.collection.rows) : null;
     }
 
     // Title and release date of a set group, e.g. "Monarch (MON)". The code is the most
@@ -2775,7 +2898,7 @@ FCT.app = (function () {
 
     // Recalculates all shown rows without filtering again.
     function rebuildCalculationOnly() {
-        model.calculate(state.shownRows);
+        model.calculate(state.shownRows.concat(state.hiddenRows));
         state.shownRows.forEach(markProblems);
         grid.refresh();
         updateStatus();
@@ -2958,17 +3081,21 @@ FCT.app = (function () {
     /*
      * Row dialog: all fields of a row; for reference columns the value of the reference data
      * is shown next to it and can be restored per field or for all fields at once.
+     * With a combined column (issue #69) the same dialog shows only the fields of that cell,
+     * one below the other; fields that may not be edited now (see model.isEditable) are
+     * locked.
      */
-    function editRow(row) {
+    function editRow(row, column) {
         var expected = FCT.reference.expected(row);
         var overridden = model.overrides(row);
         var inputs = {};
 
-        var lines = model.COLUMNS.filter(function (key) {
+        var lines = (column ? column.parts : model.COLUMNS.filter(function (key) {
             return model.columnKind(key) !== 'internal';
-        }).map(function (key) {
+        })).map(function (key) {
             var kind = model.columnKind(key);
             var input = fieldInput(key, row[key] || '', kind);
+            input.disabled = !!column && !model.isEditable(row, key, state.editMode);
             inputs[key] = input;
 
             var reference = '';
@@ -2976,7 +3103,7 @@ FCT.app = (function () {
             if (kind === 'reference' && expected) {
                 reference = expected[key];
                 reset = el('button', {
-                    type: 'button', className: 'reset', text: '↺',
+                    type: 'button', className: 'reset', text: '↺', hidden: input.disabled,
                     title: 'Auf den Stammdatenwert zurücksetzen',
                     onclick: function () {
                         setField(input, expected[key]);
@@ -3032,6 +3159,7 @@ FCT.app = (function () {
         function takeReference(all) {
             if (!expected) return;
             model.REFERENCE_COLUMNS.forEach(function (key) {
+                if (!inputs[key] || inputs[key].disabled) return;
                 if (key === 'Backside Name' && !expected[key]) return;
                 if (!all && overridden.indexOf(key) >= 0) return;
                 if (inputs[key].value === expected[key]) return;
@@ -3041,8 +3169,9 @@ FCT.app = (function () {
             });
         }
 
+        var title = [row.Id, row.Name].filter(Boolean).join(' – ') || 'Neue Zeile';
         return openDialog({
-            title: [row.Id, row.Name].filter(Boolean).join(' – ') || 'Neue Zeile',
+            title: column ? title + ' – ' + column.label : title,
             body: table,
             hint: hint,
             wide: true,
@@ -3059,6 +3188,7 @@ FCT.app = (function () {
             var changed = false;
             Object.keys(inputs).forEach(function (key) {
                 var input = inputs[key];
+                if (input.disabled) return;
                 var action = input.getAttribute('data-reset') ? 'Zurückgesetzt' : 'Geändert';
                 if (changeCell(row, key, input.value, action)) changed = true;
             });
@@ -3071,88 +3201,65 @@ FCT.app = (function () {
     }
 
     /*
-     * Taking whole sets into the collection (feedback on 2.0.2.0, issue #18): the sets of the
-     * reference data that are not collected yet are listed, newest first. By default the ticked
-     * sets are only shown: their printings appear as gaps (○) and enter the CSV once they get
-     * a quantity; the set codes are kept in the configuration file. On request every printing
-     * becomes a row with empty quantities, as in the old spreadsheet. Sets collected without
-     * rows can be given up again in the same dialog.
+     * "Sets anzeigen" (issue #67, before that "Sets aufnehmen", feedback on 2.0.2.0 and issue
+     * #18): which sets the table shows is a matter of the view only. One list holds all sets
+     * of the reference data, newest first; a tick means "shown". A shown set without rows has
+     * its printings as gaps (○), which enter the CSV once they get a quantity. A set with rows
+     * can be hidden: its rows stay in the CSV, count in the calculations and go into the
+     * exports. The choice is kept in the configuration file.
      */
-    var ADD_SETS_MODES = {
-        show: 'Nur anzeigen (grau) – erst eine Menge nimmt die Karte in den Bestand auf',
-        rows: 'Als Zeilen mit leeren Mengen in den Bestand schreiben (wie in der 1.0-Tabelle)'
-    };
-
     function addSets() {
-        var sets = model.missingSets(state.collection);
-        var withoutRows = setsWithoutRows();
-        if (!sets.length && !withoutRows.length) {
-            showMessage('Sets aufnehmen', 'Alle Sets der Stammdaten sind schon im Bestand.');
-            return null;
-        }
+        var sets = model.setList(state.collection);
         var boxes = [];
         var list = el('ul', { className: 'cards set-list' });
         var search = el('input', { type: 'search', placeholder: 'Set suchen (* ?)',
             title: 'Enthält den Text; * = beliebiger Text, ? = ein Zeichen' });
+        var onlyShown = el('input', { type: 'checkbox' });
         sets.forEach(function (set) {
             var box = el('input', { type: 'checkbox' });
+            box.checked = set.shown;
             box._set = set;
             boxes.push(box);
             var date = set.date ? new Date(set.date + 'T00:00:00').toLocaleDateString('de-DE')
                 : 'ohne Datum';
+            var own = set.rows ? set.rows.toLocaleString('de-DE') +
+                (set.rows === 1 ? ' Zeile' : ' Zeilen') + ' im Bestand' : 'keine Zeilen';
             box._item = el('li', {}, [el('label', {}, [box, ' ',
                 el('strong', { text: set.name + ' (' + set.code + ')' }),
                 el('span', { className: 'what', text: ' ' + date + ' · ' +
-                    set.printings.toLocaleString('de-DE') + ' Varianten' })])]);
+                    set.printings.toLocaleString('de-DE') + ' Varianten · ' + own })])]);
             list.appendChild(box._item);
         });
 
-        // The search narrows the list (also with wildcards); ticked sets stay ticked.
-        search.addEventListener('input', function () {
+        // The search (also with wildcards) and "nur angezeigte" narrow the list; ticks stay.
+        function narrow() {
             var text = util.fold(search.value);
             var test = util.wildcard(search.value);
             boxes.forEach(function (box) {
                 var name = util.fold(box._set.name + ' (' + box._set.code + ')');
                 var match = !text || (test ? test(name) : name.indexOf(text) >= 0);
-                box._item.hidden = !match;
+                box._item.hidden = !match || (onlyShown.checked && !box.checked);
             });
-        });
-
-        // How the ticked sets are taken in; the choice is remembered.
-        var mode = settings.get('addSetsMode', 'show');
-        var modes = Object.keys(ADD_SETS_MODES).map(function (value) {
-            var radio = el('input', { type: 'radio', name: 'add-sets-mode', value: value });
-            radio.checked = value === mode;
-            return el('label', {}, [radio, ' ' + ADD_SETS_MODES[value]]);
-        });
-
-        // Sets collected without rows, to give them up again.
-        var dropBoxes = withoutRows.map(function (code) {
-            var box = el('input', { type: 'checkbox' });
-            box._code = code;
-            return box;
-        });
-        var dropList = withoutRows.length ? el('div', {}, [
-            el('h3', { text: 'Gesammelt ohne Zeilen (grau)' }),
-            el('p', { className: 'what', text: 'Angehakte Sets werden nicht mehr gesammelt; ' +
-                'ihre grauen Zeilen verschwinden. Die Bestandsdatei ändert sich nicht.' }),
-            el('ul', { className: 'cards set-list' }, dropBoxes.map(function (box) {
-                return el('li', {}, [el('label', {}, [box, ' ', el('strong', {
-                    text: FCT.reference.setName(box._code) + ' (' + box._code + ')' })])]);
-            }))
-        ]) : null;
+        }
+        search.addEventListener('input', narrow);
+        onlyShown.addEventListener('change', narrow);
 
         var body = el('div', { className: 'report take-over' }, [
-            sets.length ? search : null,
-            sets.length ? list : null,
-            sets.length ? el('div', { className: 'add-sets-mode' }, modes) : null,
-            dropList
+            el('p', { className: 'what', text: 'Haken = das Set steht in der Tabelle. Ohne ' +
+                'Haken ist es ausgeblendet; seine Zeilen bleiben unverändert in der ' +
+                'Bestandsdatei, zählen weiter in Have / Need / Left (total) und gehen weiter ' +
+                'in die Exporte.' }),
+            el('div', { className: 'set-filter' }, [search,
+                el('label', {}, [onlyShown, ' nur angezeigte'])]),
+            list
         ]);
+        var shownCount = sets.filter(function (set) { return set.shown; }).length;
         return openDialog({
-            title: 'Sets aufnehmen – ' + sets.length + ' Sets noch nicht im Bestand',
+            title: 'Sets in der Liste anzeigen – ' + shownCount + ' von ' + sets.length,
             body: body,
-            hint: 'Später erscheinende Varianten eines gesammelten Sets tauchen automatisch ' +
-                'als ○ auf.',
+            hint: 'Ein angezeigtes Set ohne Zeilen steht grau (○) in der Tabelle; erst eine ' +
+                'Menge schreibt eine Karte in die Bestandsdatei. Später erscheinende ' +
+                'Varianten tauchen automatisch als ○ auf.',
             wide: true,
             buttons: [
                 { label: 'Abbrechen', value: 'cancel' },
@@ -3160,94 +3267,79 @@ FCT.app = (function () {
             ]
         }).then(function (value) {
             if (value !== 'accept') return;
-            var chosen = boxes.filter(function (b) { return b.checked; }).map(function (b) {
-                return b._set;
-            });
-            var dropped = dropBoxes.filter(function (b) { return b.checked; }).map(function (b) {
-                return b._code;
-            });
-            var checked = modes.map(function (label) {
-                return label.querySelector('input');
-            }).filter(function (radio) { return radio.checked; })[0];
-            mode = checked ? checked.value : mode;
-            settings.set('addSetsMode', mode);
-            if (!chosen.length && !dropped.length) return;
-            var first = mode === 'rows' ? takeSetsAsRows(chosen) : takeSetsAsGaps(chosen);
-            dropSets(dropped);
+            function codes(shown) {
+                return boxes.filter(function (box) {
+                    return box.checked === shown && box._set.shown !== shown;
+                }).map(function (box) { return box._set.code; });
+            }
+            var show = codes(true);
+            var hide = codes(false);
+            if (!show.length && !hide.length) return;
+            changeShownSets(show, hide);
             setDirty(true);
             rebuild();
+            FCT.notices.clear('hidden-set');
+            reportShownSets(show, hide);
+            var first = show.length ? state.shownRows.filter(function (row) {
+                return model.setCode(row.Id) === show[0];
+            })[0] : null;
             if (first) selectRow(first);
         });
     }
 
-    // Set codes collected without any row in the collection.
-    function setsWithoutRows() {
+    // "Welcome to Rathe (WTR)" for a set code, as "Sets anzeigen" names a set.
+    function shownSetLabel(code) {
+        return FCT.reference.setName(code) + ' (' + code + ')';
+    }
+
+    // Shows and hides sets (see model.setShown) and notes it in the change log.
+    function changeShownSets(show, hide) {
+        var rows = new Map();
+        state.collection.rows.forEach(function (row) {
+            var code = model.setCode(row.Id);
+            rows.set(code, (rows.get(code) || 0) + 1);
+        });
+        function change(code, shown) {
+            if (!model.setShown(state.collection, code, shown)) return;
+            var count = rows.get(code) || 0;
+            changelog.add(shown ? 'Set angezeigt' : 'Set ausgeblendet', null, '', '',
+                shownSetLabel(code) + ' – ' + (count ? count + ' Zeilen im Bestand' +
+                    (shown ? '' : ', unverändert') : 'keine Zeilen'));
+        }
+        show.forEach(function (code) { change(code, true); });
+        hide.forEach(function (code) { change(code, false); });
+        FCT.log.info('sets', 'Angezeigte Sets geändert', { shown: show, hidden: hide });
+    }
+
+    // Says what changed after "Sets anzeigen".
+    function reportShownSets(show, hide) {
         var withRows = new Set(state.collection.rows.map(function (row) {
             return model.setCode(row.Id);
         }));
-        return (state.collection.collectedSets || []).filter(function (code) {
-            return !withRows.has(code);
-        });
-    }
-
-    // "Nur anzeigen": the sets are collected, their printings show up as gaps. Returns the
-    // first row of the first set, to select it.
-    function takeSetsAsGaps(chosen) {
-        if (!chosen.length) return null;
-        var codes = state.collection.collectedSets;
-        chosen.forEach(function (set) {
-            if (codes.indexOf(set.code) < 0) codes.push(set.code);
-            changelog.add('Set aufgenommen', null, '', '', set.name + ' (' + set.code +
-                ') – ' + set.printings + ' Varianten, nur angezeigt');
-        });
-        FCT.log.info('sets', 'Sets aufgenommen (nur angezeigt)', { sets: chosen.map(function (s) {
-            return s.code;
-        }) });
-        showMessage('Sets aufgenommen', chosen.map(function (set) {
-            return set.name + ' (' + set.code + ')';
-        }).join(', ') + ': Die Varianten stehen grau (○) in der Tabelle. Sobald du eine Menge ' +
-            'einträgst, kommt die Karte in die Bestandsdatei.');
-        var code = chosen[0].code;
-        return model.withGaps(state.collection).filter(function (row) {
-            return model.setCode(row.Id) === code;
-        })[0] || null;
-    }
-
-    // "Als Zeilen": every printing of the sets becomes a row with empty quantities.
-    function takeSetsAsRows(chosen) {
-        if (!chosen.length) return null;
-        var rows = model.setRows(state.collection, chosen.map(function (set) {
-            return set.code;
-        }));
-        Array.prototype.push.apply(state.collection.rows, rows);
-        chosen.forEach(function (set) {
-            var count = rows.filter(function (row) {
-                return model.setCode(row.Id) === set.code;
-            }).length;
-            changelog.add('Set aufgenommen', null, '', '', set.name + ' (' + set.code +
-                ') – ' + count + ' Zeilen');
-        });
-        FCT.log.info('sets', 'Sets aufgenommen', { sets: chosen.map(function (set) {
-            return set.code;
-        }), rows: rows.length });
-        showMessage('Sets aufgenommen', chosen.map(function (set) {
-            return set.name + ' (' + set.code + ')';
-        }).join(', ') + ': ' + rows.length.toLocaleString('de-DE') + ' Zeilen mit leeren ' +
-            'Mengen aufgenommen.');
-        return rows[0] || null;
-    }
-
-    // Gives up sets collected without rows.
-    function dropSets(codes) {
-        if (!codes.length) return;
-        state.collection.collectedSets = state.collection.collectedSets.filter(function (code) {
-            return codes.indexOf(code) < 0;
-        });
-        codes.forEach(function (code) {
-            changelog.add('Set nicht mehr gesammelt', null, '', '',
-                FCT.reference.setName(code) + ' (' + code + ')');
-        });
-        FCT.log.info('sets', 'Sets nicht mehr gesammelt', { sets: codes });
+        var lines = [];
+        var grey = show.filter(function (code) { return !withRows.has(code); });
+        var back = show.filter(function (code) { return withRows.has(code); });
+        var kept = hide.filter(function (code) { return withRows.has(code); });
+        var gone = hide.filter(function (code) { return !withRows.has(code); });
+        if (grey.length) {
+            lines.push('Angezeigt: ' + grey.map(shownSetLabel).join(', ') + '. Die ' +
+                'Varianten stehen grau (○) in der Tabelle. Sobald du eine Menge einträgst, ' +
+                'kommt die Karte in die Bestandsdatei.');
+        }
+        if (back.length) {
+            lines.push('Wieder angezeigt: ' + back.map(shownSetLabel).join(', ') +
+                ' – mit allen Zeilen und Mengen.');
+        }
+        if (kept.length) {
+            lines.push('Ausgeblendet: ' + kept.map(shownSetLabel).join(', ') + '. Die ' +
+                'Zeilen bleiben in der Bestandsdatei, zählen weiter mit und gehen weiter in die ' +
+                'Exporte.');
+        }
+        if (gone.length) {
+            lines.push('Nicht mehr angezeigt: ' + gone.map(shownSetLabel).join(', ') + '.');
+        }
+        showMessage(show.length ? 'Sets werden angezeigt' : 'Sets ausgeblendet',
+            lines.join(' '));
     }
 
     /*
@@ -3279,7 +3371,7 @@ FCT.app = (function () {
             body: el('div', { className: 'report take-over' }, [
                 el('p', { text: 'Diese Zeilen haben keine Menge, keine Notiz und keine lokale ' +
                     'Änderung. Sie werden aus der Bestandsdatei genommen und stehen danach ' +
-                    'grau (○) in der Tabelle; ihre Sets bleiben gesammelt.' }),
+                    'grau (○) in der Tabelle; ihre Sets bleiben angezeigt.' }),
                 list
             ]),
             wide: true,
@@ -3501,11 +3593,11 @@ FCT.app = (function () {
                 body: el('p', { text: 'Der Bestand ist gerade leer. Übernehmen gleicht die ' +
                     'Zeilen des Bestands mit den Stammdaten ab – ohne Zeilen gibt es nichts, ' +
                     'worauf Stammdaten übernommen werden können.' }),
-                hint: 'Zuerst Zeilen anlegen: „Sets aufnehmen …“ (Gruppe Bestand) oder die ' +
+                hint: 'Zuerst Sets wählen: „Sets anzeigen …“ (Gruppe Bestand) oder die ' +
                     '1.0-Tabelle bzw. einen Fabrary-Export importieren.',
                 buttons: [
                     { label: 'Schließen', value: 'cancel' },
-                    { label: 'Sets aufnehmen …', value: 'sets', primary: true }
+                    { label: 'Sets anzeigen …', value: 'sets', primary: true }
                 ]
             }).then(function (value) {
                 return value === 'sets' ? addSets() : null;
@@ -3798,9 +3890,11 @@ FCT.app = (function () {
         if (on) {
             FCT.notices.show('edit', 'info', 'Editiermodus: alle Spalten sind bearbeitbar ' +
                 '(Doppelklick, Klick auf die aktive Zelle oder einfach tippen), feste Werte per ' +
-                'Auswahlliste. Werte, die von den Stammdaten abweichen, sind erlaubt und werden ' +
-                'mit einer violetten Ecke (✱) markiert. Mengen: Tasten + / − oder Shift+↑ / ' +
-                'Shift+↓ bzw. Shift+→ / Shift+← (kein Tabellen-Standard).',
+                'Auswahlliste; zusammengelegte Zellen (Talent, Class, Type, Subtype, Name) ' +
+                'öffnen ein Fenster mit ihren Einzelfeldern. Werte, die von den Stammdaten ' +
+                'abweichen, sind erlaubt und werden mit einer violetten Ecke (✱) markiert. ' +
+                'Mengen: Tasten + / − oder Shift+↑ / Shift+↓ bzw. Shift+→ / Shift+← (kein ' +
+                'Tabellen-Standard).',
                 { buttons: [{ label: 'Beenden',
                     onClick: function () { setEditMode(false); } }] });
         } else {
@@ -3815,7 +3909,16 @@ FCT.app = (function () {
     function buildColumnChooser() {
         var list = $('columns-list');
         list.textContent = '';
-        grid.columns().forEach(function (column) {
+        // The parts of the combined columns (issue #69) follow under a heading of their own.
+        var combined = grid.columns().filter(function (c) { return !c.single; });
+        var single = grid.columns().filter(function (c) { return c.single; });
+        combined.concat([null], single).forEach(function (column) {
+            if (!column) {
+                list.appendChild(el('div', { className: 'columns-heading',
+                    text: 'Einzelspalten', title: 'Die einzelnen Felder der ' +
+                        'zusammengelegten Spalten, wie sie in der Bestandsdatei stehen' }));
+                return;
+            }
             var box = el('input', { type: 'checkbox', disabled: !!column.fixed });
             box.checked = !column.hidden;
             box.addEventListener('change', function () {
@@ -3864,7 +3967,7 @@ FCT.app = (function () {
 
         grid = FCT.grid.create($('grid'), {
             columns: buildColumns(),
-            searchKeys: ['Id', 'Name', 'Translated Name', 'Backside Name',
+            searchKeys: ['Id', 'Name', 'Art Treatment', 'Translated Name', 'Backside Name',
                 'Translated Backside Name', 'Set', 'Note', cardText],
             isEditable: isEditable,
 
@@ -3885,6 +3988,9 @@ FCT.app = (function () {
             setInfo: setInfo,
             matchesMode: matchesMode,
             onEdit: onEdit,
+            onEditParts: function (row, column) {
+                guarded(function () { return editRow(row, column); })();
+            },
             onAction: function (action, row) {
                 guarded(function () { return onAction(action, row); })();
             },

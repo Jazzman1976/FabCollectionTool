@@ -19,16 +19,20 @@ FCT.tour = (function () {
             text: 'Hier öffnest und speicherst du deinen Bestand (eine CSV-Datei). Beim ' +
                 'ersten Mal wählst du einen Arbeitsordner: Bestand, Protokoll und Backups ' +
                 'liegen dann zusammen, und Änderungen werden automatisch gespeichert.' },
-        { target: '#btn-add-sets', title: 'Sets aufnehmen',
-            text: 'Neue Sets holst du dir hier in den Bestand – auch solche, von denen du noch ' +
-                'keine Karte hast. Alle Varianten erscheinen dann als Zeilen zum Ausfüllen.' },
+        { target: '#btn-add-sets', title: 'Sets anzeigen',
+            text: 'Hier wählst du, welche Sets die Tabelle zeigt – auch solche, von denen du ' +
+                'noch keine Karte hast: Ihre Varianten stehen dann grau zum Ausfüllen da. Ein ' +
+                'Set lässt sich jederzeit wieder ausblenden; dein Bestand bleibt dabei, wie ' +
+                'er ist.' },
         { target: '#grid', title: 'Die Tabelle',
             text: 'Sie funktioniert wie die 1.0-Tabelle: Zelle anklicken, Zahl tippen, Enter ' +
                 'geht nach unten. Mengen zählst du mit den Tasten + / − hoch oder runter – ' +
                 'oder gleichwertig mit Shift+↑ / Shift+↓ bzw. Shift+→ / Shift+← (eine ' +
                 'Besonderheit dieser App, kein Tabellen-Standard). Sets und ' +
                 'Talent/Class-Gruppen lassen sich auf- und ' +
-                'zuklappen. Das Bildsymbol neben der Kartennummer zeigt beim Überfahren die ' +
+                'zuklappen. Talent, Class, Type und Subtype stehen je in einer Zelle, der ' +
+                'Name samt Übersetzung ebenso; beim Bearbeiten öffnet sich ein Fenster mit den ' +
+                'Einzelfeldern. Das Bildsymbol neben der Kartennummer zeigt beim Überfahren die ' +
                 'Karte, ein Klick zeigt sie groß.' },
         { target: '.grid thead th.status', title: 'Status jeder Zeile',
             text: '≠ weicht von den Stammdaten ab, ✱ hast du bewusst geändert, ○ ist eine ' +

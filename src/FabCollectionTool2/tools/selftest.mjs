@@ -627,6 +627,66 @@ if (!currentFile) {
         !m.isEmptyRow(unknown, collection));
 }
 
+/*
+ * Showing and hiding sets (issue #67) is a matter of the view only. A hidden set with rows
+ * leaves the table with its rows and gaps; the CSV, the Fabrary export and the totals of the
+ * other sets stay the same, and showing it again brings everything back. A set without rows
+ * is shown as gaps and hidden again without a trace.
+ */
+{
+    const m = FCT.model;
+    const collection = m.fromCsv(m.toCsv(ods.collection)).collection;
+    const ids = (rows) => rows.map((row) => row.Id + (row._reference ? '○' : '')).join('\n');
+    const cardKey = (row) => [row.Name, row.Pitch, row.Peculiarity].join('|');
+    const have = (row) => m.QUANTITIES.reduce((sum, q) => sum + (parseInt(row[q], 10) || 0), 0);
+
+    // A set with a row whose card is also owned in another set.
+    const owned = collection.rows.filter((row) => have(row) > 0);
+    const shared = owned.find((row) => owned.some((other) => cardKey(other) === cardKey(row) &&
+        m.setCode(other.Id) !== m.setCode(row.Id)));
+    const code = m.setCode(shared.Id);
+    const other = owned.find((row) => cardKey(row) === cardKey(shared) &&
+        m.setCode(row.Id) !== code);
+    const ownRows = collection.rows.filter((row) => m.setCode(row.Id) === code).length;
+
+    const csvBefore = m.toCsv(collection);
+    const fabraryBefore = FCT.exportFabrary.exportFabrary(collection).text;
+    const shownBefore = m.withGaps(collection);
+    m.calculate(shownBefore);
+    const totalBefore = other._calc.haveTotal;
+
+    const changed = m.setShown(collection, code, false);
+    const shown = m.withGaps(collection);
+    const hidden = m.hiddenRows(collection);
+    m.calculate(shown.concat(hidden));
+    const entry = m.setList(collection).find((set) => set.code === code);
+    check('Hide a set with rows', changed && ownRows > 0 && hidden.length === ownRows &&
+        !shown.some((row) => m.setCode(row.Id) === code) && shown.includes(other) &&
+        m.toCsv(collection) === csvBefore && other._calc.haveTotal === totalBefore &&
+        FCT.exportFabrary.exportFabrary(collection).text === fabraryBefore &&
+        entry.rows === ownRows && !entry.shown &&
+        !m.missingSets(collection).some((set) => set.code === code),
+        `${code}: ${ownRows} rows hidden, Have (total) ${totalBefore}`);
+
+    m.setShown(collection, code, true);
+    check('Show a hidden set again', !collection.hiddenSets.length &&
+        ids(m.withGaps(collection)) === ids(shownBefore) && m.toCsv(collection) === csvBefore);
+
+    // A set without rows: shown as gaps, hidden without a trace; no change, no report.
+    const empty = m.missingSets(collection).find((set) => set.printings > 10);
+    const collectedBefore = collection.collectedSets.slice();
+    const on = m.setShown(collection, empty.code, true);
+    const gaps = m.withGaps(collection).filter((row) => m.setCode(row.Id) === empty.code);
+    const listed = m.setList(collection).find((set) => set.code === empty.code);
+    const off = m.setShown(collection, empty.code, false);
+    check('Show and hide a set without rows', on && off && gaps.length === empty.printings &&
+        gaps.every((row) => row._reference) && listed.shown && listed.rows === 0 &&
+        !collection.hiddenSets.length && !m.setShown(collection, empty.code, false) &&
+        collection.collectedSets.join() === collectedBefore.join() &&
+        ids(m.withGaps(collection)) === ids(shownBefore) && m.toCsv(collection) === csvBefore,
+        `${empty.code}: ${gaps.length} gaps`);
+}
+
 // Playset from the reference data (2.0.3.0): legendary cards 1, Evo equipment 3. A differing
 // value of a file is kept as override; an empty one is filled in; nothing else changes.
 {
@@ -1033,6 +1093,52 @@ if (!currentFile) {
     check('Variants: foilings and columns', foils === '["CF"]' && language === null &&
         locked && columns, `WTR000 Alpha ${foils}, DE ${language}, locked ${locked}, ` +
         `variant columns ${m.VARIANT_COLUMNS.join(', ')}`);
+}
+
+/*
+ * Combined columns (issue #69): the table shows the parts of a kind in one cell, the file
+ * keeps one column per part. Words are joined by spaces and filtered one by one; the names
+ * follow "Name (DE: Translated Name)" and "Backside Name (DE: ...)", the translation only if
+ * it is filled. The art treatment is a column of its own (issue #72). No combined column is
+ * part of collection.csv.
+ */
+{
+    const m = FCT.model;
+    const by = (key) => m.COMBINED_COLUMNS.find((c) => c.key === key);
+    const text = (key, row) => m.combinedValue(row, by(key));
+    const row = m.newRow({ Id: 'XXX001', Talent1: 'Light', Talent2: 'Shadow', Class2: 'Runeblade',
+        Type1: 'Action', Sub1: 'Demon', Sub3: 'Ally', Name: 'Front' });
+    const words = text('_talent', row) === 'Light Shadow' && text('_class', row) === 'Runeblade' &&
+        text('_type', row) === 'Action' && text('_subtype', row) === 'Demon Ally' &&
+        text('_talent', m.newRow({})) === '' &&
+        m.combinedParts(row, by('_subtype')).join('|') === 'Demon|Ally' &&
+        m.combinedParts(m.newRow({}), by('_class')).length === 0;
+
+    const full = Object.assign({}, row, { 'Art Treatment': 'Full Art', Language: 'DE',
+        'Translated Name': 'Vorne', 'Backside Name': 'Back',
+        'Translated Backside Name': 'Hinten' });
+    const names = text('_name', row) === 'Front' && text('_backside', row) === '' &&
+        text('_name', Object.assign({}, row, { 'Art Treatment': 'Full Art' })) === 'Front' &&
+        text('_name', full) === 'Front (DE: Vorne)' && by('_name').label === 'Name' &&
+        !m.COMBINED_COLUMNS.some((c) => c.parts.includes('Art Treatment')) &&
+        text('_backside', full) === 'Back (DE: Hinten)' &&
+        text('_backside', Object.assign({}, full, { 'Translated Backside Name': '' })) === 'Back';
+
+    // Every part is a column of the file, in the order of the file; the file knows no
+    // combined column and is written exactly as before.
+    const parts = m.COMBINED_COLUMNS.every((c) => c.parts.every((p) => m.COLUMNS.includes(p)) &&
+        !m.COLUMNS.includes(c.key));
+    const once = m.toCsv(m.fromCsv(m.toCsv(ods.collection)).collection);
+    const header = FCT.csv.parse(once.replace(/^﻿/, ''))[0];
+    const file = header.join() === m.COLUMNS.concat(ods.collection.extraColumns).join() &&
+        m.toCsv(m.fromCsv(once).collection) === once;
+
+    // The longest subtype cell of the example has more than one part.
+    const most = ods.collection.rows.reduce((max, r) =>
+        Math.max(max, m.combinedParts(r, by('_subtype')).length), 0);
+    check('Combined columns', words && names && parts && file && most > 1,
+        `words ${words}, names ${names}, parts ${parts}, file ${file}, ` +
+        `up to ${most} subtypes in one cell`);
 }
 
 // Version 2.0.7.0: a new collection is called "collection.csv" (or "collection-2.csv" if the

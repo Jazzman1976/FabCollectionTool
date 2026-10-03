@@ -381,6 +381,49 @@ FCT.model = (function () {
     var QUANTITIES = ['ST', 'RF', 'CF', 'GF'];
     var NUMBER_COLUMNS = ['Playset'].concat(QUANTITIES);
 
+    /*
+     * Combined columns of the table (issue #69). collection.csv keeps one column per part of
+     * a card; the table shows the parts of a kind in one cell and splits them again only for
+     * editing. words: the parts are single words, shown separated by spaces and filtered one
+     * by one. The two name columns follow a pattern instead (see combinedValue). The art
+     * treatment is a column of its own again (issue #72), so that it keeps its check box
+     * filter.
+     */
+    var COMBINED_COLUMNS = [
+        { key: '_talent', label: 'Talent', parts: ['Talent1', 'Talent2'], words: true },
+        { key: '_class', label: 'Class', parts: ['Class1', 'Class2'], words: true },
+        { key: '_type', label: 'Type', parts: ['Type1', 'Type2'], words: true },
+        { key: '_subtype', label: 'Subtype', parts: ['Sub1', 'Sub2', 'Sub3'], words: true },
+        { key: '_name', label: 'Name', parts: ['Name', 'Translated Name'] },
+        { key: '_backside', label: 'Backside Name',
+            parts: ['Backside Name', 'Translated Backside Name'] }
+    ];
+
+    // Values of the parts of a combined column that are filled, in the order of the card.
+    function combinedParts(row, combined) {
+        return combined.parts.map(function (part) {
+            return String(row[part] == null ? '' : row[part]).trim();
+        }).filter(Boolean);
+    }
+
+    /*
+     * Text of a combined cell. Words are joined by spaces ("Demon Ally"). The names follow
+     * the pattern "Name (DE: Translated Name)" and "Backside Name (DE: Translated Backside
+     * Name)": the translation with the language of the row, and only if it is filled.
+     */
+    function combinedValue(row, combined) {
+        if (combined.words) return combinedParts(row, combined).join(' ');
+        function part(column) {
+            return String(row[column] == null ? '' : row[column]).trim();
+        }
+        var back = combined.key === '_backside';
+        var name = part(back ? 'Backside Name' : 'Name');
+        var translated = part(back ? 'Translated Backside Name' : 'Translated Name');
+        var language = part(LANGUAGE) || defaultLanguage();
+        return [name, translated ? '(' + language + ': ' + translated + ')' : '']
+            .filter(Boolean).join(' ');
+    }
+
     // Kinds of columns: the user's own input is always editable; reference columns come from
     // the reference data and identity columns describe the printing - both only in edit mode.
     // "Overrides" lists the reference columns the user changed on purpose (";" separated).
@@ -626,9 +669,11 @@ FCT.model = (function () {
     // Creates an empty collection.
     // collectedSets: set codes that are collected without any row in the CSV (issue #18); they
     // are kept in the configuration file next to the collection, not in the CSV.
+    // hiddenSets: set codes whose rows are in the CSV but not shown in the table (issue #67);
+    // kept in the configuration file as well.
     // fabraryOverrides: the collection's own Fabrary mapping (fabrary-map.js), also kept there.
     function create() {
-        return { rows: [], extraColumns: [], collectedSets: [],
+        return { rows: [], extraColumns: [], collectedSets: [], hiddenSets: [],
             fabraryOverrides: { sets: {}, variants: {} } };
     }
 
@@ -999,11 +1044,13 @@ FCT.model = (function () {
      * The collection with its gaps filled: printing variants missing from a collected set are
      * placed where they belong (after the last row of the same set with a card number up to
      * theirs). Sets collected without any row (issue #18) follow at the end, by card number.
-     * Sets that are not collected are left out. Gap rows carry _reference = true and become
-     * real rows as soon as they are edited.
+     * Sets that are not collected are left out, and so are hidden sets (issue #67): neither
+     * their rows nor their gaps are shown. Gap rows carry _reference = true and become real
+     * rows as soon as they are edited.
      */
     function withGaps(collection) {
         var rows = collection.rows;
+        var hidden = new Set(collection.hiddenSets || []);
 
         // Rows per set code (in file order) and the usual set name of each code.
         var byCode = new Map();
@@ -1067,7 +1114,16 @@ FCT.model = (function () {
             }
         });
         Array.prototype.push.apply(result, atEnd.sort(byVariant));
-        return result;
+        if (!hidden.size) return result;
+        return result.filter(function (row) { return !hidden.has(setCode(row.Id)); });
+    }
+
+    // Rows of the collection that are not shown because their set is hidden (issue #67). They
+    // stay in the CSV and count in the calculations and exports.
+    function hiddenRows(collection) {
+        var hidden = new Set(collection.hiddenSets || []);
+        if (!hidden.size) return [];
+        return collection.rows.filter(function (row) { return hidden.has(setCode(row.Id)); });
     }
 
     /*
@@ -1095,32 +1151,62 @@ FCT.model = (function () {
     }
 
     /*
-     * Sets of the reference data that do not occur in the collection yet (by set code of the
-     * card numbers): [{ code, name, date, printings }], newest first, sets without a date
-     * last; printings is the number of rows the set would get.
+     * All sets of the reference data (by set code of the card numbers), for "Sets anzeigen"
+     * (issue #67): [{ code, name, date, printings, rows, shown }], newest first, sets without
+     * a date last. printings is the number of printing variants of the set, rows the number
+     * of rows the collection has of it, shown whether the table shows the set.
      */
-    function missingSets(collection) {
+    function setList(collection) {
         var present = collectedCodes(collection);
-        var variants = new Map();   // set code -> Set of printing variants (rows it would get)
+        var hidden = new Set(collection.hiddenSets || []);
+        var variants = new Map();   // set code -> Set of printing variants
         FCT.reference.allPrintings().forEach(function (p) {
             var code = setCode(p[0]);
-            if (present.has(code)) return;
             if (!variants.has(code)) variants.set(code, new Set());
             variants.get(code).add(variantKey(p[0], p[2], p[3]));
         });
+        var rows = new Map();
+        collection.rows.forEach(function (row) {
+            var code = setCode(row.Id);
+            rows.set(code, (rows.get(code) || 0) + 1);
+        });
         return Array.from(variants.keys()).map(function (code) {
             return { code: code, name: FCT.reference.setName(code),
-                date: FCT.reference.setDate(code), printings: variants.get(code).size };
+                date: FCT.reference.setDate(code), printings: variants.get(code).size,
+                rows: rows.get(code) || 0, shown: present.has(code) && !hidden.has(code) };
         }).sort(function (a, b) {
             if (a.date !== b.date) return !a.date ? 1 : !b.date ? -1 : a.date < b.date ? 1 : -1;
             return a.code < b.code ? -1 : 1;
         });
     }
 
+    // Sets of the reference data the collection neither shows nor has rows of (see setList).
+    function missingSets(collection) {
+        return setList(collection).filter(function (set) { return !set.shown && !set.rows; });
+    }
+
     /*
-     * Rows for taking whole sets into the collection (as in the old spreadsheet): every
-     * printing variant of the given set codes that no row covers yet, with empty quantities,
-     * ordered by card number. The caller adds them to the collection.
+     * Shows or hides a set in the table (issue #67); the rows of the collection never change.
+     * A shown set without rows is kept in collectedSets (its printings appear as gaps), a
+     * hidden set with rows in hiddenSets. Returns true if something changed.
+     */
+    function setShown(collection, code, shown) {
+        var hasRows = collection.rows.some(function (row) { return setCode(row.Id) === code; });
+        var before = JSON.stringify([collection.collectedSets, collection.hiddenSets]);
+        function without(list) {
+            return (list || []).filter(function (c) { return c !== code; });
+        }
+        collection.hiddenSets = without(collection.hiddenSets);
+        collection.collectedSets = without(collection.collectedSets);
+        if (shown && !hasRows) collection.collectedSets.push(code);
+        if (!shown && hasRows) collection.hiddenSets.push(code);
+        return JSON.stringify([collection.collectedSets, collection.hiddenSets]) !== before;
+    }
+
+    /*
+     * Rows of whole sets: every printing variant of the given set codes that no row covers
+     * yet, with empty quantities, ordered by card number (up to 2.7.0 "Sets aufnehmen" could
+     * write them into the collection, as the old spreadsheet did).
      */
     function setRows(collection, codes) {
         var wanted = new Set(codes);
@@ -1316,6 +1402,9 @@ FCT.model = (function () {
         reportLanguageUpgrade: reportLanguageUpgrade,
         QUANTITIES: QUANTITIES,
         NUMBER_COLUMNS: NUMBER_COLUMNS,
+        COMBINED_COLUMNS: COMBINED_COLUMNS,
+        combinedParts: combinedParts,
+        combinedValue: combinedValue,
         INPUT_COLUMNS: INPUT_COLUMNS,
         REFERENCE_COLUMNS: REFERENCE_COLUMNS,
         OVERRIDES: OVERRIDES,
@@ -1342,6 +1431,9 @@ FCT.model = (function () {
         isEmptyRow: isEmptyRow,
         setCode: setCode,
         missingSets: missingSets,
+        setList: setList,
+        setShown: setShown,
+        hiddenRows: hiddenRows,
         setRows: setRows,
         differences: differences,
         fingerprint: fingerprint,
