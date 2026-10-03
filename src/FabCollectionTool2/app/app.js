@@ -19,6 +19,7 @@ FCT.app = (function () {
         logCandidate: null,    // remembered log file handle, access not yet checked
         dirty: false,
         shownRows: [],         // collection plus gap rows, as passed to the grid
+        hiddenRows: [],        // rows of hidden sets: in the collection, but not shown (#67)
         rowsById: new Map(),   // rows of the collection per card number (see rebuild)
         editMode: false,
         writable: false,       // the opened file may be written without asking (autosave)
@@ -283,7 +284,8 @@ FCT.app = (function () {
      */
 
     // Recalculates everything and shows the current rows. Sets that occur in the collection
-    // are shown complete: missing printings appear as gap rows at their place.
+    // are shown complete: missing printings appear as gap rows at their place. Rows of hidden
+    // sets (issue #67) are not shown, but count in the calculation.
     function rebuild() {
         state.rowsById = new Map();
         state.collection.rows.forEach(function (row) {
@@ -292,7 +294,8 @@ FCT.app = (function () {
         });
         var rows = model.withGaps(state.collection);
         state.shownRows = rows;
-        model.calculate(rows);
+        state.hiddenRows = model.hiddenRows(state.collection);
+        model.calculate(rows.concat(state.hiddenRows));
         rows.forEach(markProblems);
         grid.setRows(rows);
         updateStatus();
@@ -307,14 +310,21 @@ FCT.app = (function () {
 
     function updateStatus() {
         var totals = model.totals(state.collection.rows);
-        var gaps = state.shownRows.length - state.collection.rows.length;
+        var hidden = state.hiddenRows || [];
+        var gaps = state.shownRows.length - (state.collection.rows.length - hidden.length);
+        var hiddenSets = new Set(hidden.map(function (row) { return model.setCode(row.Id); }));
         var name = state.file ? state.file.name : 'kein Bestand geöffnet';
         $('status-file').textContent = name + (state.dirty ? ' • ungespeicherte Änderungen' : '');
         $('status-file').className = state.dirty ? 'dirty' : '';
         $('status-rows').textContent = totals.rows.toLocaleString('de-DE') +
             ' Zeilen im Bestand · ' + totals.cards.toLocaleString('de-DE') + ' Karten · ' +
             Math.max(0, gaps).toLocaleString('de-DE') + ' fehlende Varianten · ' +
-            grid.viewCount().toLocaleString('de-DE') + ' angezeigt';
+            grid.viewCount().toLocaleString('de-DE') + ' angezeigt' +
+            (hiddenSets.size ? ' · ' + hiddenSets.size + (hiddenSets.size === 1
+                ? ' Set ausgeblendet' : ' Sets ausgeblendet') : '');
+        $('status-rows').title = hiddenSets.size ? 'Ausgeblendet (Zeilen bleiben im Bestand ' +
+            'und zählen mit): ' + Array.from(hiddenSets).sort().join(', ') +
+            ' – ändern unter „Sets anzeigen …“' : '';
         updateSaveStatus();
         $('status-clipboard').textContent = state.clipboard
             ? 'Kopiert: ' + state.clipboard.Id + ' ' + state.clipboard.Name : '';
@@ -502,7 +512,7 @@ FCT.app = (function () {
         }
         // Rows by card number, to find the row of an entry quickly.
         var byId = new Map();
-        (state.shownRows || state.collection.rows).forEach(function (row) {
+        state.shownRows.concat(state.hiddenRows).forEach(function (row) {
             if (!byId.has(row.Id)) byId.set(row.Id, []);
             byId.get(row.Id).push(row);
         });
@@ -547,7 +557,7 @@ FCT.app = (function () {
         if (row) {
             buttons.push(el('button', { type: 'button', className: 'log-action',
                 text: 'Zur Zeile', title: 'Die Zeile in der Tabelle zeigen',
-                onclick: function () { grid.select(row); grid.focus(); } }));
+                onclick: function () { if (selectRow(row)) grid.focus(); } }));
         }
         if (row && e.column && UNDOABLE.indexOf(e.action) >= 0) {
             buttons.push(el('button', { type: 'button', className: 'log-action',
@@ -578,7 +588,7 @@ FCT.app = (function () {
         if (current !== e.new) {
             showMessage('Rückgängig nicht möglich', e.id + ' ' + e.column + ' wurde inzwischen ' +
                 'geändert (jetzt „' + current + '“). Bitte direkt in der Tabelle anpassen.');
-            grid.select(row);
+            selectRow(row);
             return;
         }
         changeCell(row, e.column, e.old, 'Rückgängig');
@@ -684,7 +694,7 @@ FCT.app = (function () {
      * asks for the name and the place of the new file (the working folder, or the folder of
      * the file opened last) and explains that the current collection stays a file that
      * "Öffnen" loads again. Only after confirming does the current collection give way.
-     * options.thenAddSets: open "Sets aufnehmen" afterwards (first set of an empty folder).
+     * options.thenAddSets: open "Sets anzeigen" afterwards (first set of an empty folder).
      */
     function newCollection(options) {
         options = options && !options.type ? options : {};
@@ -827,7 +837,7 @@ FCT.app = (function () {
         rememberCurrent();
         updateStatus();
         showMessage('Neuer Bestand', created.name + ' ist angelegt und noch leer. Zeilen ' +
-            'kommen über „Sets aufnehmen …“ (Gruppe Bestand), einen Import oder ＋ dazu.');
+            'kommen über „Sets anzeigen …“ (Gruppe Bestand), einen Import oder ＋ dazu.');
         var asked = created.handle ? askAutosave(created.handle, null) : null;
         return Promise.resolve(asked).then(function () {
             return options.thenAddSets ? addSets() : null;
@@ -1161,9 +1171,10 @@ FCT.app = (function () {
     /*
      * Configuration file <name>-config.json next to the collection (issue #18, decided by
      * Elmar: what has to be kept besides the collection and its log goes into a file, which
-     * lasts longer than the browser storage). It holds the sets collected without any row in
-     * the CSV and the collection's own Fabrary mapping (issue #17, addendum), written only if
-     * there is one. It is read when a collection is opened from the working folder and
+     * lasts longer than the browser storage). It holds the sets shown without any row in the
+     * CSV, the hidden sets (issue #67) and the collection's own Fabrary mapping (issue #17,
+     * addendum), the latter two written only if there are any. It is read when a collection
+     * is opened from the working folder and
      * written with the collection (also by autosave), only if its content changed. Without a
      * working folder it is kept in the copy in the browser only.
      */
@@ -1177,6 +1188,10 @@ FCT.app = (function () {
     // The values kept in the configuration, as an object.
     function configValues() {
         var config = { collectedSets: (state.collection.collectedSets || []).slice().sort() };
+        // Hidden sets (issue #67) are only written if there are any, so that configuration
+        // files without them stay as they are.
+        var hidden = (state.collection.hiddenSets || []).slice().sort();
+        if (hidden.length) config.hiddenSets = hidden;
         var own = state.collection.fabraryOverrides;
         if (!FCT.fabraryMap.isEmpty(own)) config.fabrary = sortedMap(own);
         return config;
@@ -1197,13 +1212,16 @@ FCT.app = (function () {
         return JSON.stringify(config, null, 2) + '\n';
     }
 
-    // Takes the values of a configuration ({ collectedSets, fabrary }) into the open
-    // collection.
+    // Takes the values of a configuration ({ collectedSets, hiddenSets, fabrary }) into the
+    // open collection.
     function applyConfig(config) {
-        var sets = config && Array.isArray(config.collectedSets) ? config.collectedSets : [];
-        state.collection.collectedSets = sets.filter(function (code) {
-            return typeof code === 'string' && /^[A-Z0-9]{3}$/.test(code);
-        });
+        function codes(list) {
+            return (Array.isArray(list) ? list : []).filter(function (code) {
+                return typeof code === 'string' && /^[A-Z0-9]{3}$/.test(code);
+            });
+        }
+        state.collection.collectedSets = codes(config && config.collectedSets);
+        state.collection.hiddenSets = codes(config && config.hiddenSets);
         state.collection.fabraryOverrides = FCT.fabraryMap.normalize(config && config.fabrary);
     }
 
@@ -1223,8 +1241,8 @@ FCT.app = (function () {
             }).catch(function (error) {
                 FCT.log.warn('config', 'Konfigurationsdatei nicht lesbar', error);
                 showMessage('Konfiguration', configName() + ' ließ sich nicht lesen (' +
-                    (error && error.message) + '). Sets ohne Zeilen und die eigene ' +
-                    'Fabrary-Zuordnung fehlen deshalb.');
+                    (error && error.message) + '). Die Auswahl der angezeigten Sets und die ' +
+                    'eigene Fabrary-Zuordnung fehlen deshalb.');
             });
         }
         if (last && last.config) { applyConfig(last.config); rebuild(); }
@@ -1238,11 +1256,12 @@ FCT.app = (function () {
         var text = configText();
         if (!fileInFolder()) {
             var keep = state.collection.collectedSets.length ||
+                (state.collection.hiddenSets || []).length ||
                 !FCT.fabraryMap.isEmpty(state.collection.fabraryOverrides);
             if (keep && !state.configNoticeShown) {
                 state.configNoticeShown = true;
-                FCT.notices.show('config', 'info', 'Die Sets, die du ohne Zeilen sammelst ' +
-                    '(grau), und deine Fabrary-Zuordnung stehen nur mit Arbeitsordner in ' +
+                FCT.notices.show('config', 'info', 'Welche Sets die Tabelle zeigt oder ' +
+                    'ausblendet und deine Fabrary-Zuordnung stehen nur mit Arbeitsordner in ' +
                     'einer eigenen Datei neben dem Bestand. Ohne Arbeitsordner merkt sie sich ' +
                     'nur dieser Browser.', { closable: true });
             }
@@ -2447,7 +2466,7 @@ FCT.app = (function () {
             return a.label.localeCompare(b.label);
         });
 
-        // Set list with search, as in "Sets aufnehmen".
+        // Set list with search, as in "Sets anzeigen".
         var setBoxes = [];
         var setList = el('ul', { className: 'cards set-list' });
         sets.forEach(function (set) {
@@ -2644,7 +2663,7 @@ FCT.app = (function () {
         return released.length;
     }
 
-    // The set of a row that leaves the collection stays collected, also when it was its last
+    // The set of a row that leaves the collection stays shown, also when it was its last
     // row: its printings then show up grey (○) instead of the set disappearing (issue #18).
     function keepCollected(row) {
         var code = model.setCode(row.Id);
@@ -2653,7 +2672,13 @@ FCT.app = (function () {
     }
 
     // Selects a row after a rebuild; a row that went back to a gap is found by its variant.
+    // A row of a hidden set cannot be shown: a notice offers to show the set (issue #67).
+    // Returns true if a row was selected.
     function selectRow(row) {
+        if (state.hiddenRows.indexOf(row) >= 0) {
+            offerHiddenSet(row);
+            return false;
+        }
         if (state.shownRows.indexOf(row) < 0) {
             row = state.shownRows.filter(function (r) {
                 return r.Id === row.Id && r.Edition === row.Edition &&
@@ -2661,6 +2686,25 @@ FCT.app = (function () {
             })[0] || null;
         }
         if (row) grid.select(row);
+        return !!row;
+    }
+
+    // Notice for a row that is not in the table because its set is hidden, with a button that
+    // shows the set and goes to the row.
+    function offerHiddenSet(row) {
+        var code = model.setCode(row.Id);
+        var name = shownSetLabel(code);
+        FCT.notices.show('hidden-set', 'info', row.Id + ' ' + row.Name + ' steht nicht in der ' +
+            'Tabelle: Das Set ' + name + ' ist ausgeblendet.', {
+                closable: true,
+                buttons: [{ label: 'Set anzeigen', onClick: function () {
+                    FCT.notices.clear('hidden-set');
+                    changeShownSets([code], []);
+                    setDirty(true);
+                    rebuild();
+                    selectRow(row);
+                } }]
+            });
     }
 
     // Called by the grid after a cell was edited or a quantity button was pressed.
@@ -2857,7 +2901,7 @@ FCT.app = (function () {
 
     // Recalculates all shown rows without filtering again.
     function rebuildCalculationOnly() {
-        model.calculate(state.shownRows);
+        model.calculate(state.shownRows.concat(state.hiddenRows));
         state.shownRows.forEach(markProblems);
         grid.refresh();
         updateStatus();
@@ -3160,88 +3204,65 @@ FCT.app = (function () {
     }
 
     /*
-     * Taking whole sets into the collection (feedback on 2.0.2.0, issue #18): the sets of the
-     * reference data that are not collected yet are listed, newest first. By default the ticked
-     * sets are only shown: their printings appear as gaps (○) and enter the CSV once they get
-     * a quantity; the set codes are kept in the configuration file. On request every printing
-     * becomes a row with empty quantities, as in the old spreadsheet. Sets collected without
-     * rows can be given up again in the same dialog.
+     * "Sets anzeigen" (issue #67, before that "Sets aufnehmen", feedback on 2.0.2.0 and issue
+     * #18): which sets the table shows is a matter of the view only. One list holds all sets
+     * of the reference data, newest first; a tick means "shown". A shown set without rows has
+     * its printings as gaps (○), which enter the CSV once they get a quantity. A set with rows
+     * can be hidden: its rows stay in the CSV, count in the calculations and go into the
+     * exports. The choice is kept in the configuration file.
      */
-    var ADD_SETS_MODES = {
-        show: 'Nur anzeigen (grau) – erst eine Menge nimmt die Karte in den Bestand auf',
-        rows: 'Als Zeilen mit leeren Mengen in den Bestand schreiben (wie in der 1.0-Tabelle)'
-    };
-
     function addSets() {
-        var sets = model.missingSets(state.collection);
-        var withoutRows = setsWithoutRows();
-        if (!sets.length && !withoutRows.length) {
-            showMessage('Sets aufnehmen', 'Alle Sets der Stammdaten sind schon im Bestand.');
-            return null;
-        }
+        var sets = model.setList(state.collection);
         var boxes = [];
         var list = el('ul', { className: 'cards set-list' });
         var search = el('input', { type: 'search', placeholder: 'Set suchen (* ?)',
             title: 'Enthält den Text; * = beliebiger Text, ? = ein Zeichen' });
+        var onlyShown = el('input', { type: 'checkbox' });
         sets.forEach(function (set) {
             var box = el('input', { type: 'checkbox' });
+            box.checked = set.shown;
             box._set = set;
             boxes.push(box);
             var date = set.date ? new Date(set.date + 'T00:00:00').toLocaleDateString('de-DE')
                 : 'ohne Datum';
+            var own = set.rows ? set.rows.toLocaleString('de-DE') +
+                (set.rows === 1 ? ' Zeile' : ' Zeilen') + ' im Bestand' : 'keine Zeilen';
             box._item = el('li', {}, [el('label', {}, [box, ' ',
                 el('strong', { text: set.name + ' (' + set.code + ')' }),
                 el('span', { className: 'what', text: ' ' + date + ' · ' +
-                    set.printings.toLocaleString('de-DE') + ' Varianten' })])]);
+                    set.printings.toLocaleString('de-DE') + ' Varianten · ' + own })])]);
             list.appendChild(box._item);
         });
 
-        // The search narrows the list (also with wildcards); ticked sets stay ticked.
-        search.addEventListener('input', function () {
+        // The search (also with wildcards) and "nur angezeigte" narrow the list; ticks stay.
+        function narrow() {
             var text = util.fold(search.value);
             var test = util.wildcard(search.value);
             boxes.forEach(function (box) {
                 var name = util.fold(box._set.name + ' (' + box._set.code + ')');
                 var match = !text || (test ? test(name) : name.indexOf(text) >= 0);
-                box._item.hidden = !match;
+                box._item.hidden = !match || (onlyShown.checked && !box.checked);
             });
-        });
-
-        // How the ticked sets are taken in; the choice is remembered.
-        var mode = settings.get('addSetsMode', 'show');
-        var modes = Object.keys(ADD_SETS_MODES).map(function (value) {
-            var radio = el('input', { type: 'radio', name: 'add-sets-mode', value: value });
-            radio.checked = value === mode;
-            return el('label', {}, [radio, ' ' + ADD_SETS_MODES[value]]);
-        });
-
-        // Sets collected without rows, to give them up again.
-        var dropBoxes = withoutRows.map(function (code) {
-            var box = el('input', { type: 'checkbox' });
-            box._code = code;
-            return box;
-        });
-        var dropList = withoutRows.length ? el('div', {}, [
-            el('h3', { text: 'Gesammelt ohne Zeilen (grau)' }),
-            el('p', { className: 'what', text: 'Angehakte Sets werden nicht mehr gesammelt; ' +
-                'ihre grauen Zeilen verschwinden. Die Bestandsdatei ändert sich nicht.' }),
-            el('ul', { className: 'cards set-list' }, dropBoxes.map(function (box) {
-                return el('li', {}, [el('label', {}, [box, ' ', el('strong', {
-                    text: FCT.reference.setName(box._code) + ' (' + box._code + ')' })])]);
-            }))
-        ]) : null;
+        }
+        search.addEventListener('input', narrow);
+        onlyShown.addEventListener('change', narrow);
 
         var body = el('div', { className: 'report take-over' }, [
-            sets.length ? search : null,
-            sets.length ? list : null,
-            sets.length ? el('div', { className: 'add-sets-mode' }, modes) : null,
-            dropList
+            el('p', { className: 'what', text: 'Haken = das Set steht in der Tabelle. Ohne ' +
+                'Haken ist es ausgeblendet; seine Zeilen bleiben unverändert in der ' +
+                'Bestandsdatei, zählen weiter in Have / Need / Left (total) und gehen weiter ' +
+                'in die Exporte.' }),
+            el('div', { className: 'set-filter' }, [search,
+                el('label', {}, [onlyShown, ' nur angezeigte'])]),
+            list
         ]);
+        var shownCount = sets.filter(function (set) { return set.shown; }).length;
         return openDialog({
-            title: 'Sets aufnehmen – ' + sets.length + ' Sets noch nicht im Bestand',
+            title: 'Sets in der Liste anzeigen – ' + shownCount + ' von ' + sets.length,
             body: body,
-            hint: 'Später erscheinende Varianten eines gesammelten Sets tauchen automatisch ' +
-                'als ○ auf.',
+            hint: 'Ein angezeigtes Set ohne Zeilen steht grau (○) in der Tabelle; erst eine ' +
+                'Menge schreibt eine Karte in die Bestandsdatei. Später erscheinende ' +
+                'Varianten tauchen automatisch als ○ auf.',
             wide: true,
             buttons: [
                 { label: 'Abbrechen', value: 'cancel' },
@@ -3249,94 +3270,79 @@ FCT.app = (function () {
             ]
         }).then(function (value) {
             if (value !== 'accept') return;
-            var chosen = boxes.filter(function (b) { return b.checked; }).map(function (b) {
-                return b._set;
-            });
-            var dropped = dropBoxes.filter(function (b) { return b.checked; }).map(function (b) {
-                return b._code;
-            });
-            var checked = modes.map(function (label) {
-                return label.querySelector('input');
-            }).filter(function (radio) { return radio.checked; })[0];
-            mode = checked ? checked.value : mode;
-            settings.set('addSetsMode', mode);
-            if (!chosen.length && !dropped.length) return;
-            var first = mode === 'rows' ? takeSetsAsRows(chosen) : takeSetsAsGaps(chosen);
-            dropSets(dropped);
+            function codes(shown) {
+                return boxes.filter(function (box) {
+                    return box.checked === shown && box._set.shown !== shown;
+                }).map(function (box) { return box._set.code; });
+            }
+            var show = codes(true);
+            var hide = codes(false);
+            if (!show.length && !hide.length) return;
+            changeShownSets(show, hide);
             setDirty(true);
             rebuild();
+            FCT.notices.clear('hidden-set');
+            reportShownSets(show, hide);
+            var first = show.length ? state.shownRows.filter(function (row) {
+                return model.setCode(row.Id) === show[0];
+            })[0] : null;
             if (first) selectRow(first);
         });
     }
 
-    // Set codes collected without any row in the collection.
-    function setsWithoutRows() {
+    // "Welcome to Rathe (WTR)" for a set code, as "Sets anzeigen" names a set.
+    function shownSetLabel(code) {
+        return FCT.reference.setName(code) + ' (' + code + ')';
+    }
+
+    // Shows and hides sets (see model.setShown) and notes it in the change log.
+    function changeShownSets(show, hide) {
+        var rows = new Map();
+        state.collection.rows.forEach(function (row) {
+            var code = model.setCode(row.Id);
+            rows.set(code, (rows.get(code) || 0) + 1);
+        });
+        function change(code, shown) {
+            if (!model.setShown(state.collection, code, shown)) return;
+            var count = rows.get(code) || 0;
+            changelog.add(shown ? 'Set angezeigt' : 'Set ausgeblendet', null, '', '',
+                shownSetLabel(code) + ' – ' + (count ? count + ' Zeilen im Bestand' +
+                    (shown ? '' : ', unverändert') : 'keine Zeilen'));
+        }
+        show.forEach(function (code) { change(code, true); });
+        hide.forEach(function (code) { change(code, false); });
+        FCT.log.info('sets', 'Angezeigte Sets geändert', { shown: show, hidden: hide });
+    }
+
+    // Says what changed after "Sets anzeigen".
+    function reportShownSets(show, hide) {
         var withRows = new Set(state.collection.rows.map(function (row) {
             return model.setCode(row.Id);
         }));
-        return (state.collection.collectedSets || []).filter(function (code) {
-            return !withRows.has(code);
-        });
-    }
-
-    // "Nur anzeigen": the sets are collected, their printings show up as gaps. Returns the
-    // first row of the first set, to select it.
-    function takeSetsAsGaps(chosen) {
-        if (!chosen.length) return null;
-        var codes = state.collection.collectedSets;
-        chosen.forEach(function (set) {
-            if (codes.indexOf(set.code) < 0) codes.push(set.code);
-            changelog.add('Set aufgenommen', null, '', '', set.name + ' (' + set.code +
-                ') – ' + set.printings + ' Varianten, nur angezeigt');
-        });
-        FCT.log.info('sets', 'Sets aufgenommen (nur angezeigt)', { sets: chosen.map(function (s) {
-            return s.code;
-        }) });
-        showMessage('Sets aufgenommen', chosen.map(function (set) {
-            return set.name + ' (' + set.code + ')';
-        }).join(', ') + ': Die Varianten stehen grau (○) in der Tabelle. Sobald du eine Menge ' +
-            'einträgst, kommt die Karte in die Bestandsdatei.');
-        var code = chosen[0].code;
-        return model.withGaps(state.collection).filter(function (row) {
-            return model.setCode(row.Id) === code;
-        })[0] || null;
-    }
-
-    // "Als Zeilen": every printing of the sets becomes a row with empty quantities.
-    function takeSetsAsRows(chosen) {
-        if (!chosen.length) return null;
-        var rows = model.setRows(state.collection, chosen.map(function (set) {
-            return set.code;
-        }));
-        Array.prototype.push.apply(state.collection.rows, rows);
-        chosen.forEach(function (set) {
-            var count = rows.filter(function (row) {
-                return model.setCode(row.Id) === set.code;
-            }).length;
-            changelog.add('Set aufgenommen', null, '', '', set.name + ' (' + set.code +
-                ') – ' + count + ' Zeilen');
-        });
-        FCT.log.info('sets', 'Sets aufgenommen', { sets: chosen.map(function (set) {
-            return set.code;
-        }), rows: rows.length });
-        showMessage('Sets aufgenommen', chosen.map(function (set) {
-            return set.name + ' (' + set.code + ')';
-        }).join(', ') + ': ' + rows.length.toLocaleString('de-DE') + ' Zeilen mit leeren ' +
-            'Mengen aufgenommen.');
-        return rows[0] || null;
-    }
-
-    // Gives up sets collected without rows.
-    function dropSets(codes) {
-        if (!codes.length) return;
-        state.collection.collectedSets = state.collection.collectedSets.filter(function (code) {
-            return codes.indexOf(code) < 0;
-        });
-        codes.forEach(function (code) {
-            changelog.add('Set nicht mehr gesammelt', null, '', '',
-                FCT.reference.setName(code) + ' (' + code + ')');
-        });
-        FCT.log.info('sets', 'Sets nicht mehr gesammelt', { sets: codes });
+        var lines = [];
+        var grey = show.filter(function (code) { return !withRows.has(code); });
+        var back = show.filter(function (code) { return withRows.has(code); });
+        var kept = hide.filter(function (code) { return withRows.has(code); });
+        var gone = hide.filter(function (code) { return !withRows.has(code); });
+        if (grey.length) {
+            lines.push('Angezeigt: ' + grey.map(shownSetLabel).join(', ') + '. Die ' +
+                'Varianten stehen grau (○) in der Tabelle. Sobald du eine Menge einträgst, ' +
+                'kommt die Karte in die Bestandsdatei.');
+        }
+        if (back.length) {
+            lines.push('Wieder angezeigt: ' + back.map(shownSetLabel).join(', ') +
+                ' – mit allen Zeilen und Mengen.');
+        }
+        if (kept.length) {
+            lines.push('Ausgeblendet: ' + kept.map(shownSetLabel).join(', ') + '. Die ' +
+                'Zeilen bleiben in der Bestandsdatei, zählen weiter mit und gehen weiter in die ' +
+                'Exporte.');
+        }
+        if (gone.length) {
+            lines.push('Nicht mehr angezeigt: ' + gone.map(shownSetLabel).join(', ') + '.');
+        }
+        showMessage(show.length ? 'Sets werden angezeigt' : 'Sets ausgeblendet',
+            lines.join(' '));
     }
 
     /*
@@ -3368,7 +3374,7 @@ FCT.app = (function () {
             body: el('div', { className: 'report take-over' }, [
                 el('p', { text: 'Diese Zeilen haben keine Menge, keine Notiz und keine lokale ' +
                     'Änderung. Sie werden aus der Bestandsdatei genommen und stehen danach ' +
-                    'grau (○) in der Tabelle; ihre Sets bleiben gesammelt.' }),
+                    'grau (○) in der Tabelle; ihre Sets bleiben angezeigt.' }),
                 list
             ]),
             wide: true,
@@ -3590,11 +3596,11 @@ FCT.app = (function () {
                 body: el('p', { text: 'Der Bestand ist gerade leer. Übernehmen gleicht die ' +
                     'Zeilen des Bestands mit den Stammdaten ab – ohne Zeilen gibt es nichts, ' +
                     'worauf Stammdaten übernommen werden können.' }),
-                hint: 'Zuerst Zeilen anlegen: „Sets aufnehmen …“ (Gruppe Bestand) oder die ' +
+                hint: 'Zuerst Sets wählen: „Sets anzeigen …“ (Gruppe Bestand) oder die ' +
                     '1.0-Tabelle bzw. einen Fabrary-Export importieren.',
                 buttons: [
                     { label: 'Schließen', value: 'cancel' },
-                    { label: 'Sets aufnehmen …', value: 'sets', primary: true }
+                    { label: 'Sets anzeigen …', value: 'sets', primary: true }
                 ]
             }).then(function (value) {
                 return value === 'sets' ? addSets() : null;

@@ -1094,13 +1094,15 @@ dialog menu .left + button:not(.left) {
     color: var(--muted);
     padding-left: 1.6em;
 }
-/* Sets aufnehmen (issue #18): how the ticked sets are taken in, and sets without rows. */
-.take-over .add-sets-mode {
-    margin: 10px 0 4px;
+/* Sets anzeigen (issue #67): search field and "nur angezeigte" in one line. */
+.take-over .set-filter {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 6px 0;
 }
-.take-over .add-sets-mode label {
-    display: block;
-    padding: 2px 0;
+.take-over .set-filter input[type="search"] {
+    flex: 1;
 }
 .take-over h3 {
     margin: 12px 0 4px;

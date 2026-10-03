@@ -170,7 +170,7 @@ FCT.onboarding = (function () {
                 el('ul', {}, [
                     el('li', { text: 'Mengen trägst du in ST, RF, CF und GF ein: Zelle ' +
                         'anklicken und Zahl tippen, oder mit den Tasten + / − zählen.' }),
-                    el('li', { text: 'Weitere Sets holst du mit „Sets aufnehmen …“ (Gruppe ' +
+                    el('li', { text: 'Weitere Sets zeigst du mit „Sets anzeigen …“ (Gruppe ' +
                         'Bestand).' }),
                     el('li', { text: app.canWriteBack()
                         ? 'Änderungen werden – wenn du es erlaubt hast – automatisch ' +
