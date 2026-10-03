@@ -42,7 +42,7 @@ FCT.app = (function () {
      * Widths are in em, so they follow the font size.
      */
     var DEFAULT_COLUMNS = ['Set', 'Id', '_image', 'Rarity', 'Metatype', '_talent', '_class',
-        '_type', '_subtype', '_name', 'Pitch', 'Playset',
+        '_type', '_subtype', '_name', 'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
         '_leftTotal', 'Edition', 'Language', '_exclusive'];
     var WIDTHS = {
@@ -52,12 +52,13 @@ FCT.app = (function () {
         Sub3: 4.5, Name: 16,
         'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
         Peculiarity: 7, 'Art Treatment': 8.5, Note: 15,
-        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 17, _backside: 10
+        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 13.5, _backside: 10
     };
     // The name column has a fixed width instead of that of its longest content (review of
-    // issue #69): 17em hold 90 % of the rows of the example collection (docs/example.ods with
-    // its gaps; 90th percentile 15.6em of text plus padding). Longer names end in "…", the
-    // tooltip shows them in full.
+    // issue #69). Since the art treatment is a column of its own again (issue #72), 13.5em
+    // hold 90 % of the rows of the example collection (docs/example.ods with its gaps; 90th
+    // percentile 12.0em of text plus 1.2em of padding). Longer names end in "…", the tooltip
+    // shows them in full.
     var FIXED_WIDTH = ['_name'];
 
     // Explanations of the combined columns (issue #69).
@@ -66,17 +67,14 @@ FCT.app = (function () {
         _class: 'Class1 und Class2 in einer Zelle',
         _type: 'Type1 und Type2 in einer Zelle',
         _subtype: 'Sub1, Sub2 und Sub3 in einer Zelle',
-        _name: 'Name, dahinter in Klammern das Art Treatment (nur wenn es nicht Standard ' +
-            'ist) und die Übersetzung mit Sprache – z. B. „Name (Full Art) (DE: …)“',
+        _name: 'Name, bei Sprachvarianten dahinter in Klammern die Übersetzung mit Sprache ' +
+            '– z. B. „Name (DE: …)“',
         _backside: 'Name der Rückseite, dahinter in Klammern die Übersetzung mit Sprache'
     };
     var STEP_WIDTH = 5.5;
 
-    // Columns that cannot be hidden: those that tell the variants apart (model.
-    // VARIANT_COLUMNS), with the name column in place of "Art Treatment", which it shows.
-    var FIXED_COLUMNS = model.VARIANT_COLUMNS.map(function (key) {
-        return key === 'Art Treatment' ? '_name' : key;
-    });
+    // Columns that cannot be hidden: those that tell the variants apart.
+    var FIXED_COLUMNS = model.VARIANT_COLUMNS;
 
     // Explanations shown when hovering over a column title (feedback on 2.0.5.0).
     var HINTS = {
@@ -270,8 +268,7 @@ FCT.app = (function () {
             settings.set('columnsCombined', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
-        // The columns of a variant are always shown (since 2.0.6.3). The art treatment is
-        // part of the name column, which stands in for it (issue #69).
+        // The columns of a variant are always shown (since 2.0.6.3).
         all.forEach(function (c) {
             c.fixed = FIXED_COLUMNS.indexOf(c.key) >= 0;
             c.hidden = !c.fixed && visible.indexOf(c.key) < 0;

@@ -385,15 +385,16 @@ FCT.model = (function () {
      * Combined columns of the table (issue #69). collection.csv keeps one column per part of
      * a card; the table shows the parts of a kind in one cell and splits them again only for
      * editing. words: the parts are single words, shown separated by spaces and filtered one
-     * by one. The two name columns follow a pattern instead (see combinedValue).
+     * by one. The two name columns follow a pattern instead (see combinedValue). The art
+     * treatment is a column of its own again (issue #72), so that it keeps its check box
+     * filter.
      */
     var COMBINED_COLUMNS = [
         { key: '_talent', label: 'Talent', parts: ['Talent1', 'Talent2'], words: true },
         { key: '_class', label: 'Class', parts: ['Class1', 'Class2'], words: true },
         { key: '_type', label: 'Type', parts: ['Type1', 'Type2'], words: true },
         { key: '_subtype', label: 'Subtype', parts: ['Sub1', 'Sub2', 'Sub3'], words: true },
-        { key: '_name', label: 'Name und Art Treatment',
-            parts: ['Name', 'Art Treatment', 'Translated Name'] },
+        { key: '_name', label: 'Name', parts: ['Name', 'Translated Name'] },
         { key: '_backside', label: 'Backside Name',
             parts: ['Backside Name', 'Translated Backside Name'] }
     ];
@@ -407,9 +408,8 @@ FCT.model = (function () {
 
     /*
      * Text of a combined cell. Words are joined by spaces ("Demon Ally"). The names follow
-     * the pattern "Name (Art Treatment) (DE: Translated Name)" and "Backside Name (DE:
-     * Translated Backside Name)": the art treatment only if it is not the standard one
-     * (empty), the translation with the language of the row; every part only if it is filled.
+     * the pattern "Name (DE: Translated Name)" and "Backside Name (DE: Translated Backside
+     * Name)": the translation with the language of the row, and only if it is filled.
      */
     function combinedValue(row, combined) {
         if (combined.words) return combinedParts(row, combined).join(' ');
@@ -418,11 +418,9 @@ FCT.model = (function () {
         }
         var back = combined.key === '_backside';
         var name = part(back ? 'Backside Name' : 'Name');
-        var treatment = back ? '' : part('Art Treatment');
         var translated = part(back ? 'Translated Backside Name' : 'Translated Name');
         var language = part(LANGUAGE) || defaultLanguage();
-        return [name, treatment ? '(' + treatment + ')' : '',
-            translated ? '(' + language + ': ' + translated + ')' : '']
+        return [name, translated ? '(' + language + ': ' + translated + ')' : '']
             .filter(Boolean).join(' ');
     }
 

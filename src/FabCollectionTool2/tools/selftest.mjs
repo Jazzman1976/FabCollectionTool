@@ -1098,8 +1098,9 @@ if (!currentFile) {
 /*
  * Combined columns (issue #69): the table shows the parts of a kind in one cell, the file
  * keeps one column per part. Words are joined by spaces and filtered one by one; the names
- * follow "Name (Art Treatment) (DE: Translated Name)" and "Backside Name (DE: ...)", every
- * part only if it is filled. No combined column is part of collection.csv.
+ * follow "Name (DE: Translated Name)" and "Backside Name (DE: ...)", the translation only if
+ * it is filled. The art treatment is a column of its own (issue #72). No combined column is
+ * part of collection.csv.
  */
 {
     const m = FCT.model;
@@ -1117,10 +1118,9 @@ if (!currentFile) {
         'Translated Name': 'Vorne', 'Backside Name': 'Back',
         'Translated Backside Name': 'Hinten' });
     const names = text('_name', row) === 'Front' && text('_backside', row) === '' &&
-        text('_name', Object.assign({}, row, { 'Art Treatment': 'Full Art' })) ===
-            'Front (Full Art)' &&
-        text('_name', Object.assign({}, full, { 'Art Treatment': '' })) === 'Front (DE: Vorne)' &&
-        text('_name', full) === 'Front (Full Art) (DE: Vorne)' &&
+        text('_name', Object.assign({}, row, { 'Art Treatment': 'Full Art' })) === 'Front' &&
+        text('_name', full) === 'Front (DE: Vorne)' && by('_name').label === 'Name' &&
+        !m.COMBINED_COLUMNS.some((c) => c.parts.includes('Art Treatment')) &&
         text('_backside', full) === 'Back (DE: Hinten)' &&
         text('_backside', Object.assign({}, full, { 'Translated Backside Name': '' })) === 'Back';
 
