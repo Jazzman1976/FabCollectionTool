@@ -209,7 +209,7 @@ FCT.exportFabrary = (function () {
         });
 
         rows.forEach(function (row) {
-            var edition = model.fabraryEdition(row.Edition);
+            var edition = row.Edition;
             if (FABRARY_EDITIONS.indexOf(edition) < 0) {
                 report.add('warn', 'Übersprungen: Edition unbekannt', row.Id + ' ' + row.Edition);
                 return;

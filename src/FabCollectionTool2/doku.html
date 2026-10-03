@@ -277,7 +277,7 @@
         <!-- 3 -->
         <h2 id="tabelle">3. Die Tabelle und ihre Spalten</h2>
         <p>Jede Zeile ist eine <strong>Variante</strong> einer Karte: dieselbe Kartennummer
-            in anderer Edition (auch Sprache) oder Art Treatment ist eine eigene Zeile.
+            in anderer Edition, Sprache oder Art Treatment ist eine eigene Zeile.
             Die Mengen stehen nebeneinander je Foiling – wie in der 1.0-Tabelle. Die Spalten
             stehen in derselben Reihenfolge wie in der gespeicherten <code>collection.csv</code>,
             damit du die Datei auch in anderen Programmen wiedererkennst.</p>
@@ -285,7 +285,7 @@
         <ul>
             <li><strong>Karte:</strong> eine Kartennummer wie <code>MON062</code> mit Name,
                 Typen und Kartentext.</li>
-            <li><strong>Variante:</strong> eine Karte in einer Edition (bzw. Sprache) und einem
+            <li><strong>Variante:</strong> eine Karte in einer Edition, einer Sprache und einem
                 Art Treatment – das ist <strong>eine Zeile</strong>. Vorder- und Rückseite
                 gehören zur selben Zeile. Weitere eigene Zeilen derselben Variante sind erlaubt
                 (z. B. mit einer Peculiarity).</li>
@@ -296,8 +296,13 @@
         <table>
             <tr><th>Spalte</th><th>Bedeutung</th></tr>
             <tr><td>Set</td><td>Name des Sets, z. B. „Monarch“</td></tr>
-            <tr><td>Edition</td><td>Sammler-Edition (Alpha, First, Unlimited) oder Sprache (EN,
-                DE, …)</td></tr>
+            <tr><td>Edition</td><td>Sammler-Edition (Alpha, First, Unlimited); leer bei Sets,
+                die keine Editionen haben – das sind alle neueren</td></tr>
+            <tr><td>Language</td><td>Sprache der Karte (EN, DE, FR, ES, IT, JP), nie leer:
+                ohne Angabe gilt EN. Die Sprache ist deine eigene Angabe – die Stammdaten kennen
+                nur die englischen Printings; im Editiermodus änderbar. Dateien älterer Versionen
+                hatten die Sprache in <em>Edition</em>; sie wird beim Öffnen umgestellt</td>
+            </tr>
             <tr><td>Id</td><td>Kartennummer, z. B. <code>MON062</code>; die ersten drei Zeichen
                 sind der Set-Code</td></tr>
             <tr><td>Bild-Symbol</td><td>Spalte „Kartenbild“ direkt nach Id: zeigt das
@@ -393,8 +398,8 @@
             <strong>In den Bestand aufnehmen</strong> (Pfeil in eine Ablage) – und ebenso ＋
             für eine neue Zeile darunter.</p>
         <ul>
-            <li><strong>＋ Neue Zeile darunter</strong> übernimmt Set und Edition der Zeile
-                darüber und zählt die Kartennummer um eins hoch (<code>MON062</code> →
+            <li><strong>＋ Neue Zeile darunter</strong> übernimmt Set, Edition und Sprache der
+                Zeile darüber und zählt die Kartennummer um eins hoch (<code>MON062</code> →
                 <code>MON063</code>). Kennen die Stammdaten diese Nummer, sind alle Felder
                 schon ausgefüllt, die in allen Varianten der Karte gleich sind (Name, Pitch,
                 Typen, Playset …). Felder, in denen sich die Varianten unterscheiden (z. B. Art
@@ -411,7 +416,8 @@
                 aufgeben lässt es sich unter <em>Sets aufnehmen …</em>.</li>
         </ul>
         <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus – außer Id,
-            Edition und Art Treatment, die eine Variante ausmachen und immer sichtbar sind;
+            Edition, Language und Art Treatment, die eine Variante ausmachen und immer sichtbar
+            sind;
             <em>Standard wiederherstellen</em> stellt die Grundansicht her. In der Gruppe
             <em>Ansicht</em> stellst du das <strong>Design</strong> (<em>Auto</em> wie im
             Betriebssystem eingestellt, <em>Hell</em> oder <em>Dunkel</em>), die Schriftgröße und
@@ -636,8 +642,8 @@
             <li>Der Tooltip am <span class="sym gap">○</span> nennt den Unterschied auch dann,
                 wenn die Spalte ausgeblendet ist, dazu die Printings dieser Variante laut
                 Stammdaten (z. B. „CF“).</li>
-            <li>Die Spalten, die eine Variante ausmachen – <strong>Id, Edition und Art
-                Treatment</strong> – sind immer sichtbar und lassen sich nicht ausblenden. Wer
+            <li>Die Spalten, die eine Variante ausmachen – <strong>Id, Edition, Language und
+                Art Treatment</strong> – sind immer sichtbar und lassen sich nicht ausblenden. Wer
                 eine Edition nicht sammelt, nimmt im Häkchenfilter der Spalte
                 <em>Edition</em> das Häkchen bei ihr heraus (z. B. „Alpha“).</li>
         </ul>
@@ -835,7 +841,8 @@
                 <em>fehlend je Set</em> betrachtet jedes Set für sich. Ohne Setnamen am
                 Zeilenende werden die Mengen einer Karte aus allen gewählten Sets zu einer Zeile
                 zusammengezählt.</li>
-            <li><strong>Set am Zeilenende:</strong> nichts, Setname oder Setname und Edition.</li>
+            <li><strong>Set am Zeilenende:</strong> nichts, Setname oder Setname und Edition
+                (Alpha, First, Unlimited; die Sprache wird nicht angehängt).</li>
             <li><strong>Nur Zeilen der aktuellen Ansicht:</strong> nimmt nur die Zeilen, die
                 Suche und Filter gerade zeigen (auch in zugeklappten Gruppen).</li>
         </ul>
