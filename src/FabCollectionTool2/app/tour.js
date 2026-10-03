@@ -19,9 +19,11 @@ FCT.tour = (function () {
             text: 'Hier öffnest und speicherst du deinen Bestand (eine CSV-Datei). Beim ' +
                 'ersten Mal wählst du einen Arbeitsordner: Bestand, Protokoll und Backups ' +
                 'liegen dann zusammen, und Änderungen werden automatisch gespeichert.' },
-        { target: '#btn-add-sets', title: 'Sets aufnehmen',
-            text: 'Neue Sets holst du dir hier in den Bestand – auch solche, von denen du noch ' +
-                'keine Karte hast. Alle Varianten erscheinen dann als Zeilen zum Ausfüllen.' },
+        { target: '#btn-add-sets', title: 'Sets anzeigen',
+            text: 'Hier wählst du, welche Sets die Tabelle zeigt – auch solche, von denen du ' +
+                'noch keine Karte hast: Ihre Varianten stehen dann grau zum Ausfüllen da. Ein ' +
+                'Set lässt sich jederzeit wieder ausblenden; dein Bestand bleibt dabei, wie ' +
+                'er ist.' },
         { target: '#grid', title: 'Die Tabelle',
             text: 'Sie funktioniert wie die 1.0-Tabelle: Zelle anklicken, Zahl tippen, Enter ' +
                 'geht nach unten. Mengen zählst du mit den Tasten + / − hoch oder runter – ' +

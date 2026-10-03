@@ -627,6 +627,66 @@ if (!currentFile) {
         !m.isEmptyRow(unknown, collection));
 }
 
+/*
+ * Showing and hiding sets (issue #67) is a matter of the view only. A hidden set with rows
+ * leaves the table with its rows and gaps; the CSV, the Fabrary export and the totals of the
+ * other sets stay the same, and showing it again brings everything back. A set without rows
+ * is shown as gaps and hidden again without a trace.
+ */
+{
+    const m = FCT.model;
+    const collection = m.fromCsv(m.toCsv(ods.collection)).collection;
+    const ids = (rows) => rows.map((row) => row.Id + (row._reference ? '○' : '')).join('\n');
+    const cardKey = (row) => [row.Name, row.Pitch, row.Peculiarity].join('|');
+    const have = (row) => m.QUANTITIES.reduce((sum, q) => sum + (parseInt(row[q], 10) || 0), 0);
+
+    // A set with a row whose card is also owned in another set.
+    const owned = collection.rows.filter((row) => have(row) > 0);
+    const shared = owned.find((row) => owned.some((other) => cardKey(other) === cardKey(row) &&
+        m.setCode(other.Id) !== m.setCode(row.Id)));
+    const code = m.setCode(shared.Id);
+    const other = owned.find((row) => cardKey(row) === cardKey(shared) &&
+        m.setCode(row.Id) !== code);
+    const ownRows = collection.rows.filter((row) => m.setCode(row.Id) === code).length;
+
+    const csvBefore = m.toCsv(collection);
+    const fabraryBefore = FCT.exportFabrary.exportFabrary(collection).text;
+    const shownBefore = m.withGaps(collection);
+    m.calculate(shownBefore);
+    const totalBefore = other._calc.haveTotal;
+
+    const changed = m.setShown(collection, code, false);
+    const shown = m.withGaps(collection);
+    const hidden = m.hiddenRows(collection);
+    m.calculate(shown.concat(hidden));
+    const entry = m.setList(collection).find((set) => set.code === code);
+    check('Hide a set with rows', changed && ownRows > 0 && hidden.length === ownRows &&
+        !shown.some((row) => m.setCode(row.Id) === code) && shown.includes(other) &&
+        m.toCsv(collection) === csvBefore && other._calc.haveTotal === totalBefore &&
+        FCT.exportFabrary.exportFabrary(collection).text === fabraryBefore &&
+        entry.rows === ownRows && !entry.shown &&
+        !m.missingSets(collection).some((set) => set.code === code),
+        `${code}: ${ownRows} rows hidden, Have (total) ${totalBefore}`);
+
+    m.setShown(collection, code, true);
+    check('Show a hidden set again', !collection.hiddenSets.length &&
+        ids(m.withGaps(collection)) === ids(shownBefore) && m.toCsv(collection) === csvBefore);
+
+    // A set without rows: shown as gaps, hidden without a trace; no change, no report.
+    const empty = m.missingSets(collection).find((set) => set.printings > 10);
+    const collectedBefore = collection.collectedSets.slice();
+    const on = m.setShown(collection, empty.code, true);
+    const gaps = m.withGaps(collection).filter((row) => m.setCode(row.Id) === empty.code);
+    const listed = m.setList(collection).find((set) => set.code === empty.code);
+    const off = m.setShown(collection, empty.code, false);
+    check('Show and hide a set without rows', on && off && gaps.length === empty.printings &&
+        gaps.every((row) => row._reference) && listed.shown && listed.rows === 0 &&
+        !collection.hiddenSets.length && !m.setShown(collection, empty.code, false) &&
+        collection.collectedSets.join() === collectedBefore.join() &&
+        ids(m.withGaps(collection)) === ids(shownBefore) && m.toCsv(collection) === csvBefore,
+        `${empty.code}: ${gaps.length} gaps`);
+}
+
 // Playset from the reference data (2.0.3.0): legendary cards 1, Evo equipment 3. A differing
 // value of a file is kept as override; an empty one is filled in; nothing else changes.
 {

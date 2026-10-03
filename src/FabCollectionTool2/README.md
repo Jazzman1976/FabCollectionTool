@@ -22,7 +22,7 @@ Bestand startet der Einrichtungs-Assistent, danach eine kurze Tour (wiederholbar
 
 **Die ausführliche Anleitung für Anwender steht in [`doku.html`](doku.html)** (in der App:
 *Hilfe → Dokumentation*): Arbeitsordner und Speichern, Spalten, Tastatur, Status und
-Kartenbilder, Editiermodus, Filter mit Häkchen und Platzhaltern, Gliederung, Sets aufnehmen,
+Kartenbilder, Editiermodus, Filter mit Häkchen und Platzhaltern, Gliederung, Sets anzeigen,
 Stammdaten mit Branch-Auswahl, Protokoll und Rückgängig, Import/Export, Backup, Diagnose,
 häufige Fragen.
 
@@ -32,7 +32,7 @@ Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.m
 
 | Bereich | Funktion |
 |---|---|
-| **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets aufnehmen …* |
+| **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets anzeigen …* |
 | **Import / Export** | Import: ODS (die FabCollectionTool-1.0-Tabelle), Fabrary · Export: Fabrary, Cardmarket (Wants-Liste) |
 | **Stammdaten** | Branch des Datensatzes, Stand, *Aktualisieren*, *Übernehmen …* (je Karte), *Info* |
 | **Ansicht** | Design (Auto, Hell, Dunkel), Schriftgröße, Lage der Meldungen, *Editiermodus* |
@@ -170,7 +170,7 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
 - `tools/selftest.mjs`: automatische Prüfungen (CSV, ODS-Import, Fabrary-Import/-Export,
   Round-Trip, Fabrary-Zeilen aus den Stammdaten, Fabrary-Zuordnung, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
   Gruppen, Änderungsprotokoll, Erscheinungsdaten, Lückenfüllung, Übernehmen ohne Änderung
-  des Bestands, Wertelisten, Platzhalter, Sets aufnehmen, Playset, bearbeitbare Zellen,
+  des Bestands, Wertelisten, Platzhalter, Sets anzeigen und ausblenden, Playset, bearbeitbare Zellen,
   Grenzen von Protokoll und Diagnose-Log, Spaltenreihenfolge, Kartenbilder, Branch-URL,
   Zeilenlänge):
   `node tools/selftest.mjs <altes.ods> <fabrary-export.csv> [Ordner mit Quell-CSVs]

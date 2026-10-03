@@ -141,7 +141,7 @@
             <li><a href="#status">Status, Abweichungen, Editiermodus</a></li>
             <li><a href="#filter">Suchen und Filtern</a></li>
             <li><a href="#gliederung">Gliederung und Sortierung</a></li>
-            <li><a href="#sets">Vollständige Sets und Sets aufnehmen</a></li>
+            <li><a href="#sets">Vollständige Sets und Sets anzeigen</a></li>
             <li><a href="#stammdaten">Stammdaten</a></li>
             <li><a href="#protokoll">Protokoll und Rückgängig</a></li>
             <li><a href="#hinweise">Hinweise und Meldungen</a></li>
@@ -168,7 +168,7 @@
             startet beim
             ersten Besuch der <strong>Einrichtungs-Assistent</strong>: Er fragt, womit du
             beginnst (neu anfangen, 1.0-Tabelle oder Fabrary-Export importieren, vorhandenen
-            Bestand öffnen), führt durch Ablageort, Anlegen und „Sets aufnehmen“ – bevor sich
+            Bestand öffnen), führt durch Ablageort, Anlegen und „Sets anzeigen“ – bevor sich
             ein Fenster zur Dateiauswahl öffnet, sagt er, welche Datei du dort wählst – und
             bietet am Ende die kurze <strong>Tour</strong> durch die Seite an. Beides lässt sich
             jederzeit wiederholen: <em>Hilfe → Einrichtung</em> und <em>Hilfe → Tutorial</em>;
@@ -183,7 +183,7 @@
             <li><strong>Du hast schon eine <code>collection.csv</code>:</strong>
                 <em>Öffnen</em>.</li>
             <li><strong>Du fängst neu an:</strong> <em>Neu</em> (Name und Ort festlegen) und
-                dann über <em>Sets aufnehmen …</em> die Sets holen, die du sammelst.</li>
+                dann über <em>Sets anzeigen …</em> die Sets wählen, die du sammelst.</li>
         </ul>
         <p>Beim Start lädt die Anwendung automatisch die aktuellen Kartendaten (die
             „Stammdaten“) aus dem Internet. Ohne Internet arbeitet sie mit den mitgelieferten
@@ -206,9 +206,10 @@
             <tr><td><code>collection-log.csv</code></td>
                 <td>das Änderungsprotokoll (die letzten 1.000 Änderungen)</td></tr>
             <tr><td><code>collection-config.json</code></td>
-                <td>Einstellungen zum Bestand, die nicht in die CSV gehören – die Sets, die du
-                    ohne Zeilen sammelst (siehe <a href="#sets">Sets aufnehmen</a>), und deine
-                    eigene Fabrary-Zuordnung (siehe <a href="#fabrary">Fabrary</a>). Ohne
+                <td>Einstellungen zum Bestand, die nicht in die CSV gehören – welche Sets
+                    die Tabelle zeigt oder ausblendet (siehe
+                    <a href="#sets">Sets anzeigen</a>) und deine eigene Fabrary-Zuordnung
+                    (siehe <a href="#fabrary">Fabrary</a>). Ohne
                     Arbeitsordner merkt sich das nur der Browser.</td></tr>
             <tr><td><code>collection-backup-JJJJMMTT-HHMMSS.csv</code></td>
                 <td>Backups, die du mit <em>Backup</em> anlegst</td></tr>
@@ -424,8 +425,8 @@
                 und die Variante steht grau als <span class="sym gap">○</span> an derselben
                 Stelle. Ganz entfernt wird eine Zeile nur, wenn ihre Variante nicht in den
                 Stammdaten steht oder eine andere Zeile sie schon abdeckt. Auch nach der
-                letzten Zeile eines Sets bleibt das Set gesammelt und steht grau in der Tabelle;
-                aufgeben lässt es sich unter <em>Sets aufnehmen …</em>.</li>
+                letzten Zeile eines Sets bleibt das Set angezeigt und steht grau in der Tabelle;
+                ausblenden lässt es sich unter <em>Sets anzeigen …</em>.</li>
         </ul>
         <p><strong>Spalten</strong> (Gruppe Filter) blendet Spalten ein und aus – außer Id,
             Edition, Language und Art Treatment, die eine Variante ausmachen und immer sichtbar
@@ -635,9 +636,9 @@
         </ul>
 
         <!-- 8 -->
-        <h2 id="sets">9. Vollständige Sets und Sets aufnehmen</h2>
+        <h2 id="sets">9. Vollständige Sets und Sets anzeigen</h2>
         <h3>Vollständige Sets</h3>
-        <p>Jedes Set, das du sammelst, wird <strong>vollständig</strong> angezeigt: Varianten,
+        <p>Jedes Set, das die Tabelle zeigt, steht dort <strong>vollständig</strong>: Varianten,
             die nicht in deiner Bestandsdatei stehen, erscheinen als <strong>graue
             Zeile</strong> mit <span class="sym gap">○</span> an ihrer Stelle. Sie werden nur
             angezeigt und nicht gespeichert. Sobald du dort eine Menge einträgst oder ＋ drückst,
@@ -663,28 +664,36 @@
                 eine Edition nicht sammelt, nimmt im Häkchenfilter der Spalte
                 <em>Edition</em> das Häkchen bei ihr heraus (z. B. „Alpha“).</li>
         </ul>
-        <h3>Sets aufnehmen</h3>
-        <p><em>Sets aufnehmen …</em> (Gruppe Bestand) listet alle Sets der Stammdaten, die du
-            noch nicht sammelst – die neuesten zuerst, mit Erscheinungsdatum und Zahl der
-            Varianten. Das Suchfeld grenzt die Liste ein (auch mit Platzhaltern). Für die
-            angehakten Sets wählst du, wie sie aufgenommen werden (die Wahl wird gemerkt):</p>
+        <h3>Sets anzeigen</h3>
+        <p><em>Sets anzeigen …</em> (Gruppe Bestand) listet alle Sets der Stammdaten – die
+            neuesten zuerst, mit Erscheinungsdatum, Zahl der Varianten und dem, was du davon
+            hast („148 Zeilen im Bestand“ oder „keine Zeilen“). Das Suchfeld grenzt die Liste
+            ein (auch mit Platzhaltern), <em>nur angezeigte</em> verkürzt sie auf die Sets mit
+            Haken. <strong>Der Haken bedeutet: Das Set steht in der Tabelle.</strong> Das ist
+            eine reine Frage der Ansicht – die Bestandsdatei ändert sich dadurch nie.</p>
         <ul>
-            <li><strong>Nur anzeigen (grau)</strong> – Standard: Alle Varianten stehen grau
-                (<span class="sym gap">○</span>) in der Tabelle, die Bestandsdatei bleibt, wie
-                sie ist. Erst eine Menge nimmt eine Karte in die Datei auf. Dass du das Set
-                sammelst, steht in <code>&lt;bestand&gt;-config.json</code> im Arbeitsordner.</li>
-            <li><strong>Als Zeilen mit leeren Mengen</strong> – wie früher in der 1.0-Tabelle:
-                Alle Varianten kommen als Zeilen in die Bestandsdatei.</li>
+            <li><strong>Haken setzen</strong> zeigt das Set. Hast du keine Zeilen davon, stehen
+                alle Varianten grau (<span class="sym gap">○</span>) in der Tabelle; erst eine
+                Menge schreibt eine Karte in die Bestandsdatei.</li>
+            <li><strong>Haken entfernen</strong> blendet das Set aus – jederzeit rückgängig,
+                einfach wieder anhaken. Ein Set ohne Zeilen verschwindet einfach. Bei einem
+                Set <em>mit</em> Zeilen verschwinden die Zeilen nur aus der Tabelle: Sie
+                bleiben unverändert in der Bestandsdatei, zählen weiter in <em>Have / Need /
+                Left (total)</em> und gehen weiter in den Fabrary- und den
+                Cardmarket-Export. Beim Wiederanzeigen ist alles wieder da.</li>
         </ul>
-        <p>Sets, die du ohne Zeilen sammelst, stehen im selben Dialog unter <em>Gesammelt ohne
-            Zeilen</em>; angehakt werden sie nicht mehr gesammelt, und ihre grauen Zeilen
-            verschwinden. Welche Sets du sammelst, entscheidest nur du; die Anwendung nimmt nie
-            von selbst neue Sets auf.</p>
+        <p>Die Statuszeile nennt ausgeblendete Sets mit Zeilen („2 Sets ausgeblendet“; der
+            Tooltip zählt sie auf), damit nichts unbemerkt fehlt. Führt <em>Zur Zeile</em> oder
+            <em>Rückgängig</em> im Protokoll zu einer Zeile eines ausgeblendeten Sets, sagt ein
+            Hinweis das und bietet <em>Set anzeigen</em> an. Die Auswahl steht in
+            <code>&lt;bestand&gt;-config.json</code> im Arbeitsordner. Welche Sets du siehst,
+            entscheidest nur du; die Anwendung zeigt nie von selbst neue Sets an.</p>
         <h3>Leere Zeilen entfernen</h3>
         <p><em>Leere Zeilen entfernen …</em> (Gruppe Bestand) findet Zeilen ohne Menge, Notiz
-            und lokale Änderung – etwa aus einem früheren <em>Sets aufnehmen</em> als Zeilen –,
-            zeigt ihre Zahl je Set und nimmt sie nach Rückfrage aus der Bestandsdatei. Sie
-            stehen danach grau in der Tabelle, ihre Sets bleiben gesammelt. Der Hinweis danach
+            und lokale Änderung – etwa aus einem früheren <em>Sets aufnehmen</em> als Zeilen
+            (bis 2.7.0) –, zeigt ihre Zahl je Set und nimmt sie nach Rückfrage aus der
+            Bestandsdatei. Sie stehen danach grau in der Tabelle, ihre Sets bleiben angezeigt.
+            Der Hinweis danach
             bietet <em>Rückgängig</em> an.</p>
 
         <!-- 9 -->
@@ -714,7 +723,7 @@
                 abweicht, nach Set gruppiert (alle Sets zunächst zugeklappt), mit ihren
                 Abweichungen. Angehakte Karten übernehmen alle ihre abweichenden Werte;
                 vorausgewählt ist nichts. Ist der Bestand leer, erklärt ein Hinweis, dass es
-                noch nichts zu übernehmen gibt, und bietet <em>Sets aufnehmen</em> an.</li>
+                noch nichts zu übernehmen gibt, und bietet <em>Sets anzeigen</em> an.</li>
         </ul>
         <h3 id="mitgeliefert">Online geladen oder mitgeliefert</h3>
         <p>Die Stammdaten beschreiben <strong>alle Karten, die es gibt</strong> – nicht deine
@@ -765,7 +774,8 @@
         <!-- 10 -->
         <h2 id="protokoll">11. Protokoll und Rückgängig</h2>
         <p>Jede Änderung am Bestand wird festgehalten: Zellwerte, − / +, Einfügen, Kopieren,
-            Löschen, Zurücksetzen, Stammdaten übernehmen, Sets aufnehmen, Import. Der Reiter
+            Löschen, Zurücksetzen, Stammdaten übernehmen, Sets anzeigen und ausblenden, Import.
+            Der Reiter
             <strong>Protokoll</strong> (neben <em>Meldungen</em>) zeigt die neuesten Einträge
             nach Tagen – auch die der letzten Tage. So siehst du jederzeit, ob du eine Zahl
             schon erhöht hattest.</p>
@@ -910,7 +920,8 @@
         <h3>Ich finde eine Karte nicht.</h3>
         <p>Liegt sie in einer zugeklappten Gruppe? Bei Suche und Filter öffnen sich die Gruppen
             mit Treffern von selbst. Sonst <em>Filter zurücksetzen</em> und über die Suche
-            gehen. Fehlt das ganze Set, hilft <em>Sets aufnehmen …</em>.</p>
+            gehen. Fehlt das ganze Set, hilft <em>Sets anzeigen …</em> – dort steht auch, ob
+            es ausgeblendet ist.</p>
         <h3>Warum ist ein Wert unterstrichen?</h3>
         <p>Er weicht von den Stammdaten ab. Ein Klick darauf zeigt den Stammdatenwert zur
             Auswahl; oder du lässt deinen Wert, dann bleibt die Markierung als Hinweis.</p>
