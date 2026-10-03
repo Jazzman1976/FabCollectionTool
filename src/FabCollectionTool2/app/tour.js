@@ -30,7 +30,9 @@ FCT.tour = (function () {
                 'oder gleichwertig mit Shift+↑ / Shift+↓ bzw. Shift+→ / Shift+← (eine ' +
                 'Besonderheit dieser App, kein Tabellen-Standard). Sets und ' +
                 'Talent/Class-Gruppen lassen sich auf- und ' +
-                'zuklappen. Das Bildsymbol neben der Kartennummer zeigt beim Überfahren die ' +
+                'zuklappen. Talent, Class, Type, Subtype und der Name samt Art Treatment ' +
+                'stehen je in einer Zelle; beim Bearbeiten öffnet sich ein Fenster mit den ' +
+                'Einzelfeldern. Das Bildsymbol neben der Kartennummer zeigt beim Überfahren die ' +
                 'Karte, ein Klick zeigt sie groß.' },
         { target: '.grid thead th.status', title: 'Status jeder Zeile',
             text: '≠ weicht von den Stammdaten ab, ✱ hast du bewusst geändert, ○ ist eine ' +

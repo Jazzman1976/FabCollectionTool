@@ -83,7 +83,10 @@ Playset,ST,RF,CF,GF,Edition,Language,First In,Note,Overrides
 
 (im Original eine Zeile). Die Reihenfolge ist **dieselbe wie in der Tabelle der Anwendung**
 (ohne die berechneten Spalten): Es gibt nur eine Spaltenliste, und die Datei sieht in einer
-Tabellenkalkulation aus wie in der App. Sie kann sich mit der Ansicht ändern (zuletzt mit
+Tabellenkalkulation aus wie in der App. Seit Issue #69 zeigt die Tabelle die Bestandteile einer
+Art zusammengelegt in einer Zelle (Talent, Class, Type, Subtype, „Name und Art Treatment“,
+Backside Name; `model.COMBINED_COLUMNS`), jeweils an der Stelle der ersten Einzelspalte; die
+Datei behält die Einzelspalten, und in der Spaltenauswahl sind sie weiter einblendbar. Sie kann sich mit der Ansicht ändern (zuletzt mit
 Issue #62: `Edition`, `Language` und `First In` hinter die Mengen). Dateien
 älterer Versionen mit anderer Reihenfolge werden über die Spaltennamen gelesen; beim nächsten
 Speichern schreibt die Anwendung die aktuelle Reihenfolge.

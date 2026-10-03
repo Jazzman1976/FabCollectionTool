@@ -381,6 +381,51 @@ FCT.model = (function () {
     var QUANTITIES = ['ST', 'RF', 'CF', 'GF'];
     var NUMBER_COLUMNS = ['Playset'].concat(QUANTITIES);
 
+    /*
+     * Combined columns of the table (issue #69). collection.csv keeps one column per part of
+     * a card; the table shows the parts of a kind in one cell and splits them again only for
+     * editing. words: the parts are single words, shown separated by spaces and filtered one
+     * by one. The two name columns follow a pattern instead (see combinedValue).
+     */
+    var COMBINED_COLUMNS = [
+        { key: '_talent', label: 'Talent', parts: ['Talent1', 'Talent2'], words: true },
+        { key: '_class', label: 'Class', parts: ['Class1', 'Class2'], words: true },
+        { key: '_type', label: 'Type', parts: ['Type1', 'Type2'], words: true },
+        { key: '_subtype', label: 'Subtype', parts: ['Sub1', 'Sub2', 'Sub3'], words: true },
+        { key: '_name', label: 'Name und Art Treatment',
+            parts: ['Name', 'Art Treatment', 'Translated Name'] },
+        { key: '_backside', label: 'Backside Name',
+            parts: ['Backside Name', 'Translated Backside Name'] }
+    ];
+
+    // Values of the parts of a combined column that are filled, in the order of the card.
+    function combinedParts(row, combined) {
+        return combined.parts.map(function (part) {
+            return String(row[part] == null ? '' : row[part]).trim();
+        }).filter(Boolean);
+    }
+
+    /*
+     * Text of a combined cell. Words are joined by spaces ("Demon Ally"). The names follow
+     * the pattern "Name (Art Treatment) (DE: Translated Name)" and "Backside Name (DE:
+     * Translated Backside Name)": the art treatment only if it is not the standard one
+     * (empty), the translation with the language of the row; every part only if it is filled.
+     */
+    function combinedValue(row, combined) {
+        if (combined.words) return combinedParts(row, combined).join(' ');
+        function part(column) {
+            return String(row[column] == null ? '' : row[column]).trim();
+        }
+        var back = combined.key === '_backside';
+        var name = part(back ? 'Backside Name' : 'Name');
+        var treatment = back ? '' : part('Art Treatment');
+        var translated = part(back ? 'Translated Backside Name' : 'Translated Name');
+        var language = part(LANGUAGE) || defaultLanguage();
+        return [name, treatment ? '(' + treatment + ')' : '',
+            translated ? '(' + language + ': ' + translated + ')' : '']
+            .filter(Boolean).join(' ');
+    }
+
     // Kinds of columns: the user's own input is always editable; reference columns come from
     // the reference data and identity columns describe the printing - both only in edit mode.
     // "Overrides" lists the reference columns the user changed on purpose (";" separated).
@@ -1359,6 +1404,9 @@ FCT.model = (function () {
         reportLanguageUpgrade: reportLanguageUpgrade,
         QUANTITIES: QUANTITIES,
         NUMBER_COLUMNS: NUMBER_COLUMNS,
+        COMBINED_COLUMNS: COMBINED_COLUMNS,
+        combinedParts: combinedParts,
+        combinedValue: combinedValue,
         INPUT_COLUMNS: INPUT_COLUMNS,
         REFERENCE_COLUMNS: REFERENCE_COLUMNS,
         OVERRIDES: OVERRIDES,

@@ -1491,3 +1491,17 @@ table.row-form button.reset {
     line-height: 1;
     cursor: pointer;
 }
+
+/* Column chooser (issue #69): heading above the single fields of the combined columns. */
+#columns-list .columns-heading {
+    margin: 8px 0 2px;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-weight: 600;
+}
+/* Row dialog: a field that may not be edited now. */
+table.row-form input:disabled,
+table.row-form select:disabled {
+    opacity: 0.55;
+}
