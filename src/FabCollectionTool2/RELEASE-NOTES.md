@@ -6,6 +6,38 @@ die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>
 (z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
 GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.7.0 – 03.10.2026
+
+### Verbessert
+- **Detailspalten hinter dem Rechenblock** (#62): `Edition`, `Language`, `First In` und
+  *Exklusiv* stehen jetzt hinter *Left (total)* und vor `Note`. Direkt nach `Id` und dem
+  Kartenbild folgt wieder `Rarity`, sodass Mengen und *Have / Need / Left* ohne Scrollen im
+  Bild sind. `Edition` und `Language` bleiben immer sichtbar, nur weiter rechts; der Tooltip
+  am ○ nennt den Unterschied einer Variante weiterhin.
+
+### Geändert
+- **`collection.csv` in neuer Spaltenfolge:** Die Datei folgt wie immer der Tabelle:
+  `Set, Id, Rarity, …, Playset, ST, RF, CF, GF, Edition, Language, First In, Note, Overrides`.
+  Bestehende Bestände werden über die Spaltennamen gelesen (Info-Meldung „ältere
+  Reihenfolge“) und beim nächsten Speichern in der neuen Reihenfolge geschrieben; an den
+  Werten ändert sich nichts.
+- **`collection.csv` ist keine Schnittstelle für externe Tools.** Sie kann als Quelle
+  herhalten, es gibt aber keine Zusage zu Aufbau oder Reihenfolge. Für unterstützte externe
+  Tools gibt es stets eine eigene Exportdatei (Fabrary, Cardmarket).
+
+### Stammdaten
+- Vor dem Release geprüft: the-fab-cube `develop` unverändert auf `18b2d9d` vom 30.09.2026.
+
+### Entwicklung
+- **Board:** neue Spalten *Changes requested* (Rückmeldung aus dem Test) und *Closed*
+  (veröffentlicht, abgelehnt oder nicht reproduzierbar). *Done* heißt: nach `develop` gemergt,
+  aber noch nicht veröffentlicht; das Issue bleibt bis zum Release offen.
+- Die Action `note-merge-on-develop.yml` (bisher `close-issues-on-develop.yml`) vermerkt den
+  Merge nach `develop` nur noch als Kommentar im Issue und schließt es nicht mehr.
+- `CLAUDE.md`: Regeln für den Release-Abschluss nach Elmars Freigabe (Merges, Tag, Aufräumen,
+  Issues schließen und auf *Closed* setzen).
+- Selbsttest: Prüfung „Column order“ um die neue Spaltenfolge erweitert.
+
 ## 2.6.0 – 03.10.2026
 
 ### Neu
