@@ -112,6 +112,14 @@ FCT.reference = (function () {
         return codes.length && setDate(codes[0]) ? codes[0] : printing.setCode;
     }
 
+    // True if the card of a row is exclusive to one set (issue #54): all its printings lie in
+    // the same set. A card in another pitch is a card of its own; any reprint, also as a
+    // promo, ends the exclusivity. False for unknown card numbers.
+    function isExclusive(row) {
+        var front = printingFor(row);
+        return !!front && cardSets(front.cardId).length === 1;
+    }
+
     // Type line of a card number, e.g. "Guardian, Weapon, Hammer, 1H".
     function types(id) {
         var list = printings(id);
@@ -340,6 +348,7 @@ FCT.reference = (function () {
         foilings: foilings,
         printingFor: printingFor,
         cardSets: cardSets,
+        isExclusive: isExclusive,
         reprints: reprints,
         image: image,
         info: function () { return state ? state.info : null; },

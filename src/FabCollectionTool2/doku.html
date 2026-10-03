@@ -309,6 +309,11 @@
                 die Karte ein <strong>Reprint</strong> und der Wert hervorgehoben. Ein von Hand
                 eingetragener, abweichender Wert bleibt als lokale Änderung (✱) erhalten</td>
             </tr>
+            <tr><td>Exklusiv</td><td>nur Anzeige, nie in <code>collection.csv</code>:
+                <em>ja</em>, wenn es die Karte nur in diesem einen Set gibt (kein Reprint, auch
+                nicht als Promo; dieselbe Karte in anderem Pitch zählt als eigene Karte). Der
+                Wert folgt den Stammdaten und entfällt, sobald ein anderes Set die Karte
+                nachdruckt</td></tr>
             <tr><td>Rarity</td><td>Seltenheit (Common, Rare, Majestic, …)</td></tr>
             <tr><td>Metatype</td><td>Metatyp der Karte, z. B. Event, Rosetta, High Seas
                 (selten)</td></tr>
@@ -577,8 +582,11 @@
         <h3>Schnellfilter</h3>
         <p>Das Auswahlfeld neben der Suche beantwortet häufige Fragen: nur Bestand (ohne fehlende
             Varianten), im Besitz, fehlt zum Playset (gesamt oder in diesem Set), überzählig, noch
-            nicht im Bestand, weicht von den Stammdaten ab, auffällige Zeilen (unbekannte
-            Kartennummer, ungültige Zahl).</p>
+            nicht im Bestand, exklusiv (Karten, die es nur in einem einzigen Set gibt), weicht
+            von den Stammdaten ab, auffällige Zeilen (unbekannte Kartennummer, ungültige
+            Zahl). Welche exklusiven Karten noch fehlen, zeigt der Schnellfilter
+            <em>Exklusiv</em> zusammen mit dem Spaltenfilter <em>Need (set)</em>
+            (<code>&gt;0</code>).</p>
         <p>Ein aktiver Filter zeigt rechts ein <strong>×</strong>, das ihn mit einem Klick
             löscht – im Suchfeld, in Textfiltern und bei Häkchenfiltern (dann sind wieder alle
             Werte angehakt). <em>Filter zurücksetzen</em> leert Suche, alle Filter und die

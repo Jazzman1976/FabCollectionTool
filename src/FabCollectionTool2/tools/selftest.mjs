@@ -704,6 +704,35 @@ if (!currentFile) {
         `rules ${rules}, undated ${undated}, kept / filled in ${transition}, gaps ${filled}`);
 }
 
+// Exclusive cards (issue #54): a card whose printings all lie in one set; a reprint in
+// another set ends it, the same card in another pitch is a card of its own.
+{
+    const m = FCT.model;
+    const data = FCT.reference.data();
+    const exclusive = (id) => FCT.reference.isExclusive(m.newRow({ Id: id }));
+    const setsOf = new Map();
+    data.printings.forEach((p) => {
+        if (!setsOf.has(p[6])) setsOf.set(p[6], new Set());
+        setsOf.get(p[6]).add(p[1]);
+    });
+    // Every printing variant, counted independently; the front face of a row decides.
+    const all = data.printings.every((p) => {
+        const row = m.newRow({ Id: p[0], Edition: p[2], 'Art Treatment': p[3] });
+        const front = FCT.reference.printingFor(row);
+        return FCT.reference.isExclusive(row) === (setsOf.get(front.cardId).size === 1);
+    });
+    // A card with exactly one printing; Ghostly Visit is in MON, CHN and FAB.
+    const single = data.printings.find((p) => setsOf.get(p[6]).size === 1 &&
+        FCT.reference.printings(p[0]).length === 1);
+    const rules = exclusive(single[0]) && !exclusive('MON203') && !exclusive('CHN021') &&
+        !exclusive('ZZZ999');
+    const gaps = m.setRows(m.create(), [single[1]]);
+    const shown = gaps.some((row) => row.Id === single[0] && FCT.reference.isExclusive(row));
+    const saved = m.COLUMNS.every((c) => !/exclusiv/i.test(c));
+    check('Exclusive cards', all && rules && shown && saved,
+        `all printings ${all}, rules ${rules}, gap row ${shown}, not saved ${saved}`);
+}
+
 // Which cells can be edited (2.0.3.0): input always; a value that differs from the reference
 // data also outside edit mode; everything in edit mode.
 {
