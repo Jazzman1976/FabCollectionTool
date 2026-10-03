@@ -63,7 +63,8 @@ Ready for dev, In progress, In review, Done. Remote heißt lokal `github`, in de
 - Label **„in development“** gehört an jedes Issue mit Status außer Backlog und Done.
 - **`develop` und `main` werden nie gelöscht**, nie direkt beschrieben (nur per PR), nie
   force-gepusht. Aufräumen: nur `feature/`-Branches, die nachweislich gemergt sind.
-- Merges nach `develop` oder `main` macht nur Elmar.
+- Merges nach `develop` oder `main` macht nur Elmar. Einzige Ausnahme: der Release-Abschluss
+  nach Elmars ausdrücklicher Freigabe (siehe Release).
 - Elmars Zusage „kann committed werden“ zählt als erfolgreicher Browsertest; keine
   „offen bei Elmar“-Listen.
 
@@ -75,8 +76,20 @@ Ready for dev, In progress, In review, Done. Remote heißt lokal `github`, in de
 - Vorher prüfen: Stammdaten-Stand gegen the-fab-cube `develop` (`reference/README.md`).
 - Jede Korrektur auf dem Release-Branch erhöht die dritte Stelle (2.4.0 → 2.4.1).
   Fehler nach der Veröffentlichung: `hotfix/<Version>` von `main`.
-- PR nach `main` (Elmar merged, die Action `pages.yml` testet und veröffentlicht), Tag
-  `<Version>` (annotiert) auf `main`, danach PR `main` → `develop`.
+- PR `release/<Version>` → `main` öffnen und Elmar Bescheid geben. Er testet final.
+- **Release-Abschluss: nur nach Elmars ausdrücklicher Freigabe für genau dieses Release, nie
+  selbstständig.** Mit der Freigabe sind alle Tests durch; dann erledigt Claude ohne weitere
+  Rückfrage genau diese Schritte:
+  1. PR `release/<Version>` → `main` mergen (die Action `pages.yml` testet und veröffentlicht).
+  2. PR `release/<Version>` → `develop` öffnen und mergen.
+  3. Tag `<Version>` (annotiert) auf den Merge-Commit auf `main` setzen.
+  4. Den Release-Branch löschen (GitHub und lokal).
+  5. Aufräumen: alle weiteren Branches außer `develop` und `main` löschen, die sicher gelöscht
+     werden können (nachweislich gemergt), auf GitHub und lokal. Was nicht gemergt ist, bleibt
+     und wird genannt.
+- Gemergt wird über die PRs (Merge-Commit, kein Force-Push, kein direkter Push). SourceTrees
+  „Finish Release“ passt nicht dazu: Es merged lokal und scheitert am Push auf die geschützten
+  Branches.
 
 ## Selbsttest
 Im Ordner `src/FabCollectionTool2`:

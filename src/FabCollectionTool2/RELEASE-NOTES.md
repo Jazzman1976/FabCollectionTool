@@ -6,6 +6,62 @@ die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>
 (z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
 GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.6.0 – 03.10.2026
+
+### Neu
+- **Edition und Sprache getrennt** (#53): `Edition` enthält nur noch *Alpha*, *First* oder
+  *Unlimited* und ist bei Sets ohne Editionen leer. Die Sprache steht in der neuen Spalte
+  **`Language`** direkt dahinter (EN, DE, FR, ES, IT, JP) und ist nie leer; ohne Angabe gilt
+  EN. Beide Spalten lassen sich getrennt filtern.
+  - **Bestehende Bestände werden beim Öffnen umgestellt:** Stand in `Edition` eine Sprache,
+    wandert sie nach `Language`; alle anderen Zeilen werden EN. Eine Meldung nennt die Zahl
+    der Zeilen. Beim nächsten Speichern hat `collection.csv` die neue Spalte
+    (`Set, Edition, Language, Id, …`) – **wichtig für externe Tools, die die Datei lesen**.
+    Dasselbe gilt für den Import der 1.0-Tabelle.
+  - Zeilen aus den Stammdaten (○, *Sets aufnehmen*, Fabrary-Import) sind EN; eine neue Zeile
+    übernimmt die Sprache der Zeile darüber.
+- **Exklusive Karten erkennen** (#54): Die neue Spalte **Exklusiv** (hinter `First In`) zeigt
+  *ja*, wenn es eine Karte nur in einem einzigen Set gibt – kein Reprint, auch nicht als
+  Promo. Der Schnellfilter **„Exklusiv (nur in einem Set)“** zeigt nur diese Karten; zusammen
+  mit dem Filter `>0` auf *Need (set)* findest du die, die dir noch fehlen. Die große
+  Bildansicht nennt die Exklusivität ebenfalls. Die Spalte ist nur Anzeige und steht nicht
+  in `collection.csv`.
+
+### Verbessert
+- **`First In` kommt aus den Stammdaten** (#51): Die Spalte ist jetzt immer gefüllt – mit dem
+  Set-Code des Sets, in dem die Karte zuerst erschien (frühestes Erscheinungsdatum; bei
+  gleichem Datum das größere Set, z. B. `MON` vor `CHN`; Sets ohne Datum zuletzt). Bisher
+  blieb sie bei Zeilen aus den Stammdaten leer.
+  - **Reprints sind hervorgehoben:** Weicht `First In` vom eigenen Set ab, steht der Wert in
+    Akzentfarbe und fett; sonst ist er gedämpft.
+  - Von Hand eingetragene Werte, die von den Stammdaten abweichen, bleiben erhalten und werden
+    als lokale Änderung (✱) markiert. *Stammdaten → Übernehmen …* holt den Stammdatenwert.
+  - Folge für den Fabrary-Export: „Extra for trade“ erkennt Reprints jetzt auch in Zeilen,
+    deren `First In` bisher leer war.
+- **Tastatur springt nicht mehr in die Bildmitte** (#52): Beim Bewegen mit Pfeiltasten, Tab
+  oder Bild auf/ab bleibt die Liste stehen, solange die aktive Zelle sichtbar ist, und scrollt
+  erst am oberen oder unteren Rand zeilenweise mit. Nur ein Sprung zu einer Zeile außerhalb
+  des Bildes (z. B. Klick auf eine Meldung) zeigt sie weiter mittig.
+- **Filter und Gliederung hinter Hilfe** (#50): Die Werkzeugleiste ist nur noch eine Leiste.
+  Die Gruppen *Filter* und *Gliederung* folgen direkt auf *Hilfe* und brechen erst um, wenn
+  der Platz fehlt – die Tabelle bekommt eine Zeile mehr Höhe.
+
+### Geändert
+- **Cardmarket-Export:** „Setname und Edition“ hängt nur noch eine echte Edition an (Alpha,
+  First, Unlimited). Die Sprache (bisher z. B. „ - EN“) entfällt am Zeilenende.
+- ***Leere Zeilen entfernen*** erfasst jetzt auch EN-Zeilen ohne Menge und Notiz sowie Zeilen,
+  die außer `First In` nichts Eigenes haben. Zeilen in einer anderen Sprache bleiben immer.
+- Das Protokoll nennt die Sprache in der Variante (z. B. „Alpha, EN“).
+
+### Stammdaten
+- Vor dem Release geprüft: the-fab-cube `develop` unverändert auf `18b2d9d` vom 30.09.2026.
+
+### Entwicklung
+- Selbsttest: neue Prüfungen „First In from reference data“, „Exclusive cards“ und „Edition
+  and language“.
+- Release Notes aller veröffentlichten 2.x-Versionen stehen zusätzlich in der `README.md` im
+  Wurzelordner.
+
 ## 2.5.0 – 30.09.2026
 
 ### Neu
