@@ -54,8 +54,13 @@ function check(name, ok, detail) {
         ST: '1', Note: 'Zeile 1\nZeile 2 mit "Anführungszeichen"' }));
     collection.rows.push(FCT.model.newRow({ Id: 'MON254', Name: 'Tremor of íArathael',
         Note: 'Ünïcödé ✓' }));
-    // Playsets as the reference data expects them (an empty one would be filled in on load).
-    collection.rows.forEach((row) => { row.Playset = FCT.reference.expected(row).Playset; });
+    // Playset and first set as the reference data expects them (empty ones would be filled
+    // in on load).
+    collection.rows.forEach((row) => {
+        const expected = FCT.reference.expected(row);
+        row.Playset = expected.Playset;
+        row['First In'] = expected['First In'];
+    });
     const text = FCT.model.toCsv(collection);
     const back = FCT.model.fromCsv('﻿' + text).collection;
     check('CSV round trip', FCT.model.toCsv(back) === text &&
@@ -469,7 +474,7 @@ if (!currentFile) {
     const text = FCT.csv.stringify([log.HEADER].concat(log.toRecords(log.pending())));
     const records = FCT.csv.parse(text);
     log.markWritten();
-    check('Change log round trip', records.length === 3 && records[1][4] === 'Alpha' &&
+    check('Change log round trip', records.length === 3 && records[1][4] === 'Alpha, EN' &&
         records[2][6] === 'ST=2 "x"' && log.pending().length === 0);
 }
 
@@ -614,7 +619,7 @@ if (!currentFile) {
     const withZero = Object.assign({}, empty, { ST: '0' });
     const withNote = Object.assign({}, empty, { Note: 'x' });
     const withOverride = Object.assign({}, empty, { Overrides: 'Playset' });
-    const language = Object.assign({}, empty, { Edition: 'DE' });
+    const language = Object.assign({}, empty, { Language: 'DE' });
     const unknown = Object.assign({}, empty, { Id: 'ZZZ999' });
     check('Empty rows', m.isEmptyRow(empty, collection) && m.isEmptyRow(withZero, collection) &&
         !m.isEmptyRow(withQuantity, collection) && !m.isEmptyRow(withNote, collection) &&
@@ -651,6 +656,81 @@ if (!currentFile) {
         FCT.model.differences(a).length === 0;
     check('Playset from reference data', rules && transition,
         `rules ${rules}, kept as override / filled in ${transition}`);
+}
+
+// First In from the reference data (issue #51): the set with the earliest release date; on the
+// same date the larger set; sets without a date last, and if no set has a date the own set.
+// A differing value of a file is kept as override, an empty one is filled in, and a row that
+// only carries the first set still counts as empty.
+{
+    const m = FCT.model;
+    const first = (id) => FCT.reference.expected(m.newRow({ Id: id }))['First In'];
+    const data = FCT.reference.data();
+    const dateOf = (code) => FCT.reference.setDate(code);
+    // Every printing: the first set is never younger than any dated set of the card.
+    const earliest = data.printings.every((p) => {
+        const codes = FCT.reference.cardSets(p[6]);
+        const dated = codes.filter(dateOf);
+        const head = codes[0];
+        return !dated.length || dated.every((code) => dateOf(head) && dateOf(head) <= dateOf(code));
+    });
+    // Ghostly Visit: Monarch and the Chane deck share the date, the larger set wins; the
+    // undated promo printing shows the same first set (a reprint).
+    const rules = earliest && first('MON203') === 'MON' && first('CHN021') === 'MON' &&
+        first('FAB038') === 'MON' && first('WTR001') === 'WTR';
+    const undatedCard = data.printings.find((p) => !FCT.reference.cardSets(p[6]).some(dateOf));
+    const undated = !undatedCard || first(undatedCard[0]) === undatedCard[1];
+
+    const collection = m.create();
+    const differs = m.newRow({ Id: 'CHN021', 'First In': 'CHN', ST: '1' });
+    const empty = m.newRow({ Id: 'MON203', 'First In': '', ST: '2' });
+    [differs, empty].forEach((row) => {
+        const expected = FCT.reference.expected(row);
+        Object.keys(expected).filter((key) => key !== 'First In')
+            .forEach((key) => { row[key] = expected[key]; });
+    });
+    collection.rows.push(differs, empty);
+    const loaded = m.fromCsv(m.toCsv(collection));
+    const [a, b] = loaded.collection.rows;
+    const transition = a['First In'] === 'CHN' && a.Overrides === 'First In' &&
+        b['First In'] === 'MON' && b.Overrides === '' && m.differences(a).length === 0 &&
+        m.columnKind('First In') === 'reference';
+
+    const gaps = m.setRows(m.create(), ['CHN']);
+    const filled = gaps.length > 0 && gaps.every((row) => row['First In'] !== '') &&
+        gaps.find((row) => row.Id === 'CHN021')['First In'] === 'MON' &&
+        m.isEmptyRow(gaps[0], collection);
+    check('First In from reference data', rules && undated && transition && filled,
+        `rules ${rules}, undated ${undated}, kept / filled in ${transition}, gaps ${filled}`);
+}
+
+// Exclusive cards (issue #54): a card whose printings all lie in one set; a reprint in
+// another set ends it, the same card in another pitch is a card of its own.
+{
+    const m = FCT.model;
+    const data = FCT.reference.data();
+    const exclusive = (id) => FCT.reference.isExclusive(m.newRow({ Id: id }));
+    const setsOf = new Map();
+    data.printings.forEach((p) => {
+        if (!setsOf.has(p[6])) setsOf.set(p[6], new Set());
+        setsOf.get(p[6]).add(p[1]);
+    });
+    // Every printing variant, counted independently; the front face of a row decides.
+    const all = data.printings.every((p) => {
+        const row = m.newRow({ Id: p[0], Edition: p[2], 'Art Treatment': p[3] });
+        const front = FCT.reference.printingFor(row);
+        return FCT.reference.isExclusive(row) === (setsOf.get(front.cardId).size === 1);
+    });
+    // A card with exactly one printing; Ghostly Visit is in MON, CHN and FAB.
+    const single = data.printings.find((p) => setsOf.get(p[6]).size === 1 &&
+        FCT.reference.printings(p[0]).length === 1);
+    const rules = exclusive(single[0]) && !exclusive('MON203') && !exclusive('CHN021') &&
+        !exclusive('ZZZ999');
+    const gaps = m.setRows(m.create(), [single[1]]);
+    const shown = gaps.some((row) => row.Id === single[0] && FCT.reference.isExclusive(row));
+    const saved = m.COLUMNS.every((c) => !/exclusiv/i.test(c));
+    check('Exclusive cards', all && rules && shown && saved,
+        `all printings ${all}, rules ${rules}, gap row ${shown}, not saved ${saved}`);
 }
 
 // Which cells can be edited (2.0.3.0): input always; a value that differs from the reference
@@ -884,17 +964,68 @@ if (!currentFile) {
         `moved ${moved.join(' ') || '-'}`);
 }
 
+// Edition and language are two columns (issue #53). A file without the column "Language" is
+// converted: a language in "Edition" moves over, every other row is English; quantities and
+// the covered variants stay the same. Rows from the reference data are English, a row in
+// another language never counts as empty, and the language is part of a row's identity.
+{
+    const m = FCT.model;
+    const cols = m.COLUMNS;
+    const order = cols.slice(0, 4).join(',') === 'Set,Edition,Language,Id';
+    const vocab = FCT.DATA.vocab;
+    const lists = vocab.editions.join(',') === 'Alpha,First,Unlimited' &&
+        vocab.languages[0] === 'EN' && vocab.languages.indexOf('DE') > 0;
+
+    const oldHeader = cols.filter((c) => c !== 'Language');
+    const record = (id, edition, st) => oldHeader.map((c) => (c === 'Id' ? id
+        : c === 'Edition' ? edition : c === 'ST' ? st : ''));
+    const oldText = FCT.csv.stringify([oldHeader, record('WTR001', 'Unlimited', '1'),
+        record('MON203', 'EN', '2'), record('MON203', 'DE', '3'), record('MON204', '', '4')]);
+    const loaded = m.fromCsv(oldText);
+    const got = loaded.collection.rows.map((r) => [r.Edition, r.Language, r.ST].join('/'));
+    const moved = got.join(' ') === 'Unlimited/EN/1 /EN/2 /DE/3 /EN/4';
+    const reported = JSON.stringify(loaded.report.groups).includes('2 von 4');
+    const noWarning = !JSON.stringify(loaded.report.groups).includes('Spalte fehlt');
+
+    // Saved in the new format and read again: nothing changes, nothing is reported.
+    const newText = m.toCsv(loaded.collection);
+    const again = m.fromCsv(newText);
+    const stable = FCT.csv.parse(newText)[0].slice(0, 4).join(',') === 'Set,Edition,Language,Id' &&
+        m.toCsv(again.collection) === newText &&
+        !JSON.stringify(again.report.groups).includes('Language');
+
+    const [, en, de] = loaded.collection.rows;
+    const identity = m.identityKey(en) !== m.identityKey(de) &&
+        m.variantKey(en.Id, en.Edition, en['Art Treatment']) ===
+            m.variantKey(de.Id, de.Edition, de['Art Treatment']);
+    const gap = m.setRows(m.create(), ['MON'])[0];
+    const german = Object.assign({}, gap, { Language: 'DE' });
+    const rows = gap.Language === 'EN' && m.newRow({ Id: 'X' }).Language === 'EN' &&
+        m.isEmptyRow(gap, loaded.collection) && !m.isEmptyRow(german, loaded.collection);
+    const valid = m.validate(again.collection);
+    const known = !JSON.stringify(valid.groups).includes('Unbekannter Wert');
+
+    // The example spreadsheet keeps languages in "Edition": none may be left there.
+    const odsClean = ods.collection.rows.every((r) => vocab.languages.indexOf(r.Edition) < 0 &&
+        vocab.languages.indexOf(r.Language) >= 0);
+    const odsLanguages = new Set(ods.collection.rows.map((r) => r.Language));
+    check('Edition and language', order && lists && moved && reported && noWarning && stable &&
+        identity && rows && known && odsClean,
+        `order ${order}, old file ${moved}, reported ${reported}, stable ${stable}, ` +
+        `identity ${identity}, rows ${rows}, ODS ${[...odsLanguages].join('/')}`);
+}
+
 // Variants not yet in the collection (2.0.6.3): foilings of exactly the variant; quantity cells
 // of foilings that do not exist are locked outside edit mode; the columns of a variant.
 {
     const m = FCT.model;
     const alpha = { Id: 'WTR000', Edition: 'Alpha', 'Art Treatment': '' };
     const foils = JSON.stringify(FCT.reference.foilings(alpha));
-    const language = FCT.reference.foilings({ Id: 'WTR000', Edition: 'DE',
+    const language = FCT.reference.foilings({ Id: 'WTR000', Edition: '', Language: 'DE',
         'Art Treatment': '' });
     const locked = !m.isEditable(alpha, 'ST', false) && m.isEditable(alpha, 'CF', false) &&
         m.isEditable(alpha, 'ST', true) && !m.noPrinting(alpha, 'Note');
-    const columns = m.VARIANT_COLUMNS.join(',') === 'Id,Edition,Art Treatment';
+    const columns = m.VARIANT_COLUMNS.join(',') === 'Id,Edition,Language,Art Treatment';
     check('Variants: foilings and columns', foils === '["CF"]' && language === null &&
         locked && columns, `WTR000 Alpha ${foils}, DE ${language}, locked ${locked}, ` +
         `variant columns ${m.VARIANT_COLUMNS.join(', ')}`);

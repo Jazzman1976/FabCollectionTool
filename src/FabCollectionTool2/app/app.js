@@ -40,13 +40,15 @@ FCT.app = (function () {
      * after the quantities. The default view shows the columns asked for in the feedback.
      * Widths are in em, so they follow the font size.
      */
-    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Id', '_image', 'Rarity', 'Metatype', 'Talent1',
+    var DEFAULT_COLUMNS = ['Set', 'Edition', 'Language', 'Id', '_image', '_exclusive', 'Rarity',
+        'Metatype', 'Talent1',
         'Talent2', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name',
         'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
         '_leftTotal'];
     var WIDTHS = {
-        Set: 12, Edition: 5.5, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5, Talent1: 6.5,
+        Set: 12, Edition: 5.5, Language: 6, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5,
+        Talent1: 6.5,
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
         'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
@@ -56,6 +58,10 @@ FCT.app = (function () {
 
     // Explanations shown when hovering over a column title (feedback on 2.0.5.0).
     var HINTS = {
+        Edition: 'Alpha, First oder Unlimited; leer bei Sets ohne Editionen',
+        Language: 'Sprache der Karte (EN, DE, …); ohne Angabe EN',
+        'First In': 'Set, in dem die Karte zuerst erschien (aus den Stammdaten: frühestes ' +
+            'Erscheinungsdatum). Hervorgehoben = Reprint aus einem anderen Set',
         ST: 'Standard: die regulären (Regular) Printings – bei Cardmarket heißen sie ' +
             '„Standard“',
         RF: 'Rainbow Foil',
@@ -92,6 +98,13 @@ FCT.app = (function () {
         return PITCH_CLASSES[value] || null;
     }
 
+    // "First In" (issue #51): a reprint - first printed in another set than the row's own -
+    // stands out, a first printing steps back. Without a row (filter list) nothing is marked.
+    function firstInClass(value, row) {
+        if (!value || !row) return null;
+        return value === model.setCode(row.Id) ? 'first-print' : 'reprint';
+    }
+
     function buildColumns() {
         var columns = model.COLUMNS.filter(function (key) {
             return model.columnKind(key) !== 'internal';
@@ -101,7 +114,8 @@ FCT.app = (function () {
                 key: key, label: key, numeric: numeric, kind: model.columnKind(key),
                 step: numeric, width: numeric ? STEP_WIDTH : WIDTHS[key] || 7,
                 list: model.choices(key) !== null, hint: HINTS[key] || '',
-                valueClass: key === 'Pitch' ? pitchClass : null
+                valueClass: key === 'Pitch' ? pitchClass : key === 'First In' ? firstInClass
+                    : null
             };
         });
 
@@ -155,12 +169,20 @@ FCT.app = (function () {
             hint: 'überfahren = Vorschau, Klick = groß',
             value: function () { return ''; } };
 
+        // Exclusive cards (issue #54): "ja" if the card exists in a single set only. Only
+        // shown, never saved - the value changes as soon as another set reprints the card.
+        var exclusive = { key: '_exclusive', label: 'Exklusiv', width: 5, kind: 'calc',
+            hint: 'ja = die Karte gibt es nur in diesem einen Set (kein Reprint, keine Promo)',
+            value: function (row) { return FCT.reference.isExclusive(row) ? 'ja' : ''; } };
+
         var keys = columns.map(function (c) { return c.key; });
         var id = keys.indexOf('Id') + 1;
+        var firstIn = keys.indexOf('First In') + 1;
         var at = keys.indexOf('GF') + 1;
         var note = keys.indexOf('Note');
-        var all = columns.slice(0, id).concat([picture], columns.slice(id, at), calculated,
-            columns.slice(at, note), columns.slice(note), [types], shown);
+        var all = columns.slice(0, id).concat([picture], columns.slice(id, firstIn), [exclusive],
+            columns.slice(firstIn, at), calculated, columns.slice(at, note), columns.slice(note),
+            [types], shown);
 
         // Visibility: as last chosen by the user, otherwise the default view. Art Treatment
         // belongs to the default view since 2.0.4.0, Metatype, Talent1 and Talent2 replace
@@ -185,6 +207,12 @@ FCT.app = (function () {
         if (!settings.get('columns2070', false)) {
             if (visible.indexOf('_image') < 0) visible = visible.concat(['_image']);
             settings.set('columns2070', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
+        // "Exklusiv" belongs to the default view (issue #54); a remembered choice gets it once.
+        if (!settings.get('columnsExclusive', false)) {
+            if (visible.indexOf('_exclusive') < 0) visible = visible.concat(['_exclusive']);
+            settings.set('columnsExclusive', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
         // The columns of a variant are always shown (since 2.0.6.3).
@@ -1928,6 +1956,8 @@ FCT.app = (function () {
                 if (result.collection) {
                     model.reportPlaysets(result.report,
                         model.keepPlaysets(result.collection.rows));
+                    model.reportFirstIn(result.report,
+                        model.keepFirstIn(result.collection.rows));
                     var check = model.validate(result.collection);
                     check.groups.forEach(function (g) { result.report.groups.push(g); });
                 }
@@ -2720,6 +2750,7 @@ FCT.app = (function () {
         if (mode === 'differs') return !row._reference && model.differences(row).length > 0;
         if (mode === 'gaps') return !!row._reference;
         if (mode === 'collection') return !row._reference;
+        if (mode === 'exclusive') return FCT.reference.isExclusive(row);
         return true;
     }
 
@@ -2817,7 +2848,7 @@ FCT.app = (function () {
      */
     function newRowValues(row) {
         var id = model.nextId(row.Id);
-        var values = { Set: row.Set, Edition: row.Edition, Id: id };
+        var values = { Set: row.Set, Edition: row.Edition, Language: row.Language, Id: id };
         var common = id ? model.commonValues(id) : null;
         var copied = common || { Metatype: row.Metatype, Talent1: row.Talent1,
             Talent2: row.Talent2, Class1: row.Class1, Class2: row.Class2,
@@ -3703,6 +3734,7 @@ FCT.app = (function () {
             (date(shown.setCode) ? ', ' + date(shown.setCode) : '');
         var printingPart = [el('h3', { text: 'Diese Variante' }), facts([
             ['Nummer', row.Id], ['Set', setText], ['Edition', row.Edition || shown.edition],
+            ['Sprache', row.Language || ''],
             ['Art Treatment', row['Art Treatment'] || ''], ['Seltenheit', shown.rarity],
             ['Artist', shown.artists], ['Foilings', foilings(shown.foilings)],
             ['Im Bestand', inCollection]
@@ -3731,8 +3763,13 @@ FCT.app = (function () {
             ]);
         });
         var heads = ['Nummer', 'Set', 'Variante', 'Seltenheit', 'Foilings', 'Bestand'];
+        var exclusiveNote = FCT.reference.isExclusive(row)
+            ? [el('p', { className: 'what', text: 'Exklusiv: Diese Karte gibt es nur in ' +
+                'diesem Set – kein Reprint in einem anderen.' })]
+            : [];
         var listPart = [
-            el('h3', { text: 'Alle Varianten und Reprints (' + printings.length + ')' }),
+            el('h3', { text: 'Alle Varianten und Reprints (' + printings.length + ')' })
+        ].concat(exclusiveNote, [
             el('table', { className: 'card-printings' }, [
                 el('thead', {}, [el('tr', {}, heads.map(function (t) {
                     return el('th', { text: t });
@@ -3741,7 +3778,7 @@ FCT.app = (function () {
             ]),
             el('p', { className: 'what', text: 'Zusammen im Bestand: ' + total +
                 ' von Playset ' + (source.Playset || FCT.reference.playset(card)) })
-        ];
+        ]);
 
         return el('div', { className: 'card-details' },
             cardPart.concat(printingPart, listPart));

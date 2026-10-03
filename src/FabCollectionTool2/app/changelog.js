@@ -22,10 +22,11 @@ FCT.changelog = (function () {
             pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
     }
 
-    // Printing variant of a row in short form, e.g. "First, Rainbow" or "DE, Extended Art".
+    // Printing variant of a row in short form, e.g. "First, EN" or "DE, Extended Art".
     function variant(row) {
         if (!row) return '';
-        return [row.Edition, row['Art Treatment'], row.Peculiarity].filter(Boolean).join(', ');
+        return [row.Edition, row.Language, row['Art Treatment'], row.Peculiarity]
+            .filter(Boolean).join(', ');
     }
 
     function notify(entry) {

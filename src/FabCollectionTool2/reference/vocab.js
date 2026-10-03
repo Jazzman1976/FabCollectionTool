@@ -6,8 +6,10 @@
 FCT.DATA.vocab = {
 
     // Allowed values in the collection. An empty string is always allowed as well.
-    editions: ['Alpha', 'First', 'Unlimited', 'EN', 'DE', 'FR', 'ES', 'IT', 'JP'],
-    languageEditions: ['EN', 'DE', 'FR', 'ES', 'IT', 'JP'],
+    // Editions and languages are columns of their own (issue #53); the first language is the
+    // default of a row.
+    editions: ['Alpha', 'First', 'Unlimited'],
+    languages: ['EN', 'DE', 'FR', 'ES', 'IT', 'JP'],
     artTreatments: [
         'Alternate Art', 'Alternate Border', 'Alternate Text', 'Extended Art', 'Full Art',
         'Micro Text Box'

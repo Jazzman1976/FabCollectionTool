@@ -243,7 +243,7 @@ FCT.importOds = (function () {
         model.COLUMNS.forEach(function (name) {
             var present = columns.some(function (c) { return c && c.name === name; });
             var expectedMissing = name === 'Note' || name === model.OVERRIDES ||
-                (legacy && model.NEW_IN_2050.indexOf(name) >= 0);
+                name === model.LANGUAGE || (legacy && model.NEW_IN_2050.indexOf(name) >= 0);
             if (!present && !expectedMissing) {
                 report.add(name === 'Id' ? 'error' : 'warn', 'Spalte fehlt in der Tabelle', name);
             }
@@ -255,6 +255,9 @@ FCT.importOds = (function () {
         var sections = 0;
         var upgraded = 0;
         var purpleRows = 0;
+        var languageRows = 0;
+        // The spreadsheet keeps the language in "Edition" (see model.upgradeLanguage).
+        var noLanguage = !columns.some(function (c) { return c && c.name === model.LANGUAGE; });
         for (var r = found.rowIndex + 1; r < rows.length; r++) {
             var cells = rows[r].cells;
             if (!cells.some(function (v) { return String(v).trim() !== ''; })) continue;
@@ -278,9 +281,11 @@ FCT.importOds = (function () {
             // Repeated rows with content are materialized as often as they are repeated.
             var converted = legacy && model.upgradeValues(values);
             var purple = model.upgradePitch(values);
+            var language = noLanguage && model.upgradeLanguage(values);
             for (var n = 0; n < rows[r].repeat; n++) {
                 if (converted) upgraded++;
                 if (purple) purpleRows++;
+                if (language) languageRows++;
                 var row = model.newRow(values);
                 collection.extraColumns.forEach(function (name) {
                     row[name] = values[name] || '';
@@ -293,6 +298,7 @@ FCT.importOds = (function () {
             ' Zwischenüberschriften übersprungen');
         model.reportUpgrade(report, upgraded);
         model.reportPitchUpgrade(report, purpleRows);
+        if (noLanguage) model.reportLanguageUpgrade(report, languageRows, collection.rows.length);
         return { collection: collection, report: report };
     }
 

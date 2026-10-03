@@ -36,9 +36,11 @@ FCT.reference = (function () {
                 typeText: card[10] || '', notLegal: card[11] || '' });
         });
 
-        // Printings by card number, and by card (unique id) for its reprints (#26).
+        // Printings by card number, and by card (unique id) for its reprints (#26); the cards
+        // of each set code tell how large a set is (#51).
         var printingsById = new Map();
         var printingsByCard = new Map();
+        var setCards = new Map();
         data.printings.forEach(function (p) {
             var card = cards.get(p[6]) || { name: '', pitch: '', types: '' };
             var printing = {
@@ -50,11 +52,14 @@ FCT.reference = (function () {
             printingsById.get(printing.id).push(printing);
             if (!printingsByCard.has(printing.cardId)) printingsByCard.set(printing.cardId, []);
             printingsByCard.get(printing.cardId).push(printing);
+            if (!setCards.has(printing.setCode)) setCards.set(printing.setCode, new Set());
+            setCards.get(printing.setCode).add(printing.cardId);
         });
 
         state = {
             data: data, info: info, setNames: setNames, setDates: setDates, cards: cards,
-            printingsById: printingsById, printingsByCard: printingsByCard
+            printingsById: printingsById, printingsByCard: printingsByCard,
+            setCards: setCards, cardSets: new Map()
         };
     }
 
@@ -71,6 +76,48 @@ FCT.reference = (function () {
     // Release date of a set (YYYY-MM-DD), or '' if the reference data knows none.
     function setDate(code) {
         return (state && state.setDates.get(code)) || '';
+    }
+
+    /*
+     * Set codes a card (unique id) was printed in, in the order of their first appearance
+     * (issue #51): the earliest release date first; on the same date the set with more cards
+     * (a main set before the decks released with it, "MON" before "CHN"); sets without a date
+     * (promo collections, sets of a preview branch) last. Cached per card.
+     */
+    function cardSets(cardId) {
+        if (!state) return [];
+        var known = state.cardSets.get(cardId);
+        if (known) return known;
+        var codes = [];
+        (state.printingsByCard.get(cardId) || []).forEach(function (p) {
+            if (codes.indexOf(p.setCode) < 0) codes.push(p.setCode);
+        });
+        function size(code) {
+            return state.setCards.has(code) ? state.setCards.get(code).size : 0;
+        }
+        codes.sort(function (a, b) {
+            var da = setDate(a);
+            var db = setDate(b);
+            if (da !== db) return !da ? 1 : !db ? -1 : da < db ? -1 : 1;
+            return size(b) - size(a) || (a < b ? -1 : a > b ? 1 : 0);
+        });
+        state.cardSets.set(cardId, codes);
+        return codes;
+    }
+
+    // Set code of the set the card of a printing appeared in first. If no set of the card
+    // has a release date, nothing is known about the order and the printing's own set counts.
+    function firstSet(printing) {
+        var codes = cardSets(printing.cardId);
+        return codes.length && setDate(codes[0]) ? codes[0] : printing.setCode;
+    }
+
+    // True if the card of a row is exclusive to one set (issue #54): all its printings lie in
+    // the same set. A card in another pitch is a card of its own; any reprint, also as a
+    // promo, ends the exclusivity. False for unknown card numbers.
+    function isExclusive(row) {
+        var front = printingFor(row);
+        return !!front && cardSets(front.cardId).length === 1;
     }
 
     // Type line of a card number, e.g. "Guardian, Weapon, Hammer, 1H".
@@ -176,8 +223,7 @@ FCT.reference = (function () {
     function printingOf(row) {
         var list = printings(row.Id);
         if (!list.length) return null;
-        var vocab = FCT.DATA.vocab;
-        var edition = vocab.languageEditions.indexOf(row.Edition) >= 0 ? '' : row.Edition;
+        var edition = row.Edition;
         var art = row['Art Treatment'];
 
         // Narrow down to the printing variant; fall back step by step if nothing matches.
@@ -205,17 +251,15 @@ FCT.reference = (function () {
     /*
      * Quantity columns that exist for exactly the variant of a row (since 2.0.6.3): the
      * foilings of its printings ("S", "R", "C", "G") as ['ST', 'RF', 'CF', 'GF']. null if the
-     * variant is not in the reference data as such (e.g. a language edition), so nothing can
-     * be said about it.
+     * variant is not in the reference data as such (e.g. an edition the set never had), so
+     * nothing can be said about it.
      */
     var FOILING_COLUMNS = { S: 'ST', R: 'RF', C: 'CF', G: 'GF' };
 
     function foilings(row) {
         if (!row || !row.Id) return null;
-        var vocab = FCT.DATA.vocab;
-        var edition = vocab.languageEditions.indexOf(row.Edition) >= 0 ? '' : row.Edition;
         var matches = printings(row.Id).filter(function (p) {
-            return p.edition === edition && p.art === row['Art Treatment'];
+            return p.edition === row.Edition && p.art === row['Art Treatment'];
         });
         if (!matches.length) return null;
         var found = [];
@@ -278,6 +322,7 @@ FCT.reference = (function () {
         if (!card.split) card.split = splitTypes(card.types, card.typeText);
         var result = {
             Set: setName(front.setCode),
+            'First In': firstSet(front),
             Rarity: front.rarity,
             Name: card.name,
             'Backside Name': back ? back.card.name : '',
@@ -299,6 +344,8 @@ FCT.reference = (function () {
         expected: expected,
         foilings: foilings,
         printingFor: printingFor,
+        cardSets: cardSets,
+        isExclusive: isExclusive,
         reprints: reprints,
         image: image,
         info: function () { return state ? state.info : null; },
@@ -317,11 +364,13 @@ FCT.model = (function () {
     // table of the app shows them in exactly this order, so that the file reads the same in
     // external tools (decided 24.09.2026); files in another order are read by column name.
     // Metatype to Sub3 follow the type line of the card (rules 2.14.1, since 2.0.5.0).
+    // Edition (Alpha, First, Unlimited) and Language (EN, DE, ...) are two columns since
+    // issue #53.
     var COLUMNS = [
-        'Set', 'Edition', 'Id', 'First In', 'Rarity', 'Metatype', 'Talent1', 'Talent2',
-        'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name',
-        'Translated Name', 'Translated Backside Name', 'Peculiarity', 'Art Treatment', 'Pitch',
-        'Playset', 'ST', 'RF', 'CF', 'GF', 'Note', 'Overrides'
+        'Set', 'Edition', 'Language', 'Id', 'First In', 'Rarity', 'Metatype', 'Talent1',
+        'Talent2', 'Class1', 'Class2', 'Type1', 'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name',
+        'Backside Name', 'Translated Name', 'Translated Backside Name', 'Peculiarity',
+        'Art Treatment', 'Pitch', 'Playset', 'ST', 'RF', 'CF', 'GF', 'Note', 'Overrides'
     ];
     // Columns of the type line, as filled from the reference data.
     var TYPE_COLUMNS = ['Metatype', 'Talent1', 'Talent2', 'Class1', 'Class2', 'Type1',
@@ -333,8 +382,9 @@ FCT.model = (function () {
     // the reference data and identity columns describe the printing - both only in edit mode.
     // "Overrides" lists the reference columns the user changed on purpose (";" separated).
     // Playset is a reference column since 2.0.3.0: it follows from the card and never changes.
+    // "First In" is one since issue #51: the set the card appeared in first.
     var INPUT_COLUMNS = QUANTITIES.concat(['Note']);
-    var REFERENCE_COLUMNS = ['Set', 'Rarity'].concat(TYPE_COLUMNS,
+    var REFERENCE_COLUMNS = ['Set', 'First In', 'Rarity'].concat(TYPE_COLUMNS,
         ['Name', 'Backside Name', 'Pitch', 'Playset']);
     var OVERRIDES = 'Overrides';
 
@@ -421,6 +471,36 @@ FCT.model = (function () {
         if (!count) return;
         report.add('info', 'Pitch "4" heißt jetzt "Purple" (lila Pitch, 4 Ressourcen). Beim ' +
             'nächsten Speichern steht das so in der Datei', count + ' Zeilen');
+    }
+
+    // Language of a row that says nothing else: cards are English.
+    function defaultLanguage() {
+        return FCT.DATA.vocab.languages[0];
+    }
+
+    /*
+     * Up to 2.5.0 the column "Edition" held either the edition or the language ("EN", "DE").
+     * Files and spreadsheets without the column "Language" are converted when they are read
+     * (issue #53): a language moves from "Edition" to "Language" and leaves the edition empty.
+     * Every other row is English (the first tool read an empty field as "EN"); newRow fills
+     * that in. Returns true if a language was moved.
+     */
+    var LANGUAGE = 'Language';
+
+    function upgradeLanguage(values) {
+        var edition = String(values.Edition || '').trim();
+        if (FCT.DATA.vocab.languages.indexOf(edition) < 0) return false;
+        values[LANGUAGE] = edition;
+        values.Edition = '';
+        return true;
+    }
+
+    // Reports the conversion of records without the column "Language" (see upgradeLanguage).
+    function reportLanguageUpgrade(report, moved, rows) {
+        report.add('info', 'Neue Spalte "Language": Sprachen stehen nicht mehr in "Edition"; ' +
+            'Zeilen ohne Sprache sind ' + defaultLanguage() + '. Beim nächsten Speichern ' +
+            'steht das neue Format in der Datei', moved + ' von ' + rows +
+            ' Zeilen hatten die Sprache in "Edition"');
     }
 
     // True if a reference column of a row differs from the value the reference data expects.
@@ -549,12 +629,14 @@ FCT.model = (function () {
             fabraryOverrides: { sets: {}, variants: {} } };
     }
 
-    // Creates a row with all columns present; values are taken from the given object.
+    // Creates a row with all columns present; values are taken from the given object. The
+    // language is never empty (issue #53).
     function newRow(values) {
         var row = {};
         COLUMNS.forEach(function (column) {
             row[column] = values && values[column] != null ? String(values[column]) : '';
         });
+        if (!row[LANGUAGE].trim()) row[LANGUAGE] = defaultLanguage();
         return row;
     }
 
@@ -614,26 +696,22 @@ FCT.model = (function () {
         return values;
     }
 
-    // Edition as Fabrary understands it: language variants are no edition of their own.
-    function fabraryEdition(edition) {
-        var vocab = FCT.DATA.vocab;
-        return vocab.languageEditions.indexOf(edition) >= 0 ? '' : edition;
-    }
-
     // Key that identifies a printing variant for coverage checks. Language variants are
-    // merged, and "Micro Text Box" counts as "Extended Art" (as in the reference data).
-    // Columns that make up a variant (see variantKey). They are always shown in the table
-    // (since 2.0.6.3), so that the difference of a row not yet in the collection is visible.
-    var VARIANT_COLUMNS = ['Id', 'Edition', 'Art Treatment'];
+    // merged (the language is no part of the key), and "Micro Text Box" counts as "Extended
+    // Art" (as in the reference data).
+    // Columns that make up a variant (see variantKey) and its language. They are always shown
+    // in the table (since 2.0.6.3), so that the difference of a row not yet in the collection
+    // is visible.
+    var VARIANT_COLUMNS = ['Id', 'Edition', LANGUAGE, 'Art Treatment'];
 
     function variantKey(id, edition, art) {
         var treatments = FCT.DATA.vocab.fabraryTreatments;
-        return [id, fabraryEdition(edition), treatments[art] || art].join('|');
+        return [id, edition, treatments[art] || art].join('|');
     }
 
     // Key used to find rows that are exact duplicates of each other.
     function identityKey(row) {
-        return ['Id', 'Edition', 'Art Treatment', 'Rarity', 'Peculiarity', 'Name',
+        return ['Id', 'Edition', LANGUAGE, 'Art Treatment', 'Rarity', 'Peculiarity', 'Name',
             'Backside Name'].map(function (c) { return row[c]; }).join('|');
     }
 
@@ -643,27 +721,39 @@ FCT.model = (function () {
     }
 
     /*
-     * Playsets of earlier versions were typed in by hand. Where such a value differs from the
-     * reference data, it is kept as a change on purpose (override), so that nothing changes
-     * silently. An empty playset carries no information and is filled in from the reference
-     * data. Runs on every load; returns { kept, filled } (card numbers of the rows).
+     * Values of a column that were typed in by hand in earlier versions and come from the
+     * reference data now. Where such a value differs from the reference data, it is kept as a
+     * change on purpose (override), so that nothing changes silently. An empty value carries
+     * no information and is filled in from the reference data. Returns { kept, filled }
+     * (card numbers of the rows).
      */
-    function keepPlaysets(rows) {
+    function keepOwnValues(rows, column) {
         var result = { kept: [], filled: [] };
         rows.forEach(function (row) {
-            if (overrides(row).indexOf('Playset') >= 0) return;
+            if (overrides(row).indexOf(column) >= 0) return;
             var expected = FCT.reference.expected(row);
-            if (!deviates(row, 'Playset', expected)) return;
-            if (String(row.Playset || '').trim() === '') {
-                row.Playset = expected.Playset;
+            if (!deviates(row, column, expected)) return;
+            if (String(row[column] || '').trim() === '') {
+                row[column] = expected[column];
                 result.filled.push(row.Id);
             } else {
-                setOverride(row, 'Playset', true);
-                result.kept.push(row.Id + ' ' + row.Name + ': ' + row.Playset + ' (Stammdaten ' +
-                    expected.Playset + ')');
+                setOverride(row, column, true);
+                result.kept.push(row.Id + ' ' + row.Name + ': ' + row[column] +
+                    ' (Stammdaten ' + expected[column] + ')');
             }
         });
         return result;
+    }
+
+    // Playsets of earlier versions (see keepOwnValues). Runs on every load.
+    function keepPlaysets(rows) {
+        return keepOwnValues(rows, 'Playset');
+    }
+
+    // "First In" of earlier versions and of the old spreadsheet (issue #51, see
+    // keepOwnValues). Runs on every load.
+    function keepFirstIn(rows) {
+        return keepOwnValues(rows, 'First In');
     }
 
     // Adds the result of keepPlaysets to a report.
@@ -675,6 +765,19 @@ FCT.model = (function () {
         result.filled.forEach(function (id) {
             report.add('info', 'Playset war leer und wurde aus den Stammdaten ergänzt', id);
         });
+    }
+
+    // Adds the result of keepFirstIn to a report; filled rows are only counted, since a new
+    // set fills hundreds of them.
+    function reportFirstIn(report, result) {
+        result.kept.forEach(function (text) {
+            report.add('info', 'First In weicht von den Stammdaten ab und bleibt als lokale ' +
+                'Änderung (✱) erhalten', text);
+        });
+        if (result.filled.length) {
+            report.add('info', 'First In war leer und wurde aus den Stammdaten ergänzt',
+                result.filled.length + ' Zeilen');
+        }
     }
 
     /*
@@ -694,9 +797,11 @@ FCT.model = (function () {
         }
 
         // Columns that are not part of the format are kept, but reported. The column
-        // "Talent" of earlier versions is converted (see upgradeValues).
+        // "Talent" of earlier versions is converted (see upgradeValues), and so is a language
+        // in "Edition" of files without the column "Language" (see upgradeLanguage).
         var legacy = table.header.indexOf(LEGACY_TALENT) >= 0 &&
             table.header.indexOf('Talent1') < 0;
+        var noLanguage = table.header.indexOf(LANGUAGE) < 0;
         collection.extraColumns = table.header.filter(function (name) {
             return name && COLUMNS.indexOf(name) < 0 && !(legacy && name === LEGACY_TALENT);
         });
@@ -713,8 +818,9 @@ FCT.model = (function () {
         }
         COLUMNS.forEach(function (name) {
             // Files of version 2.0.0.0 have no "Overrides" column yet, files up to 2.0.4.0
-            // no Metatype, Talent1 and Talent2; that is expected.
-            var expectedMissing = name === OVERRIDES ||
+            // no Metatype, Talent1 and Talent2, files up to 2.5.0 no Language; that is
+            // expected.
+            var expectedMissing = name === OVERRIDES || name === LANGUAGE ||
                 (legacy && NEW_IN_2050.indexOf(name) >= 0);
             if (table.header.indexOf(name) < 0 && !expectedMissing) {
                 report.add('warn', 'Spalte fehlt in der Datei und wird leer ergänzt', name);
@@ -724,9 +830,11 @@ FCT.model = (function () {
         // Create one row per record; nothing is dropped.
         var upgraded = 0;
         var purple = 0;
+        var languages = 0;
         table.rows.forEach(function (values) {
             if (legacy && upgradeValues(values)) upgraded++;
             if (upgradePitch(values)) purple++;
+            if (noLanguage && upgradeLanguage(values)) languages++;
             var row = newRow(values);
             collection.extraColumns.forEach(function (name) { row[name] = values[name]; });
             collection.rows.push(row);
@@ -735,7 +843,9 @@ FCT.model = (function () {
         report.summary.push(collection.rows.length + ' Zeilen gelesen');
         reportUpgrade(report, upgraded);
         reportPitchUpgrade(report, purple);
+        if (noLanguage) reportLanguageUpgrade(report, languages, collection.rows.length);
         reportPlaysets(report, keepPlaysets(collection.rows));
+        reportFirstIn(report, keepFirstIn(collection.rows));
         return { collection: collection, report: report };
     }
 
@@ -785,6 +895,7 @@ FCT.model = (function () {
 
             // Vocabulary.
             checkVocab(row, 'Edition', vocab.editions);
+            checkVocab(row, LANGUAGE, vocab.languages);
             checkVocab(row, 'Art Treatment', vocab.artTreatments);
             checkVocab(row, 'Rarity', vocab.rarities);
             checkVocab(row, 'Pitch', vocab.pitches);
@@ -850,10 +961,11 @@ FCT.model = (function () {
                 Playset: String(defaultPlayset(front))
             });
 
-            // Talent, classes, types and subtypes as the reference data expects them.
+            // First set, talent, classes, types and subtypes as the reference data expects
+            // them.
             var values = FCT.reference.expected(row);
             if (values) {
-                TYPE_COLUMNS.forEach(function (c) { row[c] = values[c]; });
+                ['First In'].concat(TYPE_COLUMNS).forEach(function (c) { row[c] = values[c]; });
             }
             row._reference = true;
             rows.push(row);
@@ -957,16 +1069,16 @@ FCT.model = (function () {
 
     /*
      * True if a row carries nothing of its own (issue #18): no quantity above 0, no note, no
-     * first-in or translation, no local change (✱, which also covers a changed playset) and no
+     * translation, no local change (✱, which also covers a changed playset or first set) and no
      * value in extra columns - and it is exactly a printing variant of the reference data, so
-     * that it shows up again as a gap (○) when it is taken out of the collection. Language
-     * editions and unknown card numbers never count as empty.
+     * that it shows up again as a gap (○) when it is taken out of the collection. Rows in
+     * another language than the default and unknown card numbers never count as empty.
      */
-    var OWN_COLUMNS = ['First In', 'Translated Name', 'Translated Backside Name', 'Peculiarity',
-        'Note', OVERRIDES];
+    var OWN_COLUMNS = ['Translated Name', 'Translated Backside Name', 'Peculiarity', 'Note',
+        OVERRIDES];
 
     function isEmptyRow(row, collection) {
-        if (!row.Id || FCT.DATA.vocab.languageEditions.indexOf(row.Edition) >= 0 ||
+        if (!row.Id || (row[LANGUAGE] || defaultLanguage()) !== defaultLanguage() ||
             FCT.reference.foilings(row) === null) {
             return false;
         }
@@ -1084,7 +1196,8 @@ FCT.model = (function () {
      * Returns null for columns without a value list (free text).
      */
     var CHOICE_VOCAB = {
-        Set: null, Edition: 'editions', Rarity: 'rarities', Pitch: 'pitches',
+        Set: null, Edition: 'editions', Language: 'languages', Rarity: 'rarities',
+        Pitch: 'pitches',
         Peculiarity: 'peculiarities', 'Art Treatment': 'artTreatments', Metatype: null,
         Talent1: 'talents', Talent2: 'talents', Class1: 'classes', Class2: 'classes',
         Type1: 'cardTypes', Type2: 'cardTypes',
@@ -1107,7 +1220,8 @@ FCT.model = (function () {
                 data.printings.forEach(function (p) { found.add(p[at]); });
             } else if (column === 'Pitch') {
                 data.cards.forEach(function (c) { found.add(c[2]); });
-            } else {
+            } else if (column !== LANGUAGE) {
+                // (the language is the user's own value, the reference data know none)
                 data.cards.forEach(function (c) {
                     found.add(FCT.reference.splitTypes(c[3], c[10])[column]);
                 });
@@ -1194,6 +1308,9 @@ FCT.model = (function () {
         reportUpgrade: reportUpgrade,
         upgradePitch: upgradePitch,
         reportPitchUpgrade: reportPitchUpgrade,
+        LANGUAGE: LANGUAGE,
+        upgradeLanguage: upgradeLanguage,
+        reportLanguageUpgrade: reportLanguageUpgrade,
         QUANTITIES: QUANTITIES,
         NUMBER_COLUMNS: NUMBER_COLUMNS,
         INPUT_COLUMNS: INPUT_COLUMNS,
@@ -1231,7 +1348,8 @@ FCT.model = (function () {
         totals: totals,
         keepPlaysets: keepPlaysets,
         reportPlaysets: reportPlaysets,
-        fabraryEdition: fabraryEdition,
+        keepFirstIn: keepFirstIn,
+        reportFirstIn: reportFirstIn,
         variantKey: variantKey,
         VARIANT_COLUMNS: VARIANT_COLUMNS,
         identityKey: identityKey,
