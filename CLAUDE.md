@@ -87,6 +87,7 @@ Ready for dev, In progress, In review, Done. Remote heißt lokal `github`, in de
   5. Aufräumen: alle weiteren Branches außer `develop` und `main` löschen, die sicher gelöscht
      werden können (nachweislich gemergt), auf GitHub und lokal. Was nicht gemergt ist, bleibt
      und wird genannt.
+  6. Bei allen Issues mit Board-Status *Done* das Label „in development“ entfernen.
 - Gemergt wird über die PRs (Merge-Commit, kein Force-Push, kein direkter Push). SourceTrees
   „Finish Release“ passt nicht dazu: Es merged lokal und scheitert am Push auf die geschützten
   Branches.
