@@ -135,7 +135,7 @@ Sammlungsexport aus Fabrary überschreiben. `--fabrary-current <Datei>` nur für
 ## Geplanter Planungs-Agent
 Ein geplanter Cloud-Agent darf **nur planen**: für Issues auf *Approved* ohne Kommentar
 „## Umsetzungsplan“ den Plan nach Schritt 2 kommentieren und auf **Ready** schieben (das Label
-„in development“ setzt er nicht, das kommt erst mit *In progress*). Hat er Fragen, schreibt er sie als Kommentar (Überschrift
-„## Rückfragen zum Umsetzungsplan“) und lässt das Issue auf *Approved*; beim nächsten Lauf
-plant er erst, wenn Elmar geantwortet hat. Er legt **keine Branches, Commits oder PRs** an und
-ändert keine anderen Issues.
+„in development“ setzt er nicht, das kommt erst mit *In progress*). Hat er Fragen, schreibt er
+sie als Kommentar (Überschrift „## Rückfragen zum Umsetzungsplan“) und lässt das Issue auf
+*Approved*; beim nächsten Lauf plant er erst, wenn Elmar geantwortet hat. Er legt **keine
+Branches, Commits oder PRs** an und ändert keine anderen Issues.
