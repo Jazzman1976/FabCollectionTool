@@ -77,8 +77,8 @@ Language + Art Treatment):
 
 ```
 Set,Id,Rarity,Metatype,Talent1,Talent2,Class1,Class2,Type1,Type2,Sub1,Sub2,Sub3,Name,
-Backside Name,Translated Name,Translated Backside Name,Peculiarity,Art Treatment,Pitch,
-Playset,ST,RF,CF,GF,Edition,Language,First In,Note,Overrides
+Backside Name,Translated Name,Translated Backside Name,Art Treatment,Pitch,
+Playset,ST,RF,CF,GF,Edition,Language,First In,Peculiarity,Note,Overrides
 ```
 
 (im Original eine Zeile). Die Reihenfolge ist **dieselbe wie in der Tabelle der Anwendung**
