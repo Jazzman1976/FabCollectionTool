@@ -193,9 +193,17 @@ FCT.app = (function () {
 
         // Exclusive cards (issue #54): "ja" if the card exists in a single set only. Only
         // shown, never saved - the value changes as soon as another set reprints the card.
+        // The cell shows a check mark instead of "ja"; the check box filter offers the values
+        // "(leer)" and "ja" (issue #76).
         var exclusive = { key: '_exclusive', label: 'Exklusiv', width: 5, kind: 'calc',
-            hint: 'ja = die Karte gibt es nur in diesem einen Set (kein Reprint, keine Promo)',
-            value: function (row) { return FCT.reference.isExclusive(row) ? 'ja' : ''; } };
+            list: true,
+            hint: '✓ = die Karte gibt es nur in diesem einen Set (kein Reprint, keine Promo)',
+            value: function (row) { return FCT.reference.isExclusive(row) ? 'ja' : ''; },
+            display: function (value) { return value ? '✓' : ''; },
+            tip: function (value) {
+                return value ? 'Exklusiv: die Karte gibt es nur in diesem einen Set' : '';
+            },
+            valueClass: function (value) { return value ? 'check' : null; } };
 
         // Combined columns (issue #69): the parts of a kind in one cell, each in front of
         // its first part. The parts stay columns of their own ("Einzelspalten"), hidden in
