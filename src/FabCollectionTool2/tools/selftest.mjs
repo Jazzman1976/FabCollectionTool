@@ -793,8 +793,8 @@ if (!currentFile) {
         `all printings ${all}, rules ${rules}, gap row ${shown}, not saved ${saved}`);
 }
 
-// Which cells can be edited (2.0.3.0): input always; a value that differs from the reference
-// data also outside edit mode; everything in edit mode.
+// Which cells can be edited: the user's input (quantities, note) always; everything else only
+// in edit mode, also a value that differs from the reference data (issue #79).
 {
     const row = FCT.model.newRow({ Id: 'WTR001', Name: 'Rhinar, Reckless Rampage',
         Rarity: 'Majestic' });
@@ -802,8 +802,11 @@ if (!currentFile) {
     Object.keys(expected).forEach((key) => { row[key] = expected[key]; });
     const same = !FCT.model.isEditable(row, 'Rarity', false);
     row.Rarity = 'Common';
-    const differs = FCT.model.isEditable(row, 'Rarity', false);
-    const ok = same && differs && FCT.model.isEditable(row, 'ST', false) &&
+    const differs = !FCT.model.isEditable(row, 'Rarity', false) &&
+        FCT.model.isEditable(row, 'Rarity', true);
+    FCT.model.setOverride(row, 'Rarity', true);
+    const changed = !FCT.model.isEditable(row, 'Rarity', false);
+    const ok = same && differs && changed && FCT.model.isEditable(row, 'ST', false) &&
         FCT.model.isEditable(row, 'Note', false) && !FCT.model.isEditable(row, 'Id', false) &&
         !FCT.model.isEditable(row, 'Playset', false) && FCT.model.isEditable(row, 'Id', true) &&
         !FCT.model.isEditable(row, 'Overrides', true);

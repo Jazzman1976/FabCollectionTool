@@ -572,11 +572,15 @@
             <tr><td><span class="sym unknown">?</span></td><td>Die Kartennummer ist in den
                 Stammdaten unbekannt.</td></tr>
         </table>
-        <h3>Abweichungen direkt korrigieren</h3>
-        <p>Abweichende Zellen sind <strong>gestrichelt unterstrichen</strong>, lokal geänderte
-            haben eine <strong>violette Ecke</strong>. Beide lassen sich direkt anklicken und
-            ändern – auch ohne Editiermodus. Die Auswahlliste zeigt ganz oben fett den Wert der
-            Stammdaten („Stammdaten: Marvel“). Wählst du ihn, verschwindet die Markierung.</p>
+        <h3>Abweichungen korrigieren</h3>
+        <p>Abweichende Zellen haben <strong>orange Schrift</strong>, lokal geänderte
+            eine <strong>violette Ecke</strong>. Ändern kannst du sie auf zwei Wegen: über den
+            <strong>Stift</strong> in den Aktionen am Zeilenende – er öffnet das Zeilenfenster
+            mit allen Feldern und dem Vergleich mit den Stammdaten, auch ohne Editiermodus –
+            oder im <strong>Editiermodus</strong> direkt in der Zelle. Die Auswahlliste zeigt
+            dort ganz oben fett den Wert der Stammdaten („Stammdaten: Marvel“). Wählst du ihn,
+            verschwindet die Markierung. Ein Klick auf das Statussymbol am Zeilenanfang wählt
+            nur die Zeile aus.</p>
         <p>Ist das abweichende Feld <strong>leer</strong>, steht darin <em>[leer]</em> in der
             Farbe der Markierung (orange bzw. violett) – etwa wenn bei dir der Pitch fehlt, den
             die Stammdaten kennen. Im Zeilendialog steht <em>[leer]</em> in der Spalte
@@ -584,9 +588,11 @@
             nur eine Anzeige: <em>[leer]</em> wird nie gespeichert, kopiert oder
             exportiert.</p>
         <h3>Editiermodus</h3>
-        <p>Normalerweise sind nur Mengen und Notiz bearbeitbar. <em>Editiermodus</em> (Gruppe
+        <p>Normalerweise sind in der Tabelle nur Mengen und Notiz bearbeitbar – auch
+            abweichende oder lokal geänderte Zellen nicht. <em>Editiermodus</em> (Gruppe
             Ansicht) macht <strong>alle</strong> Spalten bearbeitbar; ein gelber Hinweis zeigt,
-            dass er an ist. Spalten mit festen Werten (Edition, Rarity, Pitch, Metatype, Talent,
+            dass er an ist. Der erste Klick wählt die Zelle, der zweite (oder <kbd>F2</kbd>)
+            bearbeitet sie. Spalten mit festen Werten (Edition, Rarity, Pitch, Metatype, Talent,
             Class, Type, Sub, Set, Peculiarity, Art Treatment) bieten eine Auswahlliste mit allen
             gültigen Werten – Freitext gibt es dort nicht. Bei den
             <a href="#zusammengelegt">zusammengelegten Spalten</a> öffnet sich dafür ein
@@ -965,9 +971,10 @@
             mit Treffern von selbst. Sonst <em>Filter zurücksetzen</em> und über die Suche
             gehen. Fehlt das ganze Set, hilft <em>Sets anzeigen …</em> – dort steht auch, ob
             es ausgeblendet ist.</p>
-        <h3>Warum ist ein Wert unterstrichen?</h3>
-        <p>Er weicht von den Stammdaten ab. Ein Klick darauf zeigt den Stammdatenwert zur
-            Auswahl; oder du lässt deinen Wert, dann bleibt die Markierung als Hinweis.</p>
+        <h3>Warum ist ein Wert orange?</h3>
+        <p>Er weicht von den Stammdaten ab. Der Stift am Zeilenende zeigt den Stammdatenwert
+            daneben und übernimmt ihn auf Wunsch; oder du lässt deinen Wert, dann bleibt die
+            Markierung als Hinweis.</p>
         <h3>Ich habe Karten aus einem Vorschau-Branch aufgenommen und bin zurück zu
             develop gewechselt. Jetzt stehen sie mit „?“ da.</h3>
         <p>Das ist richtig: <em>develop</em> kennt diese Kartennummern noch nicht. Es geht
