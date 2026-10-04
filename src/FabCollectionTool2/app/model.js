@@ -368,12 +368,14 @@ FCT.model = (function () {
     // Metatype to Sub3 follow the type line of the card (rules 2.14.1, since 2.0.5.0).
     // Edition (Alpha, First, Unlimited) and Language (EN, DE, ...) are two columns since
     // issue #53; they and First In stand behind the quantities since issue #62, so that the
-    // quantities and the calculated columns are in sight.
+    // quantities and the calculated columns are in sight. Peculiarity is nearly always empty
+    // and stands at the end, right before the note, since issue #77.
     var COLUMNS = [
         'Set', 'Id', 'Rarity', 'Metatype', 'Talent1', 'Talent2', 'Class1', 'Class2', 'Type1',
         'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name', 'Translated Name',
-        'Translated Backside Name', 'Peculiarity', 'Art Treatment', 'Pitch', 'Playset',
-        'ST', 'RF', 'CF', 'GF', 'Edition', 'Language', 'First In', 'Note', 'Overrides'
+        'Translated Backside Name', 'Art Treatment', 'Pitch', 'Playset',
+        'ST', 'RF', 'CF', 'GF', 'Edition', 'Language', 'First In', 'Peculiarity', 'Note',
+        'Overrides'
     ];
     // Columns of the type line, as filled from the reference data.
     var TYPE_COLUMNS = ['Metatype', 'Talent1', 'Talent2', 'Class1', 'Class2', 'Type1',
