@@ -967,8 +967,9 @@ if (!currentFile) {
     check('Reference branch URL', ok);
 }
 
-// New row below another (2.0.6.0): the next card number keeps its digits; the values shared by
-// all variants of that number are filled in, those that differ stay out.
+// New row below another (issue #82): the next card number keeps its digits; only the ticked
+// columns come from the row above; a known card number gets the reference values of its
+// variant, which win over the copied ones; quantities are never copied.
 {
     const m = FCT.model;
     const ids = m.nextId('MON062') === 'MON063' && m.nextId('WTR009') === 'WTR010' &&
@@ -982,15 +983,44 @@ if (!currentFile) {
     const multi = [...byId.keys()].find((id) => arts(id).size > 1);
     const single = [...byId.keys()].find((id) => byId.get(id).size === 1 &&
         FCT.reference.printings(id).length === 1);
-    const mv = m.commonValues(multi);
-    const sv = m.commonValues(single);
-    const want = FCT.reference.expected({ Id: single, Edition: '', 'Art Treatment': '',
-        Name: '' });
-    const multiOk = !!mv && !('Art Treatment' in mv) && !!mv.Name && !('Set' in mv);
-    const singleOk = !!sv && sv.Name === want.Name && sv.Type1 === want.Type1 &&
-        sv.Playset === want.Playset && 'Art Treatment' in sv;
-    check('New row values', ids && multiOk && singleOk && m.commonValues('XXX999') === null,
-        `next id ${ids}, ${multi}: ${multiOk}, ${single}: ${singleOk}`);
+    const above = m.newRow({ Id: 'XXX001', Set: 'Set above', Class1: 'Wizard', Name: 'Above',
+        Language: 'DE', Note: 'my note', ST: '3', Rarity: 'Rare', Overrides: 'Rarity' });
+
+    // Unknown card number: nothing without a tick, exactly the ticked columns with ticks.
+    const bare = m.newRowValues(above, { id: ' XXX999 ', copy: [] });
+    const bareOk = Object.keys(bare).join() === 'Id' && bare.Id === 'XXX999' &&
+        m.variants('XXX999').length === 0 && m.newRow(bare).Language === 'EN';
+    const ticked = m.newRowValues(above, { id: 'XXX999',
+        copy: ['Set', 'Class1', 'Language', 'Note', 'ST', 'Id', 'Overrides'] });
+    const tickedOk = ticked.Set === 'Set above' && ticked.Class1 === 'Wizard' &&
+        ticked.Language === 'DE' && ticked.Note === 'my note' && ticked.Id === 'XXX999' &&
+        !('ST' in ticked) && !('Overrides' in ticked) && !('Name' in ticked);
+
+    // Known card number with one variant: the reference values, also against the ticks.
+    const sVariant = m.variants(single);
+    const sv = m.newRow(m.newRowValues(above, { id: single,
+        copy: ['Set', 'Name', 'Rarity', 'Note'] }));
+    const singleOk = sVariant.length === 1 && m.differences(sv).length === 0 &&
+        sv.Set !== 'Set above' && sv.Name !== 'Above' && sv.Note === 'my note' &&
+        sv.Edition === sVariant[0].edition && sv['Art Treatment'] === sVariant[0].art &&
+        sv.ST === '' && sv.Overrides === '';
+
+    // Several variants: the chosen one decides edition and art treatment.
+    const mVariants = m.variants(multi);
+    const pick = mVariants[mVariants.length - 1];
+    const mv = m.newRow(m.newRowValues(above, { id: multi, copy: [], variant: pick }));
+    const multiOk = mVariants.length > 1 && mv.Edition === pick.edition &&
+        mv['Art Treatment'] === pick.art && m.differences(mv).length === 0 &&
+        FCT.reference.foilings(mv) !== null;
+
+    // Within the same set the set name of the row above stays (as for gap rows).
+    const sameSet = m.newRowValues(m.newRow({ Id: m.setCode(single) + '999', Set: 'My name' }),
+        { id: single, copy: [] });
+    const setOk = sameSet.Set === 'My name' && sameSet.Name === sv.Name;
+    check('New row values', ids && bareOk && tickedOk && singleOk && multiOk && setOk,
+        `next id ${ids}, unknown ${bareOk}/${tickedOk}, set name ${setOk}, ` +
+        `${single}: ${singleOk}, ` +
+        `${multi} (${mVariants.length} variants): ${multiOk}`);
 }
 
 // Deleting a row (2.0.6.0): a variant of the reference data comes back as ○ at the same place
