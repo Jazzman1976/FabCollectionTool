@@ -1153,6 +1153,42 @@ dialog menu .left + button:not(.left) {
     margin: 10px 0 0;
     font-weight: bold;
 }
+/* Dialog "Neue Zeile einfügen" (issue #82) */
+.new-row .new-row-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+.new-row .new-row-line span {
+    min-width: 7em;
+    font-weight: 600;
+}
+.new-row .new-row-line input, .new-row .new-row-line select {
+    font: inherit;
+    padding: 2px 4px;
+}
+.new-row .new-row-buttons {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.new-row .new-row-ticks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17em, 1fr));
+    gap: 2px 14px;
+}
+.new-row .new-row-ticks label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.new-row .new-row-ticks label.disabled {
+    color: var(--muted);
+}
+.new-row .what {
+    color: var(--muted);
+}
 table.row-form select {
     width: 100%;
     box-sizing: border-box;

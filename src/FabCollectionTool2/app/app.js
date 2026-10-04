@@ -2975,21 +2975,166 @@ FCT.app = (function () {
     }
 
     /*
-     * Values of a new row below another one (feedback on 2.0.5.0): set and edition of the
-     * row above and the next card number. If the reference data know that number, every
-     * value shared by all its variants is filled in; values that differ between the variants
-     * stay empty, since only the user knows which one is meant. Otherwise the row keeps
-     * metatype, talents, classes and playset of the row above, so it stays in the same group.
+     * Dialog "Neue Zeile einfügen" (issue #82): nothing is taken from the row above without
+     * asking. The user enters the card number (or lets the one of the row above count up),
+     * chooses the variant if the reference data know several, and ticks the columns to take
+     * from the row above. The choice (counting up, ticks) is remembered as a view setting.
+     * The values follow model.newRowValues. Resolves after the row was inserted or the
+     * dialog was cancelled.
      */
-    function newRowValues(row) {
-        var id = model.nextId(row.Id);
-        var values = { Set: row.Set, Edition: row.Edition, Language: row.Language, Id: id };
-        var common = id ? model.commonValues(id) : null;
-        var copied = common || { Metatype: row.Metatype, Talent1: row.Talent1,
-            Talent2: row.Talent2, Class1: row.Class1, Class2: row.Class2,
-            Playset: row.Playset };
-        Object.keys(copied).forEach(function (key) { values[key] = copied[key]; });
-        return values;
+    function insertRow(row) {
+        var remembered = settings.get('newRow', { increment: false, copy: [] });
+        var next = model.nextId(row.Id);
+        var insertButton = null;
+
+        // Card number, with the option to count up the one of the row above.
+        var idInput = el('input', { type: 'text', className: 'new-row-id' });
+        var increment = el('input', { type: 'checkbox', disabled: !next });
+        increment.checked = !!remembered.increment && !!next;
+        idInput.value = increment.checked ? next : '';
+        var idInfo = el('p', { className: 'hint' });
+
+        // Variant of the reference data (only asked if the card number has several).
+        var variantSelect = el('select', {});
+        var variantLine = el('label', { className: 'new-row-line' },
+            [el('span', { text: 'Variante' }), variantSelect]);
+        var variants = [];
+
+        // One tick per column of the table, without card number, quantities and calculated
+        // columns; a combined column stands for its single fields.
+        var ticks = grid.columns().filter(function (c) {
+            return c.kind !== 'calc' && !c.single && c.key !== 'Id' &&
+                model.QUANTITIES.indexOf(c.key) < 0;
+        }).map(function (c) {
+            var parts = c.parts || [c.key];
+            var value = c.value ? c.value(row) : row[c.key];
+            var box = el('input', { type: 'checkbox' });
+            box.checked = (remembered.copy || []).indexOf(c.key) >= 0;
+            // Reference values and the variant come from the reference data if the card
+            // number is known.
+            var fromReference = c.key === 'Edition' || c.key === 'Art Treatment' ||
+                parts.every(function (p) { return model.columnKind(p) === 'reference'; });
+            var note = el('span', { className: 'what' });
+            var label = el('label', {}, [box, ' ' + c.label + ' ', note]);
+            return { key: c.key, parts: parts, box: box, label: label, note: note,
+                value: value == null ? '' : String(value), fromReference: fromReference };
+        });
+        function tickAll(on) {
+            ticks.forEach(function (t) { if (!t.box.disabled) t.box.checked = on; });
+        }
+
+        // The variant chosen in the list, or null.
+        function chosenVariant() {
+            return variants.length > 1 ? variants[Number(variantSelect.value)] || null : null;
+        }
+
+        // True if a row of the collection already has this variant of the card number.
+        function inCollection(id, variant) {
+            var key = model.variantKey(id, variant.edition, variant.art);
+            return (state.rowsById.get(id) || []).some(function (r) {
+                return model.variantKey(r.Id, r.Edition, r['Art Treatment']) === key;
+            });
+        }
+
+        // Follows the card number: what the reference data know, the list of variants, and
+        // which ticks still count.
+        function update(idChanged) {
+            var id = idInput.value.trim();
+            if (idChanged) {
+                variants = id ? model.variants(id) : [];
+                variantSelect.textContent = '';
+                variantSelect.appendChild(el('option', { value: '', text: '– bitte wählen –' }));
+                var missing = [];
+                variants.forEach(function (v, i) {
+                    var owned = inCollection(id, v);
+                    if (!owned) missing.push(i);
+                    variantSelect.appendChild(el('option', { value: String(i),
+                        text: (v.edition || 'ohne Edition') + ' · ' +
+                            (v.art || 'Standard-Artwork') +
+                            (owned ? ' – schon im Bestand' : '') }));
+                });
+                // The only variant still missing is the obvious choice.
+                variantSelect.value = missing.length === 1 ? String(missing[0]) : '';
+                variantLine.hidden = variants.length < 2;
+                var names = FCT.reference.printings(id).map(function (p) {
+                    return p.card.name;
+                }).filter(function (name, i, all) { return all.indexOf(name) === i; });
+                idInfo.textContent = !id ? 'Die Kartennummer ist Pflicht.'
+                    : variants.length ? 'Stammdaten: ' + names.join(' // ') +
+                        ' – ihre Werte (Set, Name, Typen, Pitch, Playset …) werden ausgefüllt.'
+                        : 'Kartennummer nicht in den Stammdaten – die Zeile bekommt nur die ' +
+                            'angehakten Werte.';
+            }
+            var known = variants.length > 0;
+            ticks.forEach(function (t) {
+                t.box.disabled = known && t.fromReference;
+                t.label.classList.toggle('disabled', t.box.disabled);
+                t.label.title = t.box.disabled ? 'Kommt aus den Stammdaten' : '';
+                t.note.textContent = t.box.disabled ? 'kommt aus den Stammdaten'
+                    : t.value || '(leer)';
+            });
+            if (insertButton) {
+                insertButton.disabled = !id || (variants.length > 1 && !chosenVariant());
+            }
+        }
+        idInput.addEventListener('input', function () { update(true); });
+        variantSelect.addEventListener('change', function () { update(false); });
+        increment.addEventListener('change', function () {
+            idInput.value = increment.checked ? next : '';
+            update(true);
+        });
+
+        var body = el('div', { className: 'new-row' }, [
+            el('label', { className: 'new-row-line' },
+                [el('span', { text: 'Kartennummer' }), idInput]),
+            el('label', { title: next ? '' : 'Die Kartennummer der Zeile darüber endet ' +
+                'nicht auf eine Zahl' }, [increment, ' Nummer der Zeile darüber hochzählen' +
+                (next ? ' (' + row.Id + ' → ' + next + ')' : '')]),
+            idInfo,
+            variantLine,
+            el('h3', { text: 'Aus der Zeile darüber übernehmen' }),
+            el('div', { className: 'new-row-buttons' }, [
+                el('button', { type: 'button', text: 'Alle',
+                    onclick: function () { tickAll(true); } }),
+                el('button', { type: 'button', text: 'Keine',
+                    onclick: function () { tickAll(false); } })
+            ]),
+            el('div', { className: 'new-row-ticks' },
+                ticks.map(function (t) { return t.label; }))
+        ]);
+
+        return openDialog({
+            title: 'Neue Zeile einfügen – unter ' +
+                ([row.Id, row.Name].filter(Boolean).join(' ') || '(leere Zeile)'),
+            body: body,
+            hint: 'Mengen werden nie übernommen. Die Auswahl merkt sich der Browser für das ' +
+                'nächste Mal.',
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Einfügen', value: 'accept', primary: true }
+            ],
+            setup: function (finish) {
+                insertButton = $('dialog-buttons').querySelector('button.primary');
+                update(true);
+                // Enter in the card number inserts, as soon as everything needed is there.
+                idInput.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter') return;
+                    event.preventDefault();
+                    if (!insertButton.disabled) finish('accept');
+                });
+                window.setTimeout(function () { idInput.focus(); }, 0);
+            }
+        }).then(function (value) {
+            if (value !== 'accept') return;
+            var chosen = ticks.filter(function (t) { return t.box.checked; });
+            settings.set('newRow', { increment: increment.checked,
+                copy: chosen.map(function (t) { return t.key; }) });
+            var copy = [];
+            chosen.forEach(function (t) { copy = copy.concat(t.parts); });
+            var values = model.newRowValues(row, { id: idInput.value, copy: copy,
+                variant: chosenVariant() });
+            insertBelow(row, model.newRow(values), 'Eingefügt');
+        });
     }
 
     // A full copy of a row, including extra columns of the file.
@@ -3008,7 +3153,7 @@ FCT.app = (function () {
             rebuild();
             grid.select(row);
         } else if (action === 'insert') {
-            insertBelow(row, model.newRow(newRowValues(row)), 'Eingefügt');
+            return insertRow(row);
         } else if (action === 'copy') {
             state.clipboard = copyRow(row);
             updateStatus();
