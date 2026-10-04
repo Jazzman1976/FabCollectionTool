@@ -617,11 +617,19 @@ body.edit-mode .grid td.k-reference, body.edit-mode .grid td.k-identity {
     cursor: text;
 }
 
-/* "-" and "+" only in the active quantity cell; they sit at the cell edges, so the value
-   does not move */
+/* "-" and "+" in the active quantity cell and in the one under the mouse (issue #78); they
+   sit at the cell edges, the value stands in the middle while they are shown */
 .grid td.stepper {
     position: relative;
+}
+.grid td.stepper.cursor, .grid td.stepper:hover {
     text-align: center;
+}
+.grid td.stepper button.step {
+    display: none;
+}
+.grid td.stepper.cursor button.step, .grid td.stepper:hover button.step {
+    display: block;
 }
 .grid button.step {
     position: absolute;

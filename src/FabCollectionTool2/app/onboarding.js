@@ -169,7 +169,8 @@ FCT.onboarding = (function () {
                     'eingerichtet (' + app.rowCount().toLocaleString('de-DE') + ' Zeilen).' }),
                 el('ul', {}, [
                     el('li', { text: 'Mengen trägst du in ST, RF, CF und GF ein: Zelle ' +
-                        'anklicken und Zahl tippen, oder mit den Tasten + / − zählen.' }),
+                        'anklicken und Zahl tippen, mit den Tasten + / − zählen oder die ' +
+                        'Knöpfe − / + anklicken, die beim Überfahren der Zelle erscheinen.' }),
                     el('li', { text: 'Weitere Sets zeigst du mit „Sets anzeigen …“ (Gruppe ' +
                         'Bestand).' }),
                     el('li', { text: app.canWriteBack()
