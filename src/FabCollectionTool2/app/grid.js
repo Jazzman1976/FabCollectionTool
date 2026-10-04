@@ -1030,9 +1030,11 @@ FCT.grid = (function () {
             td._column = column;
             // A collapsed group names the column its value comes from.
             if (column.summaryLabel && text) td.title = column.summaryLabel + ': ' + text;
-            if (column.step && editable && isCursor) {
-                // "-" and "+" only in the active cell (also the keys - / +, Shift+Down /
-                // Shift+Up and Shift+Left / Shift+Right).
+            if (column.step && editable) {
+                // "-" and "+" in every quantity cell that can be edited; the style sheet
+                // shows them in the active cell and under the mouse, so that one click is
+                // enough (issue #78). Also the keys - / +, Shift+Down / Shift+Up and
+                // Shift+Left / Shift+Right.
                 td.classList.add('stepper');
                 td.appendChild(el('button', { type: 'button', className: 'step minus',
                     tabindex: '-1', 'data-step': '-1',
@@ -1250,10 +1252,15 @@ FCT.grid = (function () {
                 return;
             }
 
-            // "-" and "+" in the active quantity cell.
+            // "-" and "+" in a quantity cell: the cell becomes the active one (without
+            // scrolling), then the quantity is counted - one click is enough (issue #78).
             var button = event.target.closest('button.step');
             if (button) {
-                step(tr._row, td._column, parseInt(button.getAttribute('data-step'), 10));
+                var stepRow = tr._row;
+                var stepColumn = td._column;
+                var delta = parseInt(button.getAttribute('data-step'), 10);
+                setCursor(stepRow, stepColumn.key, false);
+                step(stepRow, stepColumn, delta);
                 return;
             }
             if (!td || !td._column || td._column.placeholder) return;
