@@ -67,7 +67,7 @@ Ready for dev, Changes requested, In progress, In review, Done, Closed. Remote h
    **Ready** (= keine offenen Fragen).
 3. Elmar reviewt und schiebt auf **Ready for dev**. **Erst dann umsetzen.**
 4. **Branch** von aktuellem `develop`: `feature/issue-<n>-<kurzname>`, alles klein
-   (ohne Issue `feature/<kurzname>`) → Board **In progress**.
+   (ohne Issue `feature/<kurzname>`) → Board **In progress**, Label „in development“ setzen.
 5. Umsetzen, Selbsttest, Chrome-Check über localhost. Commit, Branch pushen, **PR nach
    `develop`** mit einer eigenen Zeile `Closes #<n>` (nie Beispielzeilen dieser Form in
    PR-Texte schreiben). In die PR-Beschreibung: **Umsetzung und Abweichungen** vom Plan und
@@ -81,8 +81,9 @@ Ready for dev, Changes requested, In progress, In review, Done, Closed. Remote h
 8. Nach jedem Merge `develop` per Merge (kein Rebase, kein Force-Push) in offene
    Feature-Branches holen.
 
-- Label **„in development“** gehört an jedes Issue mit Status außer Backlog und Closed – auch
-  an Done, denn das Release steht noch aus.
+- Label **„in development“** wird erst gesetzt, wenn ein Issue auf **In progress** geht, und
+  bleibt bis zum Release: Es gehört an In progress, Changes requested, In review und Done
+  (das Release steht noch aus), nicht an Backlog, Approved, Ready, Ready for dev und Closed.
 - **`develop` und `main` werden nie gelöscht**, nie direkt beschrieben (nur per PR), nie
   force-gepusht. Aufräumen: nur `feature/`-Branches, die nachweislich gemergt sind.
 - Merges nach `develop` oder `main` macht nur Elmar. Einzige Ausnahme: der Release-Abschluss
@@ -133,8 +134,8 @@ Sammlungsexport aus Fabrary überschreiben. `--fabrary-current <Datei>` nur für
 
 ## Geplanter Planungs-Agent
 Ein geplanter Cloud-Agent darf **nur planen**: für Issues auf *Approved* ohne Kommentar
-„## Umsetzungsplan“ den Plan nach Schritt 2 kommentieren, das Label „in development“ setzen und
-auf **Ready** schieben. Hat er Fragen, schreibt er sie als Kommentar (Überschrift
+„## Umsetzungsplan“ den Plan nach Schritt 2 kommentieren und auf **Ready** schieben (das Label
+„in development“ setzt er nicht, das kommt erst mit *In progress*). Hat er Fragen, schreibt er sie als Kommentar (Überschrift
 „## Rückfragen zum Umsetzungsplan“) und lässt das Issue auf *Approved*; beim nächsten Lauf
 plant er erst, wenn Elmar geantwortet hat. Er legt **keine Branches, Commits oder PRs** an und
 ändert keine anderen Issues.
