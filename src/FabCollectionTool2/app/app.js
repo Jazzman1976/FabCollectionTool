@@ -2717,8 +2717,8 @@ FCT.app = (function () {
         setDirty(true);
     }
 
-    // Which cells can be edited: the user's input always, everything else in edit mode, and
-    // marked deviations from the reference data also outside edit mode (see model).
+    // Which cells can be edited: the user's input always, everything else only in edit mode
+    // (see model).
     function isEditable(column, row) {
         if (column.kind === 'calc') return false;
         // A combined cell can be edited as soon as one of its fields can.
@@ -2785,6 +2785,9 @@ FCT.app = (function () {
         return marks;
     }
 
+    // How a marked value is changed (issue #79): never by a click outside edit mode.
+    var HOW_TO_CHANGE = 'Ändern: im Editiermodus oder über den Stift (Zeile bearbeiten)';
+
     // Marks of the single fields of a row (see rowMarks).
     function fieldMarks(row) {
         var marks = {};
@@ -2819,11 +2822,11 @@ FCT.app = (function () {
             var want = expected ? '„' + expected[column] + '“' : 'unbekannt';
             if (overridden.indexOf(column) >= 0) {
                 marks[column] = { className: 'override',
-                    title: 'Lokal geändert – Stammdaten: ' + want + '\nKlicken zum Ändern' };
+                    title: 'Lokal geändert – Stammdaten: ' + want + '\n' + HOW_TO_CHANGE };
             } else if (model.deviates(row, column, expected)) {
                 marks[column] = { className: 'stale',
-                    title: 'Weicht von den Stammdaten ab: ' + want +
-                        '\nKlicken zum Korrigieren' };
+                    title: 'Weicht von den Stammdaten ab: ' + want + '\n' +
+                        HOW_TO_CHANGE };
             }
         });
         return marks;
@@ -2852,7 +2855,7 @@ FCT.app = (function () {
         if (!diffs.length && !overridden.length) return null;
         var lines = [];
         if (diffs.length) {
-            lines.push('Weicht von den Stammdaten ab (Klick: ansehen und übernehmen):');
+            lines.push('Weicht von den Stammdaten ab (Stift: ansehen und übernehmen):');
             diffs.forEach(function (d) {
                 lines.push('  ' + d.column + ': „' + d.value + '“ → „' + d.want + '“');
             });
@@ -2987,7 +2990,7 @@ FCT.app = (function () {
     }
 
     function onAction(action, row) {
-        if (action === 'edit' || action === 'status') {
+        if (action === 'edit') {
             editRow(row);
         } else if (action === 'adopt') {
             adoptReferenceRow(row);
@@ -3889,8 +3892,9 @@ FCT.app = (function () {
         document.body.classList.toggle('edit-mode', on);
         if (on) {
             FCT.notices.show('edit', 'info', 'Editiermodus: alle Spalten sind bearbeitbar ' +
-                '(Doppelklick, Klick auf die aktive Zelle oder einfach tippen), feste Werte per ' +
-                'Auswahlliste; zusammengelegte Zellen (Talent, Class, Type, Subtype, Name) ' +
+                '(erster Klick wählt die Zelle, zweiter Klick oder F2 bearbeitet sie; oder ' +
+                'einfach tippen), feste Werte per Auswahlliste; zusammengelegte Zellen ' +
+                '(Talent, Class, Type, Subtype, Name) ' +
                 'öffnen ein Fenster mit ihren Einzelfeldern. Werte, die von den Stammdaten ' +
                 'abweichen, sind erlaubt und werden mit einer violetten Ecke (✱) markiert. ' +
                 'Mengen: Tasten + / − oder Shift+↑ / Shift+↓ bzw. Shift+→ / Shift+← (kein ' +

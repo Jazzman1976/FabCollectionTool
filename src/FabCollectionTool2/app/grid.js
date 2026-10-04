@@ -1220,7 +1220,8 @@ FCT.grid = (function () {
             if (!tr._row) return;
             var td = event.target.closest('td');
 
-            // Row actions at the row end, and the status symbol at the row start.
+            // Row actions at the row end. The status symbol at the row start only selects
+            // the row; the row dialog opens with the pen among the actions (issue #79).
             var action = event.target.closest('button.row-action');
             if (action) {
                 setCursor(tr._row, null, false);
@@ -1229,7 +1230,6 @@ FCT.grid = (function () {
             }
             if (td && td._status) {
                 setCursor(tr._row, null, false);
-                options.onAction('status', tr._row);
                 return;
             }
 

@@ -30,7 +30,6 @@
     --surplus-bg: #e3f5e6;
     --override: #8e44d9;
     --stale: #c77700;
-    --stale-bg: #fff3dc;
     --ref: #8a93a3;
     --selected: #dbe6ff;
     --invalid: #d92d20;
@@ -77,7 +76,6 @@
     --surplus-bg: #1f3525;
     --override: #c08cff;
     --stale: #f0a44b;
-    --stale-bg: #3a2c16;
     --ref: #7c8494;
     --selected: #27365c;
     --invalid: #ff7b72;
@@ -123,7 +121,6 @@
         --surplus-bg: #1f3525;
         --override: #c08cff;
         --stale: #f0a44b;
-        --stale-bg: #3a2c16;
         --ref: #7c8494;
         --selected: #27365c;
         --invalid: #ff7b72;
@@ -707,19 +704,13 @@ body.edit-mode .grid td.no-printing {
     text-decoration: underline dotted;
 }
 
-/* Reference values changed on purpose (violet corner) and deviations (dashed underline).
-   Both can be corrected with a click, also outside edit mode. */
+/* Reference values changed on purpose (violet corner) and deviations (orange text; no
+   underline since issue #79 - it looked like a link, and a click no longer edits). */
 .grid td.override {
     background-image: linear-gradient(135deg, var(--override) 7px, transparent 7px);
-    cursor: pointer;
 }
 .grid td.stale {
-    text-decoration: underline dashed var(--stale);
-    text-underline-offset: 3px;
-    cursor: pointer;
-}
-.grid td.stale:hover {
-    background: var(--stale-bg);
+    color: var(--stale);
 }
 /* An empty value that differs (issue #25): "[leer]" in the colour of its mark. Drawn by CSS
    only, so it is never part of the value. */
@@ -830,11 +821,9 @@ body.edit-mode .grid td.no-printing {
 }
 .grid td.status.differs {
     color: var(--stale);
-    cursor: pointer;
 }
 .grid td.status.override {
     color: var(--override);
-    cursor: pointer;
 }
 .grid td.status.gap {
     color: var(--ref);

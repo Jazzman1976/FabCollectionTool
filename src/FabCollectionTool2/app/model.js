@@ -560,19 +560,17 @@ FCT.model = (function () {
     }
 
     /*
-     * Whether a cell may be edited: the user's input always; reference and identity columns
-     * in edit mode. Outside edit mode a reference value that differs from the reference data
-     * or was changed on purpose can be corrected right where it is marked.
+     * Whether a cell may be edited: the user's input (quantities, note) always; reference
+     * and identity columns only in edit mode - also a value that differs from the reference
+     * data or was changed on purpose (issue #79). Outside edit mode such a value is changed
+     * in the row dialog.
      */
     function isEditable(row, column, editMode) {
         var kind = columnKind(column);
         if (!editMode && noPrinting(row, column)) return false;
         if (kind === 'input') return true;
         if (kind === 'internal') return false;
-        if (editMode) return true;
-        if (kind !== 'reference' || row._reference) return false;
-        return overrides(row).indexOf(column) >= 0 ||
-            deviates(row, column, FCT.reference.expected(row));
+        return !!editMode;
     }
 
     // True for a quantity column whose foiling does not exist for the variant of the row
