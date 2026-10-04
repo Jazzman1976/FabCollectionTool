@@ -52,11 +52,14 @@ FCT.grid = (function () {
     //               them is ticked); parts marks a combined column, which is edited in a
     //               window (onEditParts) instead of in place; fit = at least as wide as
     //               its longest content; columns with the same
-    //               group can be collapsed into one narrow column; sparse = numbers that
+    //               group can be collapsed into one narrow column, which shows the values
+    //               of the group's column marked with summary; sparse = numbers that
     //               may be missing (an empty value matches no number comparison); hint =
     //               explanation shown when hovering over the title; fixed = always shown,
     //               never hidden; icon = symbol (see ICONS) instead of the title text;
-    //               noFilter / noSort = no filter, no sorting. Titles never wrap; a column
+    //               noFilter / noSort = no filter, no sorting; display(text, row) = text
+    //               shown in the cell instead of the value (filter, sorting and search keep
+    //               the value) and tip(text, row) = its tooltip. Titles never wrap; a column
     //               is widened where its title would not fit.
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
@@ -471,16 +474,25 @@ FCT.grid = (function () {
             });
         }
 
-        // Columns shown, with a collapsed group replaced by one narrow placeholder column.
+        // Columns shown, with a collapsed group replaced by one narrow placeholder column. It
+        // shows the values of the group's summary column (issue #80), also if that column
+        // itself is hidden.
         function visibleColumns() {
             var result = [];
             columns.forEach(function (c) {
                 if (c.hidden) return;
                 if (!c.group || !collapsed[c.group]) { result.push(c); return; }
                 if (firstOfGroup(c)) {
-                    result.push({ key: '_group_' + c.group, label: 'Σ', width: 3,
+                    var summary = columns.filter(function (s) {
+                        return s.group === c.group && s.summary;
+                    })[0];
+                    result.push({ key: '_group_' + c.group, label: 'Σ', width: 3.6,
                         kind: 'calc', group: c.group, placeholder: true,
-                        title: 'Rechenspalten einblenden (Have / Need / Left)' });
+                        numeric: !!summary && !!summary.numeric,
+                        value: summary ? summary.value : null,
+                        summaryLabel: summary ? summary.label : '',
+                        title: 'Rechenspalten einblenden (Have / Need / Left)' +
+                            (summary ? ' – zeigt ' + summary.label : '') });
                 }
             });
             return result;
@@ -1006,26 +1018,33 @@ FCT.grid = (function () {
             var valueClass = column.valueClass && column.valueClass(text, row);
             if (valueClass) classes.push(valueClass);
 
-            var title = mark && mark.title ? text + '\n' + mark.title : text;
+            // A column may show another text than its value (issue #76) and explain it.
+            var shown = column.display ? column.display(text, row) : text;
+            var tip = column.tip ? column.tip(text, row) : text;
+            var title = mark && mark.title ? tip + '\n' + mark.title : tip;
             var picture = column.key === options.imageColumn && options.hasImage &&
                 options.hasImage(row);
             if (picture) classes.push('has-image');
             var td = el('td', { className: classes.join(' '),
                 title: picture ? null : title || null });
             td._column = column;
-            if (column.step && editable && isCursor) {
-                // "-" and "+" only in the active cell (also the keys - / +, Shift+Down /
-                // Shift+Up and Shift+Left / Shift+Right).
+            // A collapsed group names the column its value comes from.
+            if (column.summaryLabel && text) td.title = column.summaryLabel + ': ' + text;
+            if (column.step && editable) {
+                // "-" and "+" in every quantity cell that can be edited; the style sheet
+                // shows them in the active cell and under the mouse, so that one click is
+                // enough (issue #78). Also the keys - / +, Shift+Down / Shift+Up and
+                // Shift+Left / Shift+Right.
                 td.classList.add('stepper');
                 td.appendChild(el('button', { type: 'button', className: 'step minus',
                     tabindex: '-1', 'data-step': '-1',
                     title: 'Eins weniger (− oder Shift+↓ / Shift+←)', text: '−' }));
-                td.appendChild(el('span', { className: 'value', text: text }));
+                td.appendChild(el('span', { className: 'value', text: shown }));
                 td.appendChild(el('button', { type: 'button', className: 'step plus',
                     tabindex: '-1', 'data-step': '1',
                     title: 'Eins mehr (+ oder Shift+↑ / Shift+→)', text: '+' }));
             } else {
-                td.textContent = text;
+                td.textContent = shown;
             }
             // Card picture: a symbol shows that hovering and clicking show the card.
             if (picture) {
@@ -1220,7 +1239,8 @@ FCT.grid = (function () {
             if (!tr._row) return;
             var td = event.target.closest('td');
 
-            // Row actions at the row end, and the status symbol at the row start.
+            // Row actions at the row end. The status symbol at the row start only selects
+            // the row; the row dialog opens with the pen among the actions (issue #79).
             var action = event.target.closest('button.row-action');
             if (action) {
                 setCursor(tr._row, null, false);
@@ -1229,14 +1249,18 @@ FCT.grid = (function () {
             }
             if (td && td._status) {
                 setCursor(tr._row, null, false);
-                options.onAction('status', tr._row);
                 return;
             }
 
-            // "-" and "+" in the active quantity cell.
+            // "-" and "+" in a quantity cell: the cell becomes the active one (without
+            // scrolling), then the quantity is counted - one click is enough (issue #78).
             var button = event.target.closest('button.step');
             if (button) {
-                step(tr._row, td._column, parseInt(button.getAttribute('data-step'), 10));
+                var stepRow = tr._row;
+                var stepColumn = td._column;
+                var delta = parseInt(button.getAttribute('data-step'), 10);
+                setCursor(stepRow, stepColumn.key, false);
+                step(stepRow, stepColumn, delta);
                 return;
             }
             if (!td || !td._column || td._column.placeholder) return;

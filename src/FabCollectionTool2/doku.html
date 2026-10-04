@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css?v=2.8.0">
+    <link rel="stylesheet" href="app/style.css?v=2.9.1">
     <!-- Design (Auto, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
@@ -316,7 +316,6 @@
             <tr><td>Backside Name</td><td>Rückseite doppelseitiger Karten, dahinter in Klammern
                 die Übersetzung: <code>Rückseite (DE: Übersetzung)</code>; nicht in der
                 Standardansicht</td></tr>
-            <tr><td>Peculiarity</td><td>Besonderheit dieser Zeile</td></tr>
             <tr><td>Art Treatment</td><td>Extended Art, Alternate Art, Full Art, …; leer beim
                 Standard-Artwork</td></tr>
             <tr><td>Pitch</td><td>Red, Yellow, Blue (selten Purple); ein farbiger Punkt vor dem
@@ -344,10 +343,14 @@
                 eingetragener, abweichender Wert bleibt als lokale Änderung (✱) erhalten</td>
             </tr>
             <tr><td>Exklusiv</td><td>nur Anzeige, nie in <code>collection.csv</code>:
-                <em>ja</em>, wenn es die Karte nur in diesem einen Set gibt (kein Reprint, auch
+                ein Haken (✓), wenn es die Karte nur in diesem einen Set gibt (kein Reprint, auch
                 nicht als Promo; dieselbe Karte in anderem Pitch zählt als eigene Karte). Der
                 Wert folgt den Stammdaten und entfällt, sobald ein anderes Set die Karte
-                nachdruckt</td></tr>
+                nachdruckt. Der Filter der Spalte bietet <em>(leer)</em> und <em>ja</em> zum
+                Anhaken</td></tr>
+            <tr><td>Peculiarity</td><td>Besonderheit dieser Zeile, die sonst gleiche Karten
+                auseinanderhält (z. B. Left Hand, Right Hand); meist leer und deshalb weit
+                hinten; nicht in der Standardansicht</td></tr>
             <tr><td>Note</td><td>deine Notiz</td></tr>
             <tr><td>Typen (Stammdaten)</td><td>die vollständige Typzeile aus den Stammdaten (zum
                 Nachsehen)</td></tr>
@@ -366,10 +369,11 @@
             Backside Name, Translated Backside Name). Die Tabelle zeigt sie
             <strong>zusammengelegt</strong>, damit nicht die halbe Breite leer bleibt: Talent,
             Class, Type, Subtype, <em>Name</em> und <em>Backside Name</em>.
-            Die Spalten sind so breit wie ihr längster Inhalt. Nur <em>Name</em> hat eine
-            feste Breite, in die rund 90 % der Namen passen; längere enden mit „…“, der
-            Tooltip der Zelle zeigt sie vollständig. An der Bestandsdatei ändert das
-            nichts. <em>Art Treatment</em> ist eine eigene Spalte mit Häkchenfilter.</p>
+            Die Spalten sind so breit wie ihr längster Inhalt. Nur <em>Name</em> und
+            <em>Backside Name</em> haben dieselbe feste Breite, in die rund 90 % der Namen
+            passen; längere enden mit „…“, der Tooltip der Zelle zeigt sie vollständig. An der
+            Bestandsdatei ändert das nichts. <em>Art Treatment</em> ist eine eigene Spalte mit
+            Häkchenfilter.</p>
         <ul>
             <li><strong>Sortieren</strong> geht nach dem angezeigten Text.</li>
             <li><strong>Filtern:</strong> Talent, Class, Type und Subtype haben den
@@ -421,7 +425,8 @@
         <h3>Die Rechenspalten</h3>
         <p>Der Block von <em>Have (set)</em> bis <em>Left (total)</em> lässt sich mit ◂ in
             seiner ersten Überschrift zu einer schmalen Spalte <strong>Σ ▸</strong>
-            zusammenklappen; ein Klick darauf klappt ihn wieder auf. Die Einstellung bleibt
+            zusammenklappen; ein Klick darauf klappt ihn wieder auf. Zusammengeklappt zeigt die
+            Spalte Σ den Wert von <em>Have (total)</em>. Die Einstellung bleibt
             gemerkt. Spaltenüberschriften brechen nie um; die Spalte wird dafür breiter. Der
             Titel von ST, RF, CF und GF erklärt beim Überfahren, welches Foiling gemeint ist.
         </p>
@@ -439,14 +444,20 @@
             <strong>In den Bestand aufnehmen</strong> (Pfeil in eine Ablage) – und ebenso ＋
             für eine neue Zeile darunter.</p>
         <ul>
-            <li><strong>＋ Neue Zeile darunter</strong> übernimmt Set, Edition und Sprache der
-                Zeile darüber und zählt die Kartennummer um eins hoch (<code>MON062</code> →
-                <code>MON063</code>). Kennen die Stammdaten diese Nummer, sind alle Felder
-                schon ausgefüllt, die in allen Varianten der Karte gleich sind (Name, Pitch,
-                Typen, Playset …). Felder, in denen sich die Varianten unterscheiden (z. B. Art
-                Treatment), bleiben leer – welche Variante du meinst, weißt nur du. Kennen die
-                Stammdaten die Nummer nicht, übernimmt die Zeile Metatyp, Talente, Klassen und
-                Playset von oben.</li>
+            <li><strong>＋ Neue Zeile darunter</strong> öffnet das Fenster <em>Neue Zeile
+                einfügen</em>; nichts wird ungefragt von oben übernommen. Pflicht ist die
+                <strong>Kartennummer</strong> – auf Wunsch zählt der Haken „Nummer der Zeile
+                darüber hochzählen“ sie um eins hoch (<code>MON062</code> →
+                <code>MON063</code>). Kennen die Stammdaten die Nummer, werden ihre Werte (Set,
+                Name, Typen, Pitch, Playset …) ausgefüllt; gibt es mehrere
+                <strong>Varianten</strong> (Edition, Art Treatment), wählst du eine aus –
+                Varianten, die du schon hast, sind gekennzeichnet. Unter „Aus der Zeile darüber
+                übernehmen“ hakst du die Spalten an, deren Werte die neue Zeile bekommen soll
+                (z. B. Language oder Note); bei bekannter Nummer haben die Stammdaten Vorrang
+                (nur der Set-Name bleibt innerhalb desselben Sets der der Zeile darüber, damit
+                die Zeile in ihrer Gruppe bleibt), bei unbekannter gelten allein deine Haken.
+                Mengen werden nie übernommen. Der Browser merkt sich deine Auswahl für das
+                nächste Mal.</li>
             <li><strong>Löschen:</strong> Die Liste eines Sets bleibt immer vollständig. Steht
                 die Variante der Zeile (Kartennummer, Edition, Art Treatment) in den
                 Stammdaten, wird die Zeile nur <em>geleert</em>: Mengen und Notiz verschwinden,
@@ -496,7 +507,9 @@
             die Liste stehen, solange die aktive Zelle im Bild ist; sie scrollt erst mit, wenn
             der Cursor den oberen oder unteren Rand erreicht.
             Ein weiterer Klick auf die aktive Zelle oder ein Doppelklick bearbeitet sie; Spalten
-            mit festen Werten öffnen dabei direkt ihre Auswahlliste.</p>
+            mit festen Werten öffnen dabei direkt ihre Auswahlliste. In den Mengenspalten
+            erscheinen <strong>−</strong> und <strong>+</strong>, sobald die Maus über einer
+            Zelle steht (und in der aktiven Zelle): ein Klick darauf zählt sofort.</p>
         <table>
             <tr><th>Taste</th><th>Wirkung</th></tr>
             <tr><td>Pfeiltasten, <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td>
@@ -560,11 +573,15 @@
             <tr><td><span class="sym unknown">?</span></td><td>Die Kartennummer ist in den
                 Stammdaten unbekannt.</td></tr>
         </table>
-        <h3>Abweichungen direkt korrigieren</h3>
-        <p>Abweichende Zellen sind <strong>gestrichelt unterstrichen</strong>, lokal geänderte
-            haben eine <strong>violette Ecke</strong>. Beide lassen sich direkt anklicken und
-            ändern – auch ohne Editiermodus. Die Auswahlliste zeigt ganz oben fett den Wert der
-            Stammdaten („Stammdaten: Marvel“). Wählst du ihn, verschwindet die Markierung.</p>
+        <h3>Abweichungen korrigieren</h3>
+        <p>Abweichende Zellen haben <strong>orange Schrift</strong>, lokal geänderte
+            eine <strong>violette Ecke</strong>. Ändern kannst du sie auf zwei Wegen: über den
+            <strong>Stift</strong> in den Aktionen am Zeilenende – er öffnet das Zeilenfenster
+            mit allen Feldern und dem Vergleich mit den Stammdaten, auch ohne Editiermodus –
+            oder im <strong>Editiermodus</strong> direkt in der Zelle. Die Auswahlliste zeigt
+            dort ganz oben fett den Wert der Stammdaten („Stammdaten: Marvel“). Wählst du ihn,
+            verschwindet die Markierung. Ein Klick auf das Statussymbol am Zeilenanfang wählt
+            nur die Zeile aus.</p>
         <p>Ist das abweichende Feld <strong>leer</strong>, steht darin <em>[leer]</em> in der
             Farbe der Markierung (orange bzw. violett) – etwa wenn bei dir der Pitch fehlt, den
             die Stammdaten kennen. Im Zeilendialog steht <em>[leer]</em> in der Spalte
@@ -572,9 +589,11 @@
             nur eine Anzeige: <em>[leer]</em> wird nie gespeichert, kopiert oder
             exportiert.</p>
         <h3>Editiermodus</h3>
-        <p>Normalerweise sind nur Mengen und Notiz bearbeitbar. <em>Editiermodus</em> (Gruppe
+        <p>Normalerweise sind in der Tabelle nur Mengen und Notiz bearbeitbar – auch
+            abweichende oder lokal geänderte Zellen nicht. <em>Editiermodus</em> (Gruppe
             Ansicht) macht <strong>alle</strong> Spalten bearbeitbar; ein gelber Hinweis zeigt,
-            dass er an ist. Spalten mit festen Werten (Edition, Rarity, Pitch, Metatype, Talent,
+            dass er an ist. Der erste Klick wählt die Zelle, der zweite (oder <kbd>F2</kbd>)
+            bearbeitet sie. Spalten mit festen Werten (Edition, Rarity, Pitch, Metatype, Talent,
             Class, Type, Sub, Set, Peculiarity, Art Treatment) bieten eine Auswahlliste mit allen
             gültigen Werten – Freitext gibt es dort nicht. Bei den
             <a href="#zusammengelegt">zusammengelegten Spalten</a> öffnet sich dafür ein
@@ -953,9 +972,10 @@
             mit Treffern von selbst. Sonst <em>Filter zurücksetzen</em> und über die Suche
             gehen. Fehlt das ganze Set, hilft <em>Sets anzeigen …</em> – dort steht auch, ob
             es ausgeblendet ist.</p>
-        <h3>Warum ist ein Wert unterstrichen?</h3>
-        <p>Er weicht von den Stammdaten ab. Ein Klick darauf zeigt den Stammdatenwert zur
-            Auswahl; oder du lässt deinen Wert, dann bleibt die Markierung als Hinweis.</p>
+        <h3>Warum ist ein Wert orange?</h3>
+        <p>Er weicht von den Stammdaten ab. Der Stift am Zeilenende zeigt den Stammdatenwert
+            daneben und übernimmt ihn auf Wunsch; oder du lässt deinen Wert, dann bleibt die
+            Markierung als Hinweis.</p>
         <h3>Ich habe Karten aus einem Vorschau-Branch aufgenommen und bin zurück zu
             develop gewechselt. Jetzt stehen sie mit „?“ da.</h3>
         <p>Das ist richtig: <em>develop</em> kennt diese Kartennummern noch nicht. Es geht

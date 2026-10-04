@@ -368,12 +368,14 @@ FCT.model = (function () {
     // Metatype to Sub3 follow the type line of the card (rules 2.14.1, since 2.0.5.0).
     // Edition (Alpha, First, Unlimited) and Language (EN, DE, ...) are two columns since
     // issue #53; they and First In stand behind the quantities since issue #62, so that the
-    // quantities and the calculated columns are in sight.
+    // quantities and the calculated columns are in sight. Peculiarity is nearly always empty
+    // and stands at the end, right before the note, since issue #77.
     var COLUMNS = [
         'Set', 'Id', 'Rarity', 'Metatype', 'Talent1', 'Talent2', 'Class1', 'Class2', 'Type1',
         'Type2', 'Sub1', 'Sub2', 'Sub3', 'Name', 'Backside Name', 'Translated Name',
-        'Translated Backside Name', 'Peculiarity', 'Art Treatment', 'Pitch', 'Playset',
-        'ST', 'RF', 'CF', 'GF', 'Edition', 'Language', 'First In', 'Note', 'Overrides'
+        'Translated Backside Name', 'Art Treatment', 'Pitch', 'Playset',
+        'ST', 'RF', 'CF', 'GF', 'Edition', 'Language', 'First In', 'Peculiarity', 'Note',
+        'Overrides'
     ];
     // Columns of the type line, as filled from the reference data.
     var TYPE_COLUMNS = ['Metatype', 'Talent1', 'Talent2', 'Class1', 'Class2', 'Type1',
@@ -560,19 +562,17 @@ FCT.model = (function () {
     }
 
     /*
-     * Whether a cell may be edited: the user's input always; reference and identity columns
-     * in edit mode. Outside edit mode a reference value that differs from the reference data
-     * or was changed on purpose can be corrected right where it is marked.
+     * Whether a cell may be edited: the user's input (quantities, note) always; reference
+     * and identity columns only in edit mode - also a value that differs from the reference
+     * data or was changed on purpose (issue #79). Outside edit mode such a value is changed
+     * in the row dialog.
      */
     function isEditable(row, column, editMode) {
         var kind = columnKind(column);
         if (!editMode && noPrinting(row, column)) return false;
         if (kind === 'input') return true;
         if (kind === 'internal') return false;
-        if (editMode) return true;
-        if (kind !== 'reference' || row._reference) return false;
-        return overrides(row).indexOf(column) >= 0 ||
-            deviates(row, column, FCT.reference.expected(row));
+        return !!editMode;
     }
 
     // True for a quantity column whose foiling does not exist for the variant of the row
@@ -710,37 +710,58 @@ FCT.model = (function () {
         return match[1] + next;
     }
 
-    /*
-     * Values that all variants (edition, art treatment) of a card number share in the
-     * reference data (feedback on 2.0.5.0): a new row can take them before the user says
-     * which variant is meant. Columns whose values differ between the variants are left out,
-     * and so is the set name (the new row keeps that of the row above). Returns null if the
-     * card number is unknown.
-     */
-    function commonValues(id) {
-        var variants = new Map();
+    // Printing variants of a card number in the reference data: [{ edition, art }], each
+    // once, in the order of the reference data. Empty if the card number is unknown.
+    function variants(id) {
+        var found = [];
         FCT.reference.printings(id).forEach(function (p) {
-            variants.set(p.edition + '|' + p.art, { Id: id, Edition: p.edition,
-                'Art Treatment': p.art, Name: '' });
+            var known = found.some(function (v) {
+                return v.edition === p.edition && v.art === p.art;
+            });
+            if (!known) found.push({ edition: p.edition, art: p.art });
         });
-        if (!variants.size) return null;
-        var columns = REFERENCE_COLUMNS.filter(function (c) { return c !== 'Set'; })
-            .concat(['Art Treatment']);
-        var values = null;
-        variants.forEach(function (probe) {
-            var want = FCT.reference.expected(probe) || {};
-            want['Art Treatment'] = probe['Art Treatment'];
-            if (!values) {
-                values = {};
-                columns.forEach(function (c) { values[c] = want[c] == null ? '' : want[c]; });
+        return found;
+    }
+
+    /*
+     * Values of a new row below another one, as chosen in the dialog "Neue Zeile einfügen"
+     * (issue #82). above: the row above. options: { id: card number, copy: columns to take
+     * from the row above, variant: { edition, art } of the reference data, needed if the
+     * card number has several variants }.
+     * The ticked columns are copied; card number, quantities and "Overrides" never are. If
+     * the reference data know the card number, the edition and art treatment of the variant
+     * and all its reference values follow and win over the copied ones, so that a new row
+     * never starts with deviations - except for the set name: within the same set the name
+     * of the row above stays. An unknown card number gets the copied values only.
+     */
+    function newRowValues(above, options) {
+        var id = String(options.id || '').trim();
+        var values = { Id: id };
+        (options.copy || []).forEach(function (column) {
+            if (column === 'Id' || column === OVERRIDES || QUANTITIES.indexOf(column) >= 0) {
                 return;
             }
-            columns.forEach(function (c) {
-                if (c in values && values[c] !== (want[c] == null ? '' : want[c])) {
-                    delete values[c];
-                }
-            });
+            if (COLUMNS.indexOf(column) >= 0) values[column] = above[column] || '';
         });
+        var known = variants(id);
+        if (!known.length) return values;
+
+        // The variant: as chosen, or the only one there is.
+        var variant = options.variant || (known.length === 1 ? known[0] : null);
+        if (variant) {
+            values.Edition = variant.edition;
+            values['Art Treatment'] = variant.art;
+        }
+        var expected = FCT.reference.expected({ Id: id, Edition: values.Edition || '',
+            'Art Treatment': values['Art Treatment'] || '', Name: '' });
+        Object.keys(expected).forEach(function (column) {
+            // (an empty back side of the reference data is no information, see deviates)
+            if (column === 'Backside Name' && !expected[column]) return;
+            values[column] = expected[column];
+        });
+        // Within the same set the row keeps the set name of the row above, as the gap rows
+        // do (see withGaps): a collection that names the set in its own way keeps one group.
+        if (above.Set && setCode(above.Id) === setCode(id)) values.Set = above.Set;
         return values;
     }
 
@@ -1421,7 +1442,8 @@ FCT.model = (function () {
         newRow: newRow,
         nextId: nextId,
         freeName: freeName,
-        commonValues: commonValues,
+        variants: variants,
+        newRowValues: newRowValues,
         fromCsv: fromCsv,
         toCsv: toCsv,
         validate: validate,

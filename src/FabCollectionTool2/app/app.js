@@ -50,16 +50,17 @@ FCT.app = (function () {
         Talent1: 6.5,
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
-        'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
+        'Translated Name': 14, 'Backside Name': 16, 'Translated Backside Name': 14, Pitch: 5.5,
         Peculiarity: 7, 'Art Treatment': 8.5, Note: 15,
-        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 13.5, _backside: 10
+        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 13.5, _backside: 13.5
     };
     // The name column has a fixed width instead of that of its longest content (review of
     // issue #69). Since the art treatment is a column of its own again (issue #72), 13.5em
     // hold 90 % of the rows of the example collection (docs/example.ods with its gaps; 90th
     // percentile 12.0em of text plus 1.2em of padding). Longer names end in "…", the tooltip
-    // shows them in full.
-    var FIXED_WIDTH = ['_name'];
+    // shows them in full. The back side is as wide as the name and behaves the same (2.9.1);
+    // so are their single columns.
+    var FIXED_WIDTH = ['_name', '_backside'];
 
     // Explanations of the combined columns (issue #69).
     var COMBINED_HINTS = {
@@ -152,6 +153,8 @@ FCT.app = (function () {
             c.kind = 'calc';
             c.group = 'calc';
             c.width = CALC_WIDTH;
+            // The collapsed block shows "Have (total)" (issue #80).
+            c.summary = c.key === '_haveTotal';
             return c;
         });
         var types = { key: '_types', label: 'Typen (Stammdaten)', width: 16, kind: 'calc',
@@ -191,9 +194,17 @@ FCT.app = (function () {
 
         // Exclusive cards (issue #54): "ja" if the card exists in a single set only. Only
         // shown, never saved - the value changes as soon as another set reprints the card.
+        // The cell shows a check mark instead of "ja"; the check box filter offers the values
+        // "(leer)" and "ja" (issue #76).
         var exclusive = { key: '_exclusive', label: 'Exklusiv', width: 5, kind: 'calc',
-            hint: 'ja = die Karte gibt es nur in diesem einen Set (kein Reprint, keine Promo)',
-            value: function (row) { return FCT.reference.isExclusive(row) ? 'ja' : ''; } };
+            list: true,
+            hint: '✓ = die Karte gibt es nur in diesem einen Set (kein Reprint, keine Promo)',
+            value: function (row) { return FCT.reference.isExclusive(row) ? 'ja' : ''; },
+            display: function (value) { return value ? '✓' : ''; },
+            tip: function (value) {
+                return value ? 'Exklusiv: die Karte gibt es nur in diesem einen Set' : '';
+            },
+            valueClass: function (value) { return value ? 'check' : null; } };
 
         // Combined columns (issue #69): the parts of a kind in one cell, each in front of
         // its first part. The parts stay columns of their own ("Einzelspalten"), hidden in
@@ -2717,8 +2728,8 @@ FCT.app = (function () {
         setDirty(true);
     }
 
-    // Which cells can be edited: the user's input always, everything else in edit mode, and
-    // marked deviations from the reference data also outside edit mode (see model).
+    // Which cells can be edited: the user's input always, everything else only in edit mode
+    // (see model).
     function isEditable(column, row) {
         if (column.kind === 'calc') return false;
         // A combined cell can be edited as soon as one of its fields can.
@@ -2785,6 +2796,9 @@ FCT.app = (function () {
         return marks;
     }
 
+    // How a marked value is changed (issue #79): never by a click outside edit mode.
+    var HOW_TO_CHANGE = 'Ändern: im Editiermodus oder über den Stift (Zeile bearbeiten)';
+
     // Marks of the single fields of a row (see rowMarks).
     function fieldMarks(row) {
         var marks = {};
@@ -2819,11 +2833,11 @@ FCT.app = (function () {
             var want = expected ? '„' + expected[column] + '“' : 'unbekannt';
             if (overridden.indexOf(column) >= 0) {
                 marks[column] = { className: 'override',
-                    title: 'Lokal geändert – Stammdaten: ' + want + '\nKlicken zum Ändern' };
+                    title: 'Lokal geändert – Stammdaten: ' + want + '\n' + HOW_TO_CHANGE };
             } else if (model.deviates(row, column, expected)) {
                 marks[column] = { className: 'stale',
-                    title: 'Weicht von den Stammdaten ab: ' + want +
-                        '\nKlicken zum Korrigieren' };
+                    title: 'Weicht von den Stammdaten ab: ' + want + '\n' +
+                        HOW_TO_CHANGE };
             }
         });
         return marks;
@@ -2852,7 +2866,7 @@ FCT.app = (function () {
         if (!diffs.length && !overridden.length) return null;
         var lines = [];
         if (diffs.length) {
-            lines.push('Weicht von den Stammdaten ab (Klick: ansehen und übernehmen):');
+            lines.push('Weicht von den Stammdaten ab (Stift: ansehen und übernehmen):');
             diffs.forEach(function (d) {
                 lines.push('  ' + d.column + ': „' + d.value + '“ → „' + d.want + '“');
             });
@@ -2962,21 +2976,166 @@ FCT.app = (function () {
     }
 
     /*
-     * Values of a new row below another one (feedback on 2.0.5.0): set and edition of the
-     * row above and the next card number. If the reference data know that number, every
-     * value shared by all its variants is filled in; values that differ between the variants
-     * stay empty, since only the user knows which one is meant. Otherwise the row keeps
-     * metatype, talents, classes and playset of the row above, so it stays in the same group.
+     * Dialog "Neue Zeile einfügen" (issue #82): nothing is taken from the row above without
+     * asking. The user enters the card number (or lets the one of the row above count up),
+     * chooses the variant if the reference data know several, and ticks the columns to take
+     * from the row above. The choice (counting up, ticks) is remembered as a view setting.
+     * The values follow model.newRowValues. Resolves after the row was inserted or the
+     * dialog was cancelled.
      */
-    function newRowValues(row) {
-        var id = model.nextId(row.Id);
-        var values = { Set: row.Set, Edition: row.Edition, Language: row.Language, Id: id };
-        var common = id ? model.commonValues(id) : null;
-        var copied = common || { Metatype: row.Metatype, Talent1: row.Talent1,
-            Talent2: row.Talent2, Class1: row.Class1, Class2: row.Class2,
-            Playset: row.Playset };
-        Object.keys(copied).forEach(function (key) { values[key] = copied[key]; });
-        return values;
+    function insertRow(row) {
+        var remembered = settings.get('newRow', { increment: false, copy: [] });
+        var next = model.nextId(row.Id);
+        var insertButton = null;
+
+        // Card number, with the option to count up the one of the row above.
+        var idInput = el('input', { type: 'text', className: 'new-row-id' });
+        var increment = el('input', { type: 'checkbox', disabled: !next });
+        increment.checked = !!remembered.increment && !!next;
+        idInput.value = increment.checked ? next : '';
+        var idInfo = el('p', { className: 'hint' });
+
+        // Variant of the reference data (only asked if the card number has several).
+        var variantSelect = el('select', {});
+        var variantLine = el('label', { className: 'new-row-line' },
+            [el('span', { text: 'Variante' }), variantSelect]);
+        var variants = [];
+
+        // One tick per column of the table, without card number, quantities and calculated
+        // columns; a combined column stands for its single fields.
+        var ticks = grid.columns().filter(function (c) {
+            return c.kind !== 'calc' && !c.single && c.key !== 'Id' &&
+                model.QUANTITIES.indexOf(c.key) < 0;
+        }).map(function (c) {
+            var parts = c.parts || [c.key];
+            var value = c.value ? c.value(row) : row[c.key];
+            var box = el('input', { type: 'checkbox' });
+            box.checked = (remembered.copy || []).indexOf(c.key) >= 0;
+            // Reference values and the variant come from the reference data if the card
+            // number is known.
+            var fromReference = c.key === 'Edition' || c.key === 'Art Treatment' ||
+                parts.every(function (p) { return model.columnKind(p) === 'reference'; });
+            var note = el('span', { className: 'what' });
+            var label = el('label', {}, [box, ' ' + c.label + ' ', note]);
+            return { key: c.key, parts: parts, box: box, label: label, note: note,
+                value: value == null ? '' : String(value), fromReference: fromReference };
+        });
+        function tickAll(on) {
+            ticks.forEach(function (t) { if (!t.box.disabled) t.box.checked = on; });
+        }
+
+        // The variant chosen in the list, or null.
+        function chosenVariant() {
+            return variants.length > 1 ? variants[Number(variantSelect.value)] || null : null;
+        }
+
+        // True if a row of the collection already has this variant of the card number.
+        function inCollection(id, variant) {
+            var key = model.variantKey(id, variant.edition, variant.art);
+            return (state.rowsById.get(id) || []).some(function (r) {
+                return model.variantKey(r.Id, r.Edition, r['Art Treatment']) === key;
+            });
+        }
+
+        // Follows the card number: what the reference data know, the list of variants, and
+        // which ticks still count.
+        function update(idChanged) {
+            var id = idInput.value.trim();
+            if (idChanged) {
+                variants = id ? model.variants(id) : [];
+                variantSelect.textContent = '';
+                variantSelect.appendChild(el('option', { value: '', text: '– bitte wählen –' }));
+                var missing = [];
+                variants.forEach(function (v, i) {
+                    var owned = inCollection(id, v);
+                    if (!owned) missing.push(i);
+                    variantSelect.appendChild(el('option', { value: String(i),
+                        text: (v.edition || 'ohne Edition') + ' · ' +
+                            (v.art || 'Standard-Artwork') +
+                            (owned ? ' – schon im Bestand' : '') }));
+                });
+                // The only variant still missing is the obvious choice.
+                variantSelect.value = missing.length === 1 ? String(missing[0]) : '';
+                variantLine.hidden = variants.length < 2;
+                var names = FCT.reference.printings(id).map(function (p) {
+                    return p.card.name;
+                }).filter(function (name, i, all) { return all.indexOf(name) === i; });
+                idInfo.textContent = !id ? 'Die Kartennummer ist Pflicht.'
+                    : variants.length ? 'Stammdaten: ' + names.join(' // ') +
+                        ' – ihre Werte (Set, Name, Typen, Pitch, Playset …) werden ausgefüllt.'
+                        : 'Kartennummer nicht in den Stammdaten – die Zeile bekommt nur die ' +
+                            'angehakten Werte.';
+            }
+            var known = variants.length > 0;
+            ticks.forEach(function (t) {
+                t.box.disabled = known && t.fromReference;
+                t.label.classList.toggle('disabled', t.box.disabled);
+                t.label.title = t.box.disabled ? 'Kommt aus den Stammdaten' : '';
+                t.note.textContent = t.box.disabled ? 'kommt aus den Stammdaten'
+                    : t.value || '(leer)';
+            });
+            if (insertButton) {
+                insertButton.disabled = !id || (variants.length > 1 && !chosenVariant());
+            }
+        }
+        idInput.addEventListener('input', function () { update(true); });
+        variantSelect.addEventListener('change', function () { update(false); });
+        increment.addEventListener('change', function () {
+            idInput.value = increment.checked ? next : '';
+            update(true);
+        });
+
+        var body = el('div', { className: 'new-row' }, [
+            el('label', { className: 'new-row-line' },
+                [el('span', { text: 'Kartennummer' }), idInput]),
+            el('label', { title: next ? '' : 'Die Kartennummer der Zeile darüber endet ' +
+                'nicht auf eine Zahl' }, [increment, ' Nummer der Zeile darüber hochzählen' +
+                (next ? ' (' + row.Id + ' → ' + next + ')' : '')]),
+            idInfo,
+            variantLine,
+            el('h3', { text: 'Aus der Zeile darüber übernehmen' }),
+            el('div', { className: 'new-row-buttons' }, [
+                el('button', { type: 'button', text: 'Alle',
+                    onclick: function () { tickAll(true); } }),
+                el('button', { type: 'button', text: 'Keine',
+                    onclick: function () { tickAll(false); } })
+            ]),
+            el('div', { className: 'new-row-ticks' },
+                ticks.map(function (t) { return t.label; }))
+        ]);
+
+        return openDialog({
+            title: 'Neue Zeile einfügen – unter ' +
+                ([row.Id, row.Name].filter(Boolean).join(' ') || '(leere Zeile)'),
+            body: body,
+            hint: 'Mengen werden nie übernommen. Die Auswahl merkt sich der Browser für das ' +
+                'nächste Mal.',
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Einfügen', value: 'accept', primary: true }
+            ],
+            setup: function (finish) {
+                insertButton = $('dialog-buttons').querySelector('button.primary');
+                update(true);
+                // Enter in the card number inserts, as soon as everything needed is there.
+                idInput.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter') return;
+                    event.preventDefault();
+                    if (!insertButton.disabled) finish('accept');
+                });
+                window.setTimeout(function () { idInput.focus(); }, 0);
+            }
+        }).then(function (value) {
+            if (value !== 'accept') return;
+            var chosen = ticks.filter(function (t) { return t.box.checked; });
+            settings.set('newRow', { increment: increment.checked,
+                copy: chosen.map(function (t) { return t.key; }) });
+            var copy = [];
+            chosen.forEach(function (t) { copy = copy.concat(t.parts); });
+            var values = model.newRowValues(row, { id: idInput.value, copy: copy,
+                variant: chosenVariant() });
+            insertBelow(row, model.newRow(values), 'Eingefügt');
+        });
     }
 
     // A full copy of a row, including extra columns of the file.
@@ -2987,7 +3146,7 @@ FCT.app = (function () {
     }
 
     function onAction(action, row) {
-        if (action === 'edit' || action === 'status') {
+        if (action === 'edit') {
             editRow(row);
         } else if (action === 'adopt') {
             adoptReferenceRow(row);
@@ -2995,7 +3154,7 @@ FCT.app = (function () {
             rebuild();
             grid.select(row);
         } else if (action === 'insert') {
-            insertBelow(row, model.newRow(newRowValues(row)), 'Eingefügt');
+            return insertRow(row);
         } else if (action === 'copy') {
             state.clipboard = copyRow(row);
             updateStatus();
@@ -3889,8 +4048,9 @@ FCT.app = (function () {
         document.body.classList.toggle('edit-mode', on);
         if (on) {
             FCT.notices.show('edit', 'info', 'Editiermodus: alle Spalten sind bearbeitbar ' +
-                '(Doppelklick, Klick auf die aktive Zelle oder einfach tippen), feste Werte per ' +
-                'Auswahlliste; zusammengelegte Zellen (Talent, Class, Type, Subtype, Name) ' +
+                '(erster Klick wählt die Zelle, zweiter Klick oder F2 bearbeitet sie; oder ' +
+                'einfach tippen), feste Werte per Auswahlliste; zusammengelegte Zellen ' +
+                '(Talent, Class, Type, Subtype, Name) ' +
                 'öffnen ein Fenster mit ihren Einzelfeldern. Werte, die von den Stammdaten ' +
                 'abweichen, sind erlaubt und werden mit einer violetten Ecke (✱) markiert. ' +
                 'Mengen: Tasten + / − oder Shift+↑ / Shift+↓ bzw. Shift+→ / Shift+← (kein ' +

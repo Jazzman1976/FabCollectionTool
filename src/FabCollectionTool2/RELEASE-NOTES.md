@@ -6,6 +6,75 @@ die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>
 (z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
 GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.9.1 – 04.10.2026
+
+Ergänzung auf dem Release-Branch; 2.9.0 wurde nicht veröffentlicht.
+
+### Geändert
+- **Backside Name so breit wie Name:** Die Spalte *Backside Name* hat jetzt dieselbe feste
+  Breite wie *Name* und verhält sich genauso – längere Texte enden mit „…“, der Tooltip der
+  Zelle zeigt sie vollständig. Bisher war sie so breit wie ihr längster Inhalt. Auch die
+  Einzelspalten *Backside Name* und *Translated Backside Name* sind so breit wie *Name* und
+  *Translated Name*.
+
+## 2.9.0 – 04.10.2026
+
+### Neu
+- **Dialog „Neue Zeile einfügen“** (#82): ＋ in den Aktionen übernimmt nichts mehr ungefragt
+  von der Zeile darüber, sondern öffnet ein Fenster.
+  - **Kartennummer** ist Pflicht. Der Haken „Nummer der Zeile darüber hochzählen“ belegt sie
+    auf Wunsch vor (`MON062` → `MON063`).
+  - Kennen die Stammdaten die Nummer, werden ihre Werte ausgefüllt (Name, Typen, Pitch,
+    Playset …). Gibt es mehrere **Varianten** (Edition, Art Treatment), wählst du eine aus;
+    Varianten, die du schon hast, sind gekennzeichnet.
+  - Unter **„Aus der Zeile darüber übernehmen“** hakst du die Spalten an, deren Werte die
+    neue Zeile bekommen soll. Bei bekannter Nummer haben die Stammdaten Vorrang; nur der
+    Set-Name bleibt innerhalb desselben Sets der der Zeile darüber, damit die Zeile in ihrer
+    Gruppe bleibt. Bei unbekannter Nummer gelten allein deine Haken. Mengen werden nie
+    übernommen.
+  - Der Browser merkt sich die Auswahl für das nächste Mal.
+- **Mengen mit einem Klick** (#78): **−** und **+** erscheinen in den Mengenspalten schon,
+  wenn die Maus über einer Zelle steht. Ein Klick zählt sofort; die Zelle muss nicht erst
+  angeklickt werden.
+- **Eingeklappte Rechenspalten zeigen *Have (total)*** (#80): Die schmale Spalte **Σ** ist
+  nicht mehr leer, sondern zeigt je Zeile den Wert von *Have (total)*; die Farbe für „fehlt“
+  und „Überschuss“ bleibt.
+
+### Geändert
+- **Bearbeiten vereinfacht** (#79):
+  - Zellen der Tabelle lassen sich nur noch im **Editiermodus** bearbeiten – auch Zellen,
+    die von den Stammdaten abweichen (≠) oder lokal geändert sind (✱). Ausgenommen sind wie
+    bisher die **Mengen** und die **Notiz**: Sie bleiben immer bearbeitbar.
+  - Im Editiermodus gilt für jede Zelle: erster Klick wählt sie, zweiter Klick oder
+    <kbd>F2</kbd> bearbeitet sie. <kbd>Enter</kbd> geht weiter eine Zeile nach unten.
+  - Die **ganze Zeile** bearbeitest du nur noch über den **Stift** in den Aktionen – das geht
+    auch ohne Editiermodus und zeigt alle Werte neben den Stammdaten. Ein Klick auf das
+    Statussymbol am Zeilenanfang wählt nur noch die Zeile aus.
+  - Abweichende Zellen haben **orange Schrift** und sind nicht mehr unterstrichen (das sah
+    wie ein Link aus).
+- **Exklusiv mit Haken** (#76): Die Spalte zeigt **✓** statt „ja“. Ihr Filter ist kein
+  Textfeld mehr, sondern die Auswahl mit Häkchen: *(leer)* und *ja*.
+- **Peculiarity steht hinten** (#77): Die Spalte ist fast immer leer und steht jetzt zwischen
+  *Exklusiv* und `Note` statt zwischen Name und Art Treatment. Werte, Auswahlliste, Filter
+  und Rechnung sind unverändert.
+- **`collection.csv` in neuer Spaltenfolge:** Die Datei folgt wie immer der Tabelle:
+  `…, Translated Backside Name, Art Treatment, Pitch, Playset, ST, RF, CF, GF, Edition,
+  Language, First In, Peculiarity, Note, Overrides`. Bestehende Bestände werden über die
+  Spaltennamen gelesen (Info-Meldung „ältere Reihenfolge“) und beim nächsten Speichern in der
+  neuen Reihenfolge geschrieben; an den Werten ändert sich nichts.
+
+### Stammdaten
+- Vor dem Release geprüft: the-fab-cube `develop` unverändert auf `18b2d9d` vom 30.09.2026.
+- Fabrary-Zuordnung gegen den Sammlungsexport vom 03.10.2026 geprüft: unverändert.
+
+### Entwicklung
+- `CLAUDE.md`: Das Label „in development“ wird erst gesetzt, wenn ein Issue auf *In progress*
+  geht.
+- Raster (`app/grid.js`): neue Spaltenoptionen `display` und `tip` (Anzeige und Tooltip statt
+  des Werts) und `summary` (Wert der eingeklappten Spaltengruppe).
+- Selbsttest: Prüfungen *Editable cells* und *New row values* an das neue Verhalten
+  angepasst; `model.commonValues` ist durch `model.variants` und `model.newRowValues` ersetzt.
+
 ## 2.8.0 – 03.10.2026
 
 ### Neu
