@@ -52,7 +52,8 @@ FCT.grid = (function () {
     //               them is ticked); parts marks a combined column, which is edited in a
     //               window (onEditParts) instead of in place; fit = at least as wide as
     //               its longest content; columns with the same
-    //               group can be collapsed into one narrow column; sparse = numbers that
+    //               group can be collapsed into one narrow column, which shows the values
+    //               of the group's column marked with summary; sparse = numbers that
     //               may be missing (an empty value matches no number comparison); hint =
     //               explanation shown when hovering over the title; fixed = always shown,
     //               never hidden; icon = symbol (see ICONS) instead of the title text;
@@ -473,16 +474,25 @@ FCT.grid = (function () {
             });
         }
 
-        // Columns shown, with a collapsed group replaced by one narrow placeholder column.
+        // Columns shown, with a collapsed group replaced by one narrow placeholder column. It
+        // shows the values of the group's summary column (issue #80), also if that column
+        // itself is hidden.
         function visibleColumns() {
             var result = [];
             columns.forEach(function (c) {
                 if (c.hidden) return;
                 if (!c.group || !collapsed[c.group]) { result.push(c); return; }
                 if (firstOfGroup(c)) {
-                    result.push({ key: '_group_' + c.group, label: 'Σ', width: 3,
+                    var summary = columns.filter(function (s) {
+                        return s.group === c.group && s.summary;
+                    })[0];
+                    result.push({ key: '_group_' + c.group, label: 'Σ', width: 3.6,
                         kind: 'calc', group: c.group, placeholder: true,
-                        title: 'Rechenspalten einblenden (Have / Need / Left)' });
+                        numeric: !!summary && !!summary.numeric,
+                        value: summary ? summary.value : null,
+                        summaryLabel: summary ? summary.label : '',
+                        title: 'Rechenspalten einblenden (Have / Need / Left)' +
+                            (summary ? ' – zeigt ' + summary.label : '') });
                 }
             });
             return result;
@@ -1018,6 +1028,8 @@ FCT.grid = (function () {
             var td = el('td', { className: classes.join(' '),
                 title: picture ? null : title || null });
             td._column = column;
+            // A collapsed group names the column its value comes from.
+            if (column.summaryLabel && text) td.title = column.summaryLabel + ': ' + text;
             if (column.step && editable && isCursor) {
                 // "-" and "+" only in the active cell (also the keys - / +, Shift+Down /
                 // Shift+Up and Shift+Left / Shift+Right).

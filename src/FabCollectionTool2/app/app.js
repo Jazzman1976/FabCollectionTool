@@ -152,6 +152,8 @@ FCT.app = (function () {
             c.kind = 'calc';
             c.group = 'calc';
             c.width = CALC_WIDTH;
+            // The collapsed block shows "Have (total)" (issue #80).
+            c.summary = c.key === '_haveTotal';
             return c;
         });
         var types = { key: '_types', label: 'Typen (Stammdaten)', width: 16, kind: 'calc',
