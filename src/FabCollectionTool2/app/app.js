@@ -50,16 +50,17 @@ FCT.app = (function () {
         Talent1: 6.5,
         Talent2: 5, Class1: 7.5, Class2: 6.5, Type1: 7.5, Type2: 6, Sub1: 5.5, Sub2: 5,
         Sub3: 4.5, Name: 16,
-        'Translated Name': 14, 'Backside Name': 12, 'Translated Backside Name': 12, Pitch: 5.5,
+        'Translated Name': 14, 'Backside Name': 16, 'Translated Backside Name': 14, Pitch: 5.5,
         Peculiarity: 7, 'Art Treatment': 8.5, Note: 15,
-        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 13.5, _backside: 10
+        _talent: 6, _class: 6.5, _type: 6.5, _subtype: 6.5, _name: 13.5, _backside: 13.5
     };
     // The name column has a fixed width instead of that of its longest content (review of
     // issue #69). Since the art treatment is a column of its own again (issue #72), 13.5em
     // hold 90 % of the rows of the example collection (docs/example.ods with its gaps; 90th
     // percentile 12.0em of text plus 1.2em of padding). Longer names end in "…", the tooltip
-    // shows them in full.
-    var FIXED_WIDTH = ['_name'];
+    // shows them in full. The back side is as wide as the name and behaves the same (2.9.1);
+    // so are their single columns.
+    var FIXED_WIDTH = ['_name', '_backside'];
 
     // Explanations of the combined columns (issue #69).
     var COMBINED_HINTS = {

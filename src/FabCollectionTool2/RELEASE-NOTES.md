@@ -6,6 +6,17 @@ die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>
 (z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
 GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.9.1 – 04.10.2026
+
+Ergänzung auf dem Release-Branch; 2.9.0 wurde nicht veröffentlicht.
+
+### Geändert
+- **Backside Name so breit wie Name:** Die Spalte *Backside Name* hat jetzt dieselbe feste
+  Breite wie *Name* und verhält sich genauso – längere Texte enden mit „…“, der Tooltip der
+  Zelle zeigt sie vollständig. Bisher war sie so breit wie ihr längster Inhalt. Auch die
+  Einzelspalten *Backside Name* und *Translated Backside Name* sind so breit wie *Name* und
+  *Translated Name*.
+
 ## 2.9.0 – 04.10.2026
 
 ### Neu
