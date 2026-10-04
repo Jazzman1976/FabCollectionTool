@@ -56,7 +56,9 @@ FCT.grid = (function () {
     //               may be missing (an empty value matches no number comparison); hint =
     //               explanation shown when hovering over the title; fixed = always shown,
     //               never hidden; icon = symbol (see ICONS) instead of the title text;
-    //               noFilter / noSort = no filter, no sorting. Titles never wrap; a column
+    //               noFilter / noSort = no filter, no sorting; display(text, row) = text
+    //               shown in the cell instead of the value (filter, sorting and search keep
+    //               the value) and tip(text, row) = its tooltip. Titles never wrap; a column
     //               is widened where its title would not fit.
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
@@ -1006,7 +1008,10 @@ FCT.grid = (function () {
             var valueClass = column.valueClass && column.valueClass(text, row);
             if (valueClass) classes.push(valueClass);
 
-            var title = mark && mark.title ? text + '\n' + mark.title : text;
+            // A column may show another text than its value (issue #76) and explain it.
+            var shown = column.display ? column.display(text, row) : text;
+            var tip = column.tip ? column.tip(text, row) : text;
+            var title = mark && mark.title ? tip + '\n' + mark.title : tip;
             var picture = column.key === options.imageColumn && options.hasImage &&
                 options.hasImage(row);
             if (picture) classes.push('has-image');
@@ -1022,12 +1027,12 @@ FCT.grid = (function () {
                 td.appendChild(el('button', { type: 'button', className: 'step minus',
                     tabindex: '-1', 'data-step': '-1',
                     title: 'Eins weniger (− oder Shift+↓ / Shift+←)', text: '−' }));
-                td.appendChild(el('span', { className: 'value', text: text }));
+                td.appendChild(el('span', { className: 'value', text: shown }));
                 td.appendChild(el('button', { type: 'button', className: 'step plus',
                     tabindex: '-1', 'data-step': '1',
                     title: 'Eins mehr (+ oder Shift+↑ / Shift+→)', text: '+' }));
             } else {
-                td.textContent = text;
+                td.textContent = shown;
             }
             // Card picture: a symbol shows that hovering and clicking show the card.
             if (picture) {
