@@ -37,7 +37,8 @@ FCT.tour = (function () {
         { target: '.grid thead th.status', title: 'Status jeder Zeile',
             text: '≠ weicht von den Stammdaten ab, ✱ hast du bewusst geändert, ○ ist eine ' +
                 'Variante, die du noch nicht im Bestand hast, ? eine unbekannte Kartennummer. ' +
-                'Unterstrichene Werte korrigierst du direkt per Klick.' },
+                'Abweichende Werte sind orange; du korrigierst sie über den Stift am ' +
+                'Zeilenende oder im Editiermodus.' },
         { target: '.grid thead tr.filters', title: 'Filter',
             text: 'Spalten mit festen Werten filterst du per Häkchen wie in der 1.0-Tabelle, ' +
                 'Text mit Platzhaltern: * steht für beliebigen Text, ? für ein Zeichen – z. B. ' +
