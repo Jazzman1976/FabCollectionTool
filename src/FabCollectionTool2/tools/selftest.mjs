@@ -836,13 +836,15 @@ if (!currentFile) {
 
 // Column order (2.0.4.0): table and collection.csv share one order (Pitch right before
 // Playset, Backside Name before Translated Name); files in the old order are read by name.
-// Edition, Language and First In stand behind the quantities and before the note (issue #62).
+// Edition, Language and First In stand behind the quantities and before the note (issue #62),
+// Peculiarity between First In and the note (issue #77).
 {
     const cols = FCT.model.COLUMNS;
     const typeLine = FCT.model.TYPE_COLUMNS;
     const details = cols.slice(0, 3).join(',') === 'Set,Id,Rarity' &&
-        cols.slice(cols.indexOf('GF'), cols.indexOf('Note') + 1).join(',') ===
-            'GF,Edition,Language,First In,Note';
+        cols.slice(cols.indexOf('GF')).join(',') ===
+            'GF,Edition,Language,First In,Peculiarity,Note,Overrides' &&
+        cols.indexOf('Translated Backside Name') === cols.indexOf('Art Treatment') - 1;
     const order = details && cols.indexOf('Pitch') === cols.indexOf('Playset') - 1 &&
         cols.indexOf('Backside Name') === cols.indexOf('Translated Name') - 1 &&
         cols.indexOf('Art Treatment') < cols.indexOf('Pitch') &&
