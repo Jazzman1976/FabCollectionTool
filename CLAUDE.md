@@ -42,6 +42,13 @@ Maintainer ist **Elmar** (GitHub `Jazzman1976`). Er entscheidet, merged und ver�
 - Fabrary-Export: *Have* nie leer (0 = fehlt). Wo Fabrary anders benennt, gilt die
   Fabrary-Zuordnung (`reference/fabrary-map.js` plus eigene Einträge in der Konfigurationsdatei).
   **Fabrarys Import ersetzt die ganze Sammlung** – Test-Dateien nie ins echte Konto.
+- **Cardmarket-Preise** (#93, #94): Preise nur lokal beim Nutzer (`cardmarket-prices.json` im
+  Arbeitsordner, erzeugt aus der selbst heruntergeladenen `price_guide_16.json`), nie im
+  Repository, keine Action, die Preise holt oder veröffentlicht. Die Zuordnung
+  `reference/cardmarket-map.js` entsteht nur aus Cardmarkets öffentlichen Dateien und
+  the-fab-cube (`tools/build-cardmarket-map.mjs`); keine Daten anderer Plattformen (z. B.
+  CardTrader, Lizenz), kein automatisches Abrufen von Cardmarket-Seiten. Berechnete Spalten wie
+  „Wert“ kommen nicht in die CSV.
 - **Eigene Daten des Nutzers nie ins Repository** (Sammlung, Fabrary-Exporte mit Mengen,
   Quelldateien von the-fab-cube). Das Repository ist öffentlich. Ausnahme sind die vorhandenen
   Selbsttest-Daten in `docs/` (`example.ods`, `Fabrary Export Beispiel.csv`).

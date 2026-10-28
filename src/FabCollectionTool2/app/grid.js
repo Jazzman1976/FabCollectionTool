@@ -60,7 +60,9 @@ FCT.grid = (function () {
     //               noFilter / noSort = no filter, no sorting; display(text, row) = text
     //               shown in the cell instead of the value (filter, sorting and search keep
     //               the value) and tip(text, row) = its tooltip. Titles never wrap; a column
-    //               is widened where its title would not fit.
+    //               is widened where its title would not fit. decimal = numbers with
+    //               decimals (sorting and filters, e.g. ">10,5"); open(row) = a click on a
+    //               cell of the column calls it (e.g. to show details).
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
     //   searchKeys  keys searched by the free text search, or functions (row) -> text
@@ -517,16 +519,17 @@ FCT.grid = (function () {
          */
 
         // Tests one value against a column filter expression.
-        function matchesFilter(value, expression, numeric, sparse) {
+        function matchesFilter(value, expression, numeric, sparse, decimal) {
             var text = expression.trim();
             if (!text) return true;
             if (numeric) {
-                var m = /^(<=|>=|!=|<|>|=)?\s*(-?\d+)$/.exec(text);
+                var m = decimal ? /^(<=|>=|!=|<|>|=)?\s*(-?\d+(?:[.,]\d+)?)$/.exec(text)
+                    : /^(<=|>=|!=|<|>|=)?\s*(-?\d+)$/.exec(text);
                 if (m) {
                     if (sparse && !String(value == null ? '' : value).trim()) return false;
-                    var n = util.toInt(value);
+                    var n = decimal ? util.toNumber(value) : util.toInt(value);
                     if (isNaN(n)) return false;
-                    var x = parseInt(m[2], 10);
+                    var x = decimal ? util.toNumber(m[2]) : parseInt(m[2], 10);
                     switch (m[1] || '=') {
                         case '<': return n < x;
                         case '>': return n > x;
@@ -606,7 +609,8 @@ FCT.grid = (function () {
             }
             return columns.every(function (c) {
                 if (c.key === except || !filters[c.key] || !filters[c.key].trim()) return true;
-                return matchesFilter(cellValue(row, c), filters[c.key], c.numeric, c.sparse);
+                return matchesFilter(cellValue(row, c), filters[c.key], c.numeric, c.sparse,
+                    c.decimal);
             });
         }
 
@@ -650,7 +654,9 @@ FCT.grid = (function () {
                     var va = cellValue(a, column);
                     var vb = cellValue(b, column);
                     var result;
-                    if (column.numeric) {
+                    if (column.decimal) {
+                        result = (util.toNumber(va) || 0) - (util.toNumber(vb) || 0);
+                    } else if (column.numeric) {
                         result = (util.toInt(va) || 0) - (util.toInt(vb) || 0);
                     } else {
                         result = util.fold(va).localeCompare(util.fold(vb));
@@ -1272,6 +1278,13 @@ FCT.grid = (function () {
                     !options.isEditable(td._column, tr._row))) {
                 setCursor(tr._row, td._column.key, false);
                 options.onImage('open', tr._row, td);
+                return;
+            }
+
+            // A column with details behind its cells opens them with a click.
+            if (td._column.open) {
+                setCursor(tr._row, td._column.key, false);
+                td._column.open(tr._row);
                 return;
             }
 

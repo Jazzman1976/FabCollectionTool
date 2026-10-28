@@ -37,7 +37,7 @@ const FCT = loadApp({
     withReference: true,
     extra: ['app/model.js', 'app/changelog.js', 'app/import-ods.js', 'app/import-fabrary.js',
         'app/fabrary-map.js', 'app/export-fabrary.js', 'app/export-cardmarket.js',
-        'reference/cardmarket-map.js', 'app/cardmarket-map.js']
+        'reference/cardmarket-map.js', 'app/cardmarket-map.js', 'app/cardmarket-prices.js']
 });
 FCT.importOds.inflateRaw = async (bytes) => new Uint8Array(zlib.inflateRawSync(bytes));
 FCT.reference.install(FCT.DATA, FCT.DATA.info);
@@ -1290,6 +1290,64 @@ if (!currentFile) {
         cm.rowKey({ Id: 'X1', Edition: '', 'Art Treatment': '' }, 'ST') === 'X1|||' &&
         cm.parseName('Head Jab (Blue)').pitch === 'Blue' &&
         cm.parseName('Pummel (Yelllow)').name === 'Pummel');
+}
+
+// Cardmarket prices (issue #94): the chosen price guide becomes the local price file (only
+// Flesh and Blood singles, corrections kept), wrong files are refused, the file survives a
+// round trip, and the value of a row adds up quantity x price per foiling, with corrections
+// before the shipped mapping. collection.csv keeps its columns.
+{
+    const pr = FCT.cardmarketPrices;
+    const guide = { version: 1, createdAt: '2026-10-28T02:45:41+0100', priceGuides: [
+        { idProduct: 11, idCategory: 1601, avg30: 0.1, trend: 0.2 },
+        { idProduct: 12, idCategory: 1601, avg30: null, trend: 3 },
+        { idProduct: 13, idCategory: 1601, avg30: null, trend: null },
+        { idProduct: 99, idCategory: 1, avg30: 1 }] };
+    const previous = { version: 1, extra: 'kept', prices: { 5: [1, 1] },
+        corrections: { 'TST001|Unlimited|Rainbow|': [12, 'confirmed'] } };
+    const file = pr.fromPriceGuide(guide, previous, new Date(2026, 9, 28));
+    check('Cardmarket prices: price guide taken over',
+        JSON.stringify(file.prices) === '{"11":[0.1,0.2],"12":[null,3],"13":[null,null]}' &&
+        file.extra === 'kept' && file.imported === '2026-10-28' &&
+        pr.guideDate(file) === '28.10.2026' &&
+        String(file.corrections['TST001|Unlimited|Rainbow|']) === '12,confirmed',
+        JSON.stringify(file));
+    const refused = (value) => {
+        try { pr.fromPriceGuide(value, null); return false; } catch (e) { return !!e.message; }
+    };
+    check('Cardmarket prices: wrong files refused', refused({ products: [] }) &&
+        refused({ priceGuides: [{ idProduct: 1, idCategory: 1, avg30: 1 }] }) &&
+        refused(null));
+    const back = pr.parse(pr.stringify(file));
+    check('Cardmarket prices: file round trip',
+        JSON.stringify(back) === JSON.stringify(file) && pr.stringify(back) === pr.stringify(file),
+        pr.stringify(file).slice(0, 200));
+
+    // Value of a row with a made-up mapping; the card number is unknown to the reference
+    // data, so only the quantity columns with a quantity count.
+    const map = { printings: { 'TST001|Unlimited||': [11, 'price'],
+        'TST001|Unlimited|Rainbow|': [13, 'unique'], 'TST002|||': [11, 'confirmed'] } };
+    const row = { Id: 'TST001', Edition: 'Unlimited', 'Art Treatment': '', ST: '3', RF: '1',
+        CF: '2', GF: '' };
+    const v = pr.value(file, map, row);
+    const rf = v.parts.find((p) => p.column === 'RF');
+    check('Cardmarket prices: value of a row',
+        Math.abs(v.total - (0.3 + 3)) < 1e-9 && v.estimated && v.missing &&
+        v.parts.map((p) => p.column).join() === 'ST,RF,CF' && rf.product.id === 12 &&
+        rf.product.corrected && rf.sure && rf.price.basis === 'trend' &&
+        !pr.value(file, map, { Id: 'TST001', Edition: 'Unlimited', 'Art Treatment': '',
+            ST: '0' }).parts.length, JSON.stringify(v));
+    const tidied = pr.parse(pr.stringify(file));
+    pr.setCorrection(tidied, 'TST002|||', 11, 'confirmed');
+    pr.setCorrection(tidied, 'TST001|Unlimited||', 12, 'manual');
+    const removed = pr.tidy(tidied, map);
+    check('Cardmarket prices: corrections already in the mapping are tidied up',
+        removed.join() === 'TST002|||' && !!tidied.corrections['TST001|Unlimited||'] &&
+        pr.relatives(tidied, map, 'TST001|Unlimited||').map((r) => r.key).join() ===
+            'TST001|Unlimited|Rainbow|');
+    check('Cardmarket prices: not part of collection.csv',
+        FCT.model.COLUMNS.every((c) => !/value|wert|price|preis/i.test(c)) &&
+        FCT.util.toNumber('12,48') === 12.48 && isNaN(FCT.util.toNumber('12 €')));
 }
 
 // Line length of hand-written source files (generated data files are exempt). Only source

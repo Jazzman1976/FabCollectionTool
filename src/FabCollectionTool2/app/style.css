@@ -1542,3 +1542,29 @@ table.row-form input:disabled,
 table.row-form select:disabled {
     opacity: 0.55;
 }
+
+/* Cardmarket prices (issue #94): dialog "Aktualisieren …", products of a row, value cells. */
+.prices-dialog ol {
+    padding-left: 1.4em;
+}
+.prices-dialog li {
+    margin: 6px 0;
+}
+.prices-result.error {
+    padding: 4px 8px;
+    border-left: 3px solid var(--error-line);
+    background: var(--error-bg);
+    color: var(--error-fg);
+}
+.cardmarket-row table.row-form input[type="checkbox"] {
+    width: auto;
+}
+.cardmarket-row table.row-form input.cm-id {
+    width: 7em;
+}
+.cardmarket-row table.row-form td.num {
+    text-align: right;
+}
+.grid td.value-cell {
+    cursor: pointer;
+}

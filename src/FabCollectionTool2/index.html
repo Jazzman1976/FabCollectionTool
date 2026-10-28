@@ -55,6 +55,13 @@
                     Cardmarket</button>
             </fieldset>
             <fieldset class="group">
+                <legend>Preise</legend>
+                <span id="prices-status" class="badge"></span>
+                <button id="btn-prices"
+                    title="Cardmarket-Preisliste herunterladen und auswählen (Spalte „Wert“)">
+                    Aktualisieren …</button>
+            </fieldset>
+            <fieldset class="group">
                 <legend>Stammdaten</legend>
                 <select id="reference-branch"
                     title="Branch der Kartendaten (neue Sets kommen zuerst in eigene Branches)">
@@ -168,6 +175,7 @@
         <span id="status-folder"></span>
         <span id="status-file"></span>
         <span id="status-rows"></span>
+        <span id="status-value"></span>
         <span id="status-clipboard"></span>
         <span id="status-save"></span>
         <button id="btn-autosave" class="toggle" hidden aria-pressed="true"
@@ -201,6 +209,7 @@
     <script src="reference/cards.js?v=2.9.1"></script>
     <script src="reference/printings.js?v=2.9.1"></script>
     <script src="reference/fabrary-map.js?v=2.9.1"></script>
+    <script src="reference/cardmarket-map.js?v=2.9.1"></script>
     <script src="app/csv.js?v=2.9.1"></script>
     <script src="app/reference-transform.js?v=2.9.1"></script>
     <script src="app/model.js?v=2.9.1"></script>
@@ -215,6 +224,8 @@
     <script src="app/fabrary-map.js?v=2.9.1"></script>
     <script src="app/export-fabrary.js?v=2.9.1"></script>
     <script src="app/export-cardmarket.js?v=2.9.1"></script>
+    <script src="app/cardmarket-map.js?v=2.9.1"></script>
+    <script src="app/cardmarket-prices.js?v=2.9.1"></script>
     <script src="app/reference-update.js?v=2.9.1"></script>
     <script src="app/tour.js?v=2.9.1"></script>
     <script src="app/onboarding.js?v=2.9.1"></script>

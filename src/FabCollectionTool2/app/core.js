@@ -21,6 +21,13 @@ FCT.util = (function () {
         return /^-?\d+$/.test(text) ? parseInt(text, 10) : NaN;
     }
 
+    // Parses a decimal number with a point or a comma ("12.48", "12,48"). Empty or anything
+    // else is NaN.
+    function toNumber(value) {
+        var text = String(value == null ? '' : value).trim().replace(',', '.');
+        return /^-?\d+(\.\d+)?$/.test(text) ? parseFloat(text) : NaN;
+    }
+
     // Case-insensitive, accent-insensitive form of a text for searching and comparing names.
     function fold(value) {
         return String(value == null ? '' : value)
@@ -74,7 +81,8 @@ FCT.util = (function () {
         return node;
     }
 
-    return { toInt: toInt, fold: fold, wildcard: wildcard, timestamp: timestamp, el: el };
+    return { toInt: toInt, toNumber: toNumber, fold: fold, wildcard: wildcard,
+        timestamp: timestamp, el: el };
 })();
 
 /*
