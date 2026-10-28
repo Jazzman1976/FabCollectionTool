@@ -36,7 +36,8 @@ if (currentFile) console.log(`INFO current Fabrary export: ${currentFile}`);
 const FCT = loadApp({
     withReference: true,
     extra: ['app/model.js', 'app/changelog.js', 'app/import-ods.js', 'app/import-fabrary.js',
-        'app/fabrary-map.js', 'app/export-fabrary.js', 'app/export-cardmarket.js']
+        'app/fabrary-map.js', 'app/export-fabrary.js', 'app/export-cardmarket.js',
+        'reference/cardmarket-map.js', 'app/cardmarket-map.js']
 });
 FCT.importOds.inflateRaw = async (bytes) => new Uint8Array(zlib.inflateRawSync(bytes));
 FCT.reference.install(FCT.DATA, FCT.DATA.info);
@@ -1207,6 +1208,88 @@ if (!currentFile) {
         /Ausdruck|drucken|gedruckt/gi, '')));
     check('Download names and wording', fixed && !wording.length,
         `fixed names ${fixed}, "Druck" in ${wording.join(', ') || '-'}`);
+}
+
+// Cardmarket mapping (issue #93): the shipped file is well formed, its keys are printings of
+// the reference data (only reported, the reference data may be newer), and the rules of the
+// build tool work on a small made-up catalogue.
+{
+    const cm = FCT.cardmarketMap;
+    const shipped = cm.shipped();
+    const problems = cm.problems(shipped);
+    check('Cardmarket mapping well formed', problems.length === 0 &&
+        Object.keys(shipped.printings).length > 0, problems.slice(0, 5).join('; '));
+    const known = new Set();
+    FCT.DATA.printings.forEach((p) => String(p[5]).split('').forEach((letter) => {
+        known.add(cm.key(p[0], p[2], letter, p[3]));
+    }));
+    const unknown = Object.keys(shipped.printings).filter((k) => !known.has(k));
+    console.log(`INFO Cardmarket mapping: ${Object.keys(shipped.printings).length} printings, ` +
+        `${unknown.length} not in the reference data${unknown.length ? ' (e.g. ' +
+        unknown.slice(0, 3).join(', ') + ')' : ''}`);
+
+    // Made-up set TST with the editions First and Unlimited; Cardmarket has one expansion
+    // per edition (1 = Unlimited with the cheaper cards, 2 = First).
+    const cards = new Map([['a', { name: 'Alpha Card', pitch: 'Red' }],
+        ['b', { name: 'Beta Card', pitch: '' }], ['c', { name: 'Gamma Card', pitch: '' }],
+        ['d', { name: 'Delta Card', pitch: '' }]]);
+    const printing = (number, edition, art, foilings, card) =>
+        [number, 'TST', edition, art, 'Common', foilings, card, '', ''];
+    const printings = [];
+    ['Unlimited', 'First'].forEach((edition) => {
+        printings.push(printing('TST001', edition, '', edition === 'First' ? 'S' : 'SR', 'a'));
+        if (edition === 'First') {
+            printings.push(printing('TST001', edition, 'Extended Art', 'C', 'a'));
+        }
+        printings.push(printing('TST002', edition, '', 'S', 'b'));
+        printings.push(printing('TST003', edition, '', 'S', 'c'));
+        printings.push(printing('TST004', edition, '', 'S', 'c'));
+        printings.push(printing('TST005', edition, '', 'SR', 'd'));
+    });
+    const product = (id, name, expansion) =>
+        ({ idProduct: id, name: name, idExpansion: expansion });
+    const products = [
+        product(11, 'Alpha Card (Red)', 1), product(12, 'Alpha Card (Red)', 1),
+        product(13, 'Beta Card', 1), product(14, 'Gamma Card', 1), product(15, 'Gamma Card', 1),
+        product(16, 'Delta Card', 1), product(17, 'Delta Card', 1),
+        product(21, 'Alpha Card (Red)', 2), product(22, 'Alpha Card (Red)', 2),
+        product(23, 'Beta Card', 2), product(24, 'Gamma Card', 2), product(25, 'Gamma Card', 2)
+    ];
+    const prices = new Map([[11, { avg30: 0.1 }], [12, { avg30: 2 }], [13, { avg30: 1 }],
+        [14, { avg30: 0.5 }], [15, { avg30: 0.6 }], [16, { avg30: 3 }], [17, { trend: null }],
+        [21, { avg30: 50 }], [22, { avg30: 5, trend: 4 }], [23, { avg30: 9 }],
+        [24, { avg30: 6 }], [25, { avg30: 7 }]]);
+    const previous = { version: 1, expansions: {},
+        printings: { 'TST002|Unlimited||': [13, 'manual'] } };
+    const corrections = { 'TST001|Unlimited|Rainbow|': [12, 'confirmed'],
+        'TST002|Unlimited||': [99, 'manual'] };
+    const { map, report } = cm.build({ products, prices, printings, cards, previous,
+        corrections });
+    const p = map.printings;
+    const found = (category) => report.groups.some((g) => g.category.indexOf(category) >= 0);
+    check('Cardmarket mapping: editions told apart by price',
+        JSON.stringify(map.expansions) === JSON.stringify({ 1: ['TST', 'Unlimited', 'price'],
+            2: ['TST', 'First', 'price'] }), JSON.stringify(map.expansions));
+    check('Cardmarket mapping: foilings ordered by price, art treatment may differ',
+        String(p['TST001|Unlimited||']) === '11,price' &&
+        String(p['TST001|First||']) === '22,price' &&
+        String(p['TST001|First|Cold|Extended Art']) === '21,price',
+        JSON.stringify(p));
+    check('Cardmarket mapping: one product of one variant is unique',
+        String(p['TST002|First||']) === '23,unique');
+    check('Cardmarket mapping: several card numbers and products without price stay open',
+        !p['TST003|Unlimited||'] && !p['TST004|First||'] && !p['TST005|Unlimited||'] &&
+        found('nicht nur im Foiling') && found('ohne Preis'));
+    check('Cardmarket mapping: corrections taken over, checked entries kept',
+        String(p['TST001|Unlimited|Rainbow|']) === '12,confirmed' &&
+        String(p['TST002|Unlimited||']) === '13,manual' && found('Widerspruch') &&
+        cm.problems(map).length === 0, JSON.stringify(p));
+    const row = { Id: 'TST001', Edition: 'First', 'Art Treatment': 'Extended Art' };
+    check('Cardmarket mapping: key of a row per quantity column',
+        cm.rowKey(row, 'CF') === 'TST001|First|Cold|Extended Art' &&
+        cm.rowKey({ Id: 'X1', Edition: '', 'Art Treatment': '' }, 'ST') === 'X1|||' &&
+        cm.parseName('Head Jab (Blue)').pitch === 'Blue' &&
+        cm.parseName('Pummel (Yelllow)').name === 'Pummel');
 }
 
 // Line length of hand-written source files (generated data files are exempt). Only source

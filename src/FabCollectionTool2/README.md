@@ -170,8 +170,12 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
 - `tools/build-reference.mjs`: erzeugt `reference/*.js` neu (siehe `reference/README.md`).
 - `tools/build-fabrary-map.mjs`: erzeugt `reference/fabrary-map.js` aus einem Fabrary-Export
   (siehe `reference/README.md`).
+- `tools/build-cardmarket-map.mjs`: erzeugt `reference/cardmarket-map.js` (Printing →
+  Cardmarket-Produkt-ID) aus dem öffentlichen Katalog und der Preisliste von Cardmarket und
+  übernimmt Korrekturen aus der App (siehe `reference/README.md`).
 - `tools/selftest.mjs`: automatische Prüfungen (CSV, ODS-Import, Fabrary-Import/-Export,
-  Round-Trip, Fabrary-Zeilen aus den Stammdaten, Fabrary-Zuordnung, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
+  Round-Trip, Fabrary-Zeilen aus den Stammdaten, Fabrary-Zuordnung, Cardmarket-Zuordnung,
+  Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
   Gruppen, Änderungsprotokoll, Erscheinungsdaten, Lückenfüllung, Übernehmen ohne Änderung
   des Bestands, Wertelisten, Platzhalter, Sets anzeigen und ausblenden, Playset, bearbeitbare Zellen,
   Grenzen von Protokoll und Diagnose-Log, Spaltenreihenfolge, Kartenbilder, Branch-URL,
