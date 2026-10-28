@@ -1618,6 +1618,12 @@ table.row-form select:disabled {
 .cardmarket-row table.row-form input.cm-id {
     width: 7em;
 }
+.cardmarket-row table.row-form td.cm-other {
+    white-space: nowrap;
+}
+.cardmarket-row table.row-form td.cm-other button.reset {
+    margin-left: 4px;
+}
 .cardmarket-row table.row-form td.num {
     text-align: right;
 }

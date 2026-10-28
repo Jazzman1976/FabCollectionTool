@@ -3114,15 +3114,45 @@ FCT.app = (function () {
                 check.checked = typed ? false : checked;
                 check.disabled = typed ? false : !p.product || locked;
             });
-            controls.push({ part: p, check: check, other: other });
+            var control = { part: p, check: check, other: other, reset: false };
+            controls.push(control);
+            var productCell = el('td', {}, [p.product ? link(p.product.id) : '–']);
+            var stateCell = el('td', { text: mappingText(p.product) });
+            var priceCell = el('td', { className: 'num',
+                text: p.price ? prices.money(p.price.value) : '–' });
+
+            // ↺ as in the row dialog (feedback on #96): drops the own correction, so that the
+            // shipped mapping applies again; the line shows it, "Übernehmen" saves it.
+            var reset = p.product && p.product.corrected ? el('button', {
+                type: 'button', className: 'reset', text: '↺',
+                title: 'Eigene Korrektur zurücksetzen: wieder die mitgelieferte Zuordnung ' +
+                    '(wirkt mit „Übernehmen“)',
+                onclick: function () {
+                    var shipped = map.printings[p.key];
+                    var shippedPrice = shipped ? prices.price(file, shipped[0]) : null;
+                    control.reset = true;
+                    other.value = '';
+                    other.disabled = true;
+                    check.checked = !!shipped && shipped[1] === 'confirmed';
+                    check.disabled = true;
+                    reset.disabled = true;
+                    productCell.textContent = '';
+                    productCell.appendChild(shipped ? link(shipped[0])
+                        : document.createTextNode('–'));
+                    stateCell.textContent = (shipped ? mappingText({ status: shipped[1] })
+                        : 'nicht zugeordnet') + ' – zurückgesetzt';
+                    priceCell.textContent = shippedPrice ? prices.money(shippedPrice.value)
+                        : '–';
+                }
+            }) : null;
             return el('tr', {}, [
                 el('th', { text: p.label }),
                 el('td', { className: 'num', text: String(p.quantity) }),
-                el('td', {}, [p.product ? link(p.product.id) : '–']),
-                el('td', { text: mappingText(p.product) }),
-                el('td', { className: 'num', text: p.price ? prices.money(p.price.value) : '–' }),
+                productCell,
+                stateCell,
+                priceCell,
                 el('td', {}, [el('label', {}, [check, ' geprüft'])]),
-                el('td', {}, [other])
+                el('td', { className: 'cm-other' }, [other, reset])
             ]);
         });
         var keys = v.parts.map(function (p) { return p.key; });
@@ -3164,6 +3194,11 @@ FCT.app = (function () {
             var changed = [];
             controls.forEach(function (c) {
                 var p = c.part;
+                if (c.reset) {
+                    prices.setCorrection(next, p.key, null);
+                    changed.push(p.key);
+                    return;
+                }
                 var typed = c.other.value.trim();
                 var id = /^\d+$/.test(typed) ? parseInt(typed, 10) : null;
                 var current = p.product;
