@@ -70,7 +70,8 @@ Korrekturen aus der App übernommen werden sollen.
    Das Skript lädt Katalog und Preisliste selbst von Cardmarket (nur gelesen, nie
    gespeichert). Eigene Dateien gehen mit `--catalogue <datei>` und `--prices <datei>`.
 2. Korrekturen aus der App übernehmen: `--local <Arbeitsordner>/cardmarket-prices.json`. Das
-   Skript liest daraus nur den Teil `corrections` (geprüfte bzw. von Hand gesetzte IDs).
+   Skript liest daraus nur den Teil `corrections` und übernimmt nur die geprüften
+   (`confirmed`); ungeprüft eingetragene IDs (`manual`) nennt es im Bericht.
 3. Den Bericht ansehen: Abdeckung je Set (sicher / geschätzt / offen), Expansions ohne Set,
    Editionen über den Preis, offene Fälle, übernommene Korrekturen und Widersprüche.
 4. Selbsttest ausführen („Cardmarket mapping …“ muss grün sein).
@@ -90,9 +91,12 @@ Korrekturen aus der App übernommen werden sollen.
   (avg30, sonst trend, sonst low) aufsteigend in der Reihenfolge Standard < Rainbow < Cold <
   Gold, Status `price`. Das Art Treatment darf mit dem Foiling wechseln (z. B. Rainbow Foil mit
   Alternate Text, Cold Foil mit Extended Art). Alles andere bleibt offen.
-- **Status:** `unique`, `confirmed` (von einem Menschen geprüft) und `manual` (von Hand
-  gesetzt) gelten als sicher, `price` als geschätzt. Expansions: `auto`, `price`, `manual`.
+- **Status:** `unique` und `confirmed` (Produkt und Preis von einem Menschen auf Cardmarket
+  nachgesehen) gelten als sicher; `price` und `manual` (ID von Hand eingetragen, ungeprüft)
+  als geschätzt. Eine eingetragene ID allein ist keine Prüfung. Expansions: `auto`, `price`,
+  `manual`.
 - Einträge `confirmed` und `manual` (auch Expansions mit `manual`) ersetzt das Skript nie;
-  weicht eine Korrektur davon ab, steht sie im Bericht als Widerspruch. Eine Produkt-ID gehört
-  zu genau einem Schlüssel.
+  weicht eine Korrektur davon ab, steht sie im Bericht als Widerspruch. Aus `--local`
+  übernimmt es nur geprüfte Korrekturen (`confirmed`); ungeprüfte stehen nur im Bericht. Eine
+  Produkt-ID gehört zu genau einem Schlüssel.
 - Das Schema hat `version: 1` und bleibt stabil; neue Felder kommen nur hinzu.

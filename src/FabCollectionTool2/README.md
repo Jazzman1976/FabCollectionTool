@@ -163,9 +163,10 @@ greift nicht selbst auf Download-Ordner zu; Cardmarket erlaubt keinen Abruf aus 
 
 `prices` hält je Cardmarket-Produkt-ID `[avg30, trend]` aller FaB-Einzelkarten (Kategorie 1601),
 je Produkt statt je Variante, damit eine bessere Zuordnung ohne neuen Import greift.
-`corrections` sind eigene Prüfungen der Zuordnung (`confirmed` = geprüft, `manual` = andere ID);
-sie bleiben beim Aktualisieren erhalten, gehen vor `reference/cardmarket-map.js` und lassen sich
-mit `tools/build-cardmarket-map.mjs --local` in die mitgelieferte Zuordnung übernehmen. Die
+`corrections` sind eigene Angaben zur Zuordnung (`confirmed` = Produkt und Preis auf Cardmarket
+geprüft, `manual` = andere ID eingetragen, ungeprüft und deshalb wie geschätzt); sie bleiben beim
+Aktualisieren erhalten und gehen vor `reference/cardmarket-map.js`. Die geprüften lassen sich mit
+`tools/build-cardmarket-map.mjs --local` in die mitgelieferte Zuordnung übernehmen. Die
 Spalte *Wert* (berechnet, nicht in `collection.csv`) ist je Zeile die Summe aus Menge × Preis
 über ST, RF, CF, GF; Preis = avg30, sonst trend. *↓ Preis* und *↑ Preis* (ebenfalls berechnet)
 sind der niedrigste und höchste Preis je Karte unter den Foilings der Variante, unabhängig von

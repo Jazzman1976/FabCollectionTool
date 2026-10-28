@@ -1261,8 +1261,10 @@ if (!currentFile) {
         [24, { avg30: 6 }], [25, { avg30: 7 }]]);
     const previous = { version: 1, expansions: {},
         printings: { 'TST002|Unlimited||': [13, 'manual'] } };
+    // A checked correction is taken over, one that contradicts a kept entry is not, and an
+    // unchecked one (only an id entered, feedback on #96) is not either.
     const corrections = { 'TST001|Unlimited|Rainbow|': [12, 'confirmed'],
-        'TST002|Unlimited||': [99, 'manual'] };
+        'TST002|Unlimited||': [99, 'confirmed'], 'TST002|First||': [98, 'manual'] };
     const { map, report } = cm.build({ products, prices, printings, cards, previous,
         corrections });
     const p = map.printings;
@@ -1280,10 +1282,13 @@ if (!currentFile) {
     check('Cardmarket mapping: several card numbers and products without price stay open',
         !p['TST003|Unlimited||'] && !p['TST004|First||'] && !p['TST005|Unlimited||'] &&
         found('nicht nur im Foiling') && found('ohne Preis'));
-    check('Cardmarket mapping: corrections taken over, checked entries kept',
+    check('Cardmarket mapping: checked corrections taken over, kept entries and unchecked ids ' +
+        'not replaced',
         String(p['TST001|Unlimited|Rainbow|']) === '12,confirmed' &&
         String(p['TST002|Unlimited||']) === '13,manual' && found('Widerspruch') &&
-        cm.problems(map).length === 0, JSON.stringify(p));
+        String(p['TST002|First||']) === '23,unique' && found('Ungeprüfte Korrektur') &&
+        cm.isSure('unique') && cm.isSure('confirmed') && !cm.isSure('manual') &&
+        !cm.isSure('price') && cm.problems(map).length === 0, JSON.stringify(p));
     const row = { Id: 'TST001', Edition: 'First', 'Art Treatment': 'Extended Art' };
     check('Cardmarket mapping: key of a row per quantity column',
         cm.rowKey(row, 'CF') === 'TST001|First|Cold|Extended Art' &&

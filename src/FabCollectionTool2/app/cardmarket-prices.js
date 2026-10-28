@@ -8,8 +8,10 @@
  *     prices: { <Cardmarket product id>: [avg30, trend] },
  *     corrections: { <key>: [Cardmarket product id, 'confirmed' | 'manual'] } }
  * Prices are kept per product, not per printing, so that a better mapping in a later version
- * of the app works without a new import. The corrections are the user's own checks of the
- * mapping (key as in FCT.cardmarketMap); tools/build-cardmarket-map.mjs takes them over.
+ * of the app works without a new import. The corrections are the user's own statements on the
+ * mapping (key as in FCT.cardmarketMap): 'confirmed' = product and price checked on
+ * Cardmarket, 'manual' = another id entered, not checked (counts as estimated);
+ * tools/build-cardmarket-map.mjs takes over the checked ones.
  *
  * The value of a row is the sum over its quantity columns of quantity x price, the price being
  * the 30 days average, else the trend.

@@ -2699,6 +2699,16 @@ FCT.app = (function () {
             ? prices.value(state.prices.file, FCT.cardmarketMap.shipped(), row) : null;
     }
 
+    // State of the mapping of a product (entry of cardmarketPrices), as shown everywhere.
+    function mappingText(product) {
+        if (!product) return 'nicht zugeordnet';
+        if (product.status === 'confirmed') {
+            return 'sicher (geprüft' + (product.corrected ? ', eigene Korrektur' : '') + ')';
+        }
+        if (product.status === 'manual') return 'eigene ID, ungeprüft';
+        return FCT.cardmarketMap.isSure(product.status) ? 'sicher' : 'geschätzt';
+    }
+
     // Value of a row as sortable text ("12.48"); empty without a priced quantity.
     function valueText(row) {
         var v = rowValue(row);
@@ -2722,7 +2732,7 @@ FCT.app = (function () {
         var lines = v.parts.map(function (p) {
             if (!p.product) return p.label + ': kein Cardmarket-Produkt zugeordnet';
             if (!p.price) return p.label + ': kein Preis bei Cardmarket';
-            var how = (p.sure ? 'sicher' : 'geschätzt') +
+            var how = mappingText(p.product) +
                 (p.price.basis === 'trend' ? ', Trend' : '');
             return p.label + ': ' + (p.quantity ? p.quantity + ' × ' + prices.money(p.price.value) +
                 ' = ' + prices.money(p.amount) : prices.money(p.price.value) + ' je Karte') +
@@ -2758,7 +2768,7 @@ FCT.app = (function () {
             : 'Keine Cardmarket-Preise – laden über „Aktualisieren …“ (Gruppe Preise)';
         var p = r[end];
         return (end === 'low' ? 'Niedrigster' : 'Höchster') + ' Preis je Karte: ' + p.label +
-            ', ' + prices.money(p.price.value) + ' (' + (p.sure ? 'sicher' : 'geschätzt') +
+            ', ' + prices.money(p.price.value) + ' (' + mappingText(p.product) +
             (p.price.basis === 'trend' ? ', Trend' : '') + ')\nCardmarket, Stand ' +
             (prices.guideDate(state.prices.file) || 'unbekannt') +
             '\nKlicken für Detailansicht der Cardmarket-Zuordnung (auch Leertaste)';
@@ -2800,7 +2810,7 @@ FCT.app = (function () {
                         'Zuordnung'].map(function (t) { return el('th', { text: t }); }))]),
                     el('tbody', {}, v.parts.map(function (p) {
                         var mapping = !p.product ? 'nicht zugeordnet' : !p.price ? 'kein Preis'
-                            : (p.sure ? 'sicher' : 'geschätzt') +
+                            : mappingText(p.product) +
                                 (p.price.basis === 'trend' ? ', Trend' : '');
                         return el('tr', { className: p === marked ? 'marked' : null }, [
                             el('td', { text: p.label }),
@@ -3083,29 +3093,33 @@ FCT.app = (function () {
             return el('a', { href: FCT.cardmarketMap.productUrl(id), target: '_blank',
                 rel: 'noopener', text: String(id) });
         }
-        function stateText(product) {
-            if (!product) return 'nicht zugeordnet';
-            var sure = FCT.cardmarketMap.isSure(product.status);
-            return (sure ? 'sicher' : 'geschätzt') + (product.corrected ? ' (eigene Korrektur)'
-                : product.status === 'confirmed' || product.status === 'manual'
-                    ? ' (geprüft)' : '');
-        }
+        // "geprüft" only ever means "product and price checked on Cardmarket"; entering
+        // another id is no check (feedback on #96). The tick refers to the product shown, or
+        // to the id just entered.
         var controls = [];
         var lines = v.parts.map(function (p) {
-            var checked = !!p.product && (p.product.corrected ||
-                FCT.cardmarketMap.KEPT.indexOf(p.product.status) >= 0);
+            var checked = !!p.product && p.product.status === 'confirmed';
+            // A check of the shipped mapping is not undone here, only replaced by another id.
+            var locked = checked && !p.product.corrected;
             var check = el('input', { type: 'checkbox', checked: checked,
-                disabled: !p.product || (checked && !p.product.corrected),
-                title: 'Auf Cardmarket nachgesehen: das Produkt passt' });
+                disabled: !p.product || locked,
+                title: 'Produkt und Preis auf Cardmarket nachgesehen: das Produkt passt' });
             var other = el('input', { type: 'text', className: 'cm-id', inputmode: 'numeric',
                 placeholder: 'ID', title: 'Andere Produkt-ID von Cardmarket (aus der Adresse ' +
-                    'der Produktseite: …?idProduct=…)' });
+                    'der Produktseite: …?idProduct=…). Erst nach dem Nachsehen „geprüft“ ' +
+                    'anhaken.' });
+            // A new id starts unchecked; without one the tick is as before.
+            other.addEventListener('input', function () {
+                var typed = other.value.trim() !== '';
+                check.checked = typed ? false : checked;
+                check.disabled = typed ? false : !p.product || locked;
+            });
             controls.push({ part: p, check: check, other: other });
             return el('tr', {}, [
                 el('th', { text: p.label }),
                 el('td', { className: 'num', text: String(p.quantity) }),
                 el('td', {}, [p.product ? link(p.product.id) : '–']),
-                el('td', { text: stateText(p.product) }),
+                el('td', { text: mappingText(p.product) }),
                 el('td', { className: 'num', text: p.price ? prices.money(p.price.value) : '–' }),
                 el('td', {}, [el('label', {}, [check, ' geprüft'])]),
                 el('td', {}, [other])
@@ -3152,15 +3166,21 @@ FCT.app = (function () {
                 var p = c.part;
                 var typed = c.other.value.trim();
                 var id = /^\d+$/.test(typed) ? parseInt(typed, 10) : null;
-                if (id && (!p.product || id !== p.product.id)) {
-                    prices.setCorrection(next, p.key, id, 'manual');
-                } else if (c.check.checked && p.product && !p.product.corrected &&
-                    FCT.cardmarketMap.KEPT.indexOf(p.product.status) < 0) {
-                    prices.setCorrection(next, p.key, p.product.id, 'confirmed');
-                } else if (!c.check.checked && p.product && p.product.corrected) {
+                var current = p.product;
+                if (!id && current) id = current.id;
+                if (!id) return;
+                var status = c.check.checked ? 'confirmed' : 'manual';
+                if (current && id === current.id && status === current.status) return;
+                // Back to the shipped mapping: no correction is needed any more.
+                var shipped = map.printings[p.key];
+                if (shipped && shipped[0] === id && (status === 'manual' ||
+                    shipped[1] === status)) {
+                    if (!current || !current.corrected) return;
                     prices.setCorrection(next, p.key, null);
-                } else {
+                } else if (!c.check.checked && current && !current.corrected && id === current.id) {
                     return;
+                } else {
+                    prices.setCorrection(next, p.key, id, status);
                 }
                 changed.push(p.key);
             });

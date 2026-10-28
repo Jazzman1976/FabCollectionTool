@@ -11,11 +11,14 @@
  * key: card number | edition | foiling | art treatment, written as in reference/printings.js
  * (foiling: '' = standard, 'Rainbow', 'Cold', 'Gold'), e.g. "WTR005|Unlimited|Rainbow|".
  * Status of a printing: 'unique' (the only product that fits), 'price' (several products of
- * one card told apart by their price), 'confirmed' (checked by a person), 'manual' (set by a
- * person). Status of an expansion: 'auto', 'price' (edition told by the price), 'manual'.
+ * one card told apart by their price), 'confirmed' (product and price checked on Cardmarket
+ * by a person), 'manual' (product id entered by a person, not checked). Only 'unique' and
+ * 'confirmed' count as sure; entering an id is no check (feedback on #96). Status of an
+ * expansion: 'auto', 'price' (edition told by the price), 'manual'.
  *
  * The app ships one mapping (FCT.DATA.cardmarketMap, built by tools/build-cardmarket-map.mjs);
- * corrections made in the app are kept locally and taken over when the mapping is rebuilt.
+ * corrections made in the app are kept locally, and the checked ones are taken over when the
+ * mapping is rebuilt.
  */
 FCT.cardmarketMap = (function () {
     var VERSION = 1;
@@ -68,8 +71,9 @@ FCT.cardmarketMap = (function () {
         return PRODUCT_URL + encodeURIComponent(id);
     }
 
+    // True for a mapping that needs no check: the only product that fits, or checked.
     function isSure(status) {
-        return status === 'unique' || KEPT.indexOf(status) >= 0;
+        return status === 'unique' || status === 'confirmed';
     }
 
     // Price of a price guide entry: the 30 days average, else the trend, else the lowest.
@@ -339,10 +343,11 @@ FCT.cardmarketMap = (function () {
 
     /*
      * Step 4: puts the mapping together. Entries of the previous mapping checked or set by a
-     * person stay; local corrections ({ key: [id, 'confirmed' | 'manual'] }) come next, but
-     * do not replace a different kept entry (reported as contradiction); automatic entries
-     * fill the rest. A product belongs to one key only: automatic entries that use a product
-     * already taken are dropped.
+     * person stay; checked local corrections ({ key: [id, 'confirmed'] }) come next, but do
+     * not replace a different kept entry (reported as contradiction); unchecked ones
+     * ('manual', only an id entered) are reported, not taken over. Automatic entries fill the
+     * rest. A product belongs to one key only: automatic entries that use a product already
+     * taken are dropped.
      */
     function merge(previous, corrections, automatic, report) {
         var result = {};
@@ -358,6 +363,10 @@ FCT.cardmarketMap = (function () {
         Object.keys(corrections || {}).forEach(function (k) {
             var entry = corrections[k];
             if (!Array.isArray(entry) || KEPT.indexOf(entry[1]) < 0) return;
+            if (entry[1] !== 'confirmed') {
+                report.add('info', 'Ungeprüfte Korrektur nicht übernommen', k + ': ' + entry[0]);
+                return;
+            }
             var known = result[k];
             if (known && known[0] !== entry[0]) {
                 report.add('warn', 'Widerspruch: Korrektur weicht von geprüftem Eintrag ab',
