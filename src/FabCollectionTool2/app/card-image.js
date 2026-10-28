@@ -42,6 +42,9 @@ FCT.cardImage = (function () {
             preview.textContent = '';
             preview.appendChild(picture(url, caption, 'card-preview-image'));
             preview.appendChild(el('div', { className: 'card-caption', text: caption }));
+            // The colour alone does not tell that a click opens more (feedback on #96).
+            preview.appendChild(el('div', { className: 'card-hint',
+                text: 'Klicken für große Detailansicht' }));
             preview.hidden = false;
             place(cell.getBoundingClientRect());
         }, HOVER_DELAY);

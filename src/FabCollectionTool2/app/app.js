@@ -2726,7 +2726,7 @@ FCT.app = (function () {
         if (!lines.length) lines.push('Keine Variante mit Cardmarket-Produkt');
         lines.push('30-Tage-Durchschnitt (ersatzweise Trend) · Cardmarket, Stand ' +
             (prices.guideDate(state.prices.file) || 'unbekannt'));
-        lines.push('Klick oder Leertaste: Cardmarket-Zuordnung ansehen und prüfen');
+        lines.push('Klicken für Detailansicht der Cardmarket-Zuordnung (auch Leertaste)');
         return lines.join('\n');
     }
 
@@ -2756,7 +2756,7 @@ FCT.app = (function () {
             ', ' + prices.money(p.price.value) + ' (' + (p.sure ? 'sicher' : 'geschätzt') +
             (p.price.basis === 'trend' ? ', Trend' : '') + ')\nCardmarket, Stand ' +
             (prices.guideDate(state.prices.file) || 'unbekannt') +
-            '\nKlick oder Leertaste: Cardmarket-Zuordnung ansehen und prüfen';
+            '\nKlicken für Detailansicht der Cardmarket-Zuordnung (auch Leertaste)';
     }
 
     // Total value in the status line: the collection, and the shown rows if filtered.
