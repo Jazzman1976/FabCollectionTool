@@ -2881,7 +2881,10 @@ FCT.app = (function () {
         }
         state.prices.file = file;
         pricesStatus();
+        // The active row stays in view through the rebuild (feedback on #96).
+        var active = grid ? grid.selected() : null;
         rebuild();
+        if (active) selectRow(active);
     }
 
     /*
@@ -3163,9 +3166,11 @@ FCT.app = (function () {
             });
             if (!changed.length) return null;
             return storePrices(next).then(function (stored) {
-                if (stored) {
-                    FCT.log.info('prices', 'Cardmarket-Zuordnung korrigiert', { keys: changed });
-                }
+                if (!stored) return;
+                FCT.log.info('prices', 'Cardmarket-Zuordnung korrigiert', { keys: changed });
+                // The table was rebuilt; like after the row dialog the row stays in view,
+                // also a ○ row that a filter would hide (feedback on #96).
+                selectRow(row);
             });
         });
     }
