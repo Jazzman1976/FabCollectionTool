@@ -3122,13 +3122,15 @@ FCT.app = (function () {
                 text: p.price ? prices.money(p.price.value) : '–' });
 
             // ↺ as in the row dialog (feedback on #96): drops the own correction, so that the
-            // shipped mapping applies again; the line shows it, "Übernehmen" saves it.
+            // shipped mapping applies again; the line shows it, "Übernehmen" saves it. Here
+            // the button names the id it goes back to ("<id> ↺"), as the step is unusual.
+            var shipped = map.printings[p.key];
             var reset = p.product && p.product.corrected ? el('button', {
-                type: 'button', className: 'reset', text: '↺',
-                title: 'Eigene Korrektur zurücksetzen: wieder die mitgelieferte Zuordnung ' +
-                    '(wirkt mit „Übernehmen“)',
+                type: 'button', className: 'reset', text: (shipped ? shipped[0] + ' ' : '') + '↺',
+                title: shipped ? 'Eigene Korrektur zurücksetzen auf die mitgelieferte ID ' +
+                    shipped[0] + ' (wirkt mit „Übernehmen“)' : 'Eigene Korrektur ' +
+                    'zurücksetzen: wieder ohne Cardmarket-Produkt (wirkt mit „Übernehmen“)',
                 onclick: function () {
-                    var shipped = map.printings[p.key];
                     var shippedPrice = shipped ? prices.price(file, shipped[0]) : null;
                     control.reset = true;
                     other.value = '';
