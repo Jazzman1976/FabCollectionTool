@@ -78,6 +78,43 @@ FCT.storage = (function () {
         });
     }
 
+    /*
+     * JSON files (Cardmarket prices, issue #94). openJson lets the user pick a file to read
+     * (e.g. the downloaded price guide); the dialog remembers its own last folder (id) and
+     * does not start in the working folder. Resolves with { name, text } or null.
+     * chooseJson asks for a file to keep using: an existing one ('open') or a new one
+     * ('save'); resolves with its handle or null.
+     */
+    var JSON_TYPES = [{ description: 'JSON-Datei', accept: { 'application/json': ['.json'] } }];
+
+    function openJson(id) {
+        if (canWriteBack) {
+            return window.showOpenFilePicker({ id: id, types: JSON_TYPES })
+                .then(function (handles) {
+                    return handles[0].getFile().then(function (file) {
+                        return file.text().then(function (text) {
+                            return { name: file.name, text: text };
+                        });
+                    });
+                }, cancelled);
+        }
+        return pickFile('.json,application/json').then(function (file) {
+            if (!file) return null;
+            return file.text().then(function (text) { return { name: file.name, text: text }; });
+        });
+    }
+
+    function chooseJson(mode, suggestedName) {
+        if (!canWriteBack) return Promise.resolve(null);
+        var picked = mode === 'save'
+            ? window.showSaveFilePicker(withStart({ suggestedName: suggestedName,
+                types: JSON_TYPES }))
+            : window.showOpenFilePicker(withStart({ types: JSON_TYPES })).then(function (h) {
+                return h[0];
+            });
+        return picked.then(function (handle) { return handle; }, cancelled);
+    }
+
     // Adds the working folder as start of a file dialog.
     function withStart(options) {
         if (startFolder) options.startIn = startFolder;
@@ -401,6 +438,8 @@ FCT.storage = (function () {
         pickFile: pickFile,
         readFile: readFile,
         openCollection: openCollection,
+        openJson: openJson,
+        chooseJson: chooseJson,
         saveCollection: saveCollection,
         saveAs: saveAs,
 

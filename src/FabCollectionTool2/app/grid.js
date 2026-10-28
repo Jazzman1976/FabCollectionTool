@@ -60,7 +60,11 @@ FCT.grid = (function () {
     //               noFilter / noSort = no filter, no sorting; display(text, row) = text
     //               shown in the cell instead of the value (filter, sorting and search keep
     //               the value) and tip(text, row) = its tooltip. Titles never wrap; a column
-    //               is widened where its title would not fit.
+    //               is widened where its title would not fit. decimal = numbers with
+    //               decimals (sorting and filters, e.g. ">10,5"); open(row) = a click on a
+    //               cell of the column, or Space in it, calls it (e.g. to show details);
+    //               hover(action, row, td) = a preview window of its own instead of the
+    //               tooltip, action 'hover' or 'leave' (as onImage).
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
     //   searchKeys  keys searched by the free text search, or functions (row) -> text
@@ -517,16 +521,17 @@ FCT.grid = (function () {
          */
 
         // Tests one value against a column filter expression.
-        function matchesFilter(value, expression, numeric, sparse) {
+        function matchesFilter(value, expression, numeric, sparse, decimal) {
             var text = expression.trim();
             if (!text) return true;
             if (numeric) {
-                var m = /^(<=|>=|!=|<|>|=)?\s*(-?\d+)$/.exec(text);
+                var m = decimal ? /^(<=|>=|!=|<|>|=)?\s*(-?\d+(?:[.,]\d+)?)$/.exec(text)
+                    : /^(<=|>=|!=|<|>|=)?\s*(-?\d+)$/.exec(text);
                 if (m) {
                     if (sparse && !String(value == null ? '' : value).trim()) return false;
-                    var n = util.toInt(value);
+                    var n = decimal ? util.toNumber(value) : util.toInt(value);
                     if (isNaN(n)) return false;
-                    var x = parseInt(m[2], 10);
+                    var x = decimal ? util.toNumber(m[2]) : parseInt(m[2], 10);
                     switch (m[1] || '=') {
                         case '<': return n < x;
                         case '>': return n > x;
@@ -606,7 +611,8 @@ FCT.grid = (function () {
             }
             return columns.every(function (c) {
                 if (c.key === except || !filters[c.key] || !filters[c.key].trim()) return true;
-                return matchesFilter(cellValue(row, c), filters[c.key], c.numeric, c.sparse);
+                return matchesFilter(cellValue(row, c), filters[c.key], c.numeric, c.sparse,
+                    c.decimal);
             });
         }
 
@@ -650,7 +656,9 @@ FCT.grid = (function () {
                     var va = cellValue(a, column);
                     var vb = cellValue(b, column);
                     var result;
-                    if (column.numeric) {
+                    if (column.decimal) {
+                        result = (util.toNumber(va) || 0) - (util.toNumber(vb) || 0);
+                    } else if (column.numeric) {
                         result = (util.toInt(va) || 0) - (util.toInt(vb) || 0);
                     } else {
                         result = util.fold(va).localeCompare(util.fold(vb));
@@ -1025,8 +1033,11 @@ FCT.grid = (function () {
             var picture = column.key === options.imageColumn && options.hasImage &&
                 options.hasImage(row);
             if (picture) classes.push('has-image');
+            // A column with a preview window of its own (column.hover) shows no tooltip; the
+            // text stays readable for screen readers.
             var td = el('td', { className: classes.join(' '),
-                title: picture ? null : title || null });
+                title: picture || column.hover ? null : title || null,
+                'aria-label': column.hover && title ? shown + '. ' + title : null });
             td._column = column;
             // A collapsed group names the column its value comes from.
             if (column.summaryLabel && text) td.title = column.summaryLabel + ': ' + text;
@@ -1212,14 +1223,27 @@ FCT.grid = (function () {
             }
         });
 
-        // Card pictures: preview while hovering over the picture column.
+        // Card pictures: preview while hovering over the picture column. Columns with a
+        // preview of their own (column.hover(action, row, td)) work the same way.
         tbody.addEventListener('mouseover', function (event) {
+            var cell = event.target.closest('td');
+            if (cell && cell._column && cell._column.hover) {
+                if (cell.parentNode._row && !editor) {
+                    cell._column.hover('hover', cell.parentNode._row, cell);
+                }
+                return;
+            }
             if (!options.onImage) return;
             var td = event.target.closest('td.has-image');
             var tr = td && td.parentNode;
             if (td && tr._row && !editor) options.onImage('hover', tr._row, td);
         });
         tbody.addEventListener('mouseout', function (event) {
+            var cell = event.target.closest('td');
+            if (cell && cell._column && cell._column.hover) {
+                if (!cell.contains(event.relatedTarget)) cell._column.hover('leave');
+                return;
+            }
             if (!options.onImage) return;
             var td = event.target.closest('td.has-image');
             if (td && !td.contains(event.relatedTarget)) options.onImage('leave');
@@ -1275,6 +1299,13 @@ FCT.grid = (function () {
                 return;
             }
 
+            // A column with details behind its cells opens them with a click.
+            if (td._column.open) {
+                setCursor(tr._row, td._column.key, false);
+                td._column.open(tr._row);
+                return;
+            }
+
 
             // A click on the active cell edits it (as in the spreadsheet); a click on another
             // cell moves the cursor there.
@@ -1302,8 +1333,13 @@ FCT.grid = (function () {
             var key = e.key;
             var handled = true;
 
+            var details = item && !item._group ? columnByKey(cursor.key) : null;
             if (item && item._group && (key === 'Enter' || key === ' ')) {
                 setGroupOpen(item, !item.open);
+            } else if (key === ' ' && details && details.open) {
+                // Space opens the details behind a cell, as a click does (and as it opens
+                // a group).
+                details.open(item);
             } else if (item && item._group && item.level === 1 && e.shiftKey &&
                 (key === 'ArrowRight' || key === 'ArrowLeft')) {
                 // Shift+Right / Shift+Left on a set: all its talent/class groups (#27).
