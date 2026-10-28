@@ -1295,6 +1295,22 @@ if (!currentFile) {
         cm.rowKey({ Id: 'X1', Edition: '', 'Art Treatment': '' }, 'ST') === 'X1|||' &&
         cm.parseName('Head Jab (Blue)').pitch === 'Blue' &&
         cm.parseName('Pummel (Yelllow)').name === 'Pummel');
+
+    // Sets of branches of the card data set (issue #103): a set comes from the branch with
+    // the most printings of it, if that is more than the shipped data have.
+    const set = (code, count, card) => Array.from({ length: count },
+        (_, i) => [`${code}00${i}`, code, '', '', 'Common', 'S', card, '', '']);
+    const merged = cm.mergeReference(
+        { printings: [...set('OLD', 2, 'a'), ...set('NEW', 1, 'a')], cards: [['a', 'A']] },
+        [{ name: 'one', printings: [...set('OLD', 1, 'b'), ...set('NEW', 3, 'b')],
+            cards: [['b', 'B']] },
+        { name: 'two', printings: [...set('NEW', 2, 'c'), ...set('BRN', 1, 'c')],
+            cards: [['c', 'C']] }]);
+    const setsOf = merged.printings.map((p) => p[1] + p[6]).join(',');
+    check('Cardmarket mapping: sets of branches with more printings replace shipped ones',
+        JSON.stringify(merged.fromBranch) === JSON.stringify({ NEW: 'one', BRN: 'two' }) &&
+        setsOf === 'OLDa,OLDa,NEWb,NEWb,NEWb,BRNc' && merged.cards.length === 3,
+        JSON.stringify(merged.fromBranch) + ' ' + setsOf);
 }
 
 // Cardmarket prices (issue #94): the chosen price guide becomes the local price file (only
