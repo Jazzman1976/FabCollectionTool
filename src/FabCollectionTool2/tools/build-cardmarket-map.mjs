@@ -6,11 +6,18 @@
  * reference data; the rules are in app/cardmarket-map.js. Entries checked or set by a person
  * stay; corrections made in the app are taken over with --local.
  *
+ * Besides the shipped reference data (default branch of the card data set) the branches of
+ * the card data set are loaded, which the user can choose in the app (issue #103): new sets
+ * appear there long before they reach the default branch. A set is taken from the branch
+ * with the most printings of it, if that is more than the shipped data have.
+ *
  * Usage:
  *   node tools/build-cardmarket-map.mjs [--local <cardmarket-prices.json>]
  *       [--catalogue <products_singles_16.json>] [--prices <price_guide_16.json>]
+ *       [--branches <name,name> | --no-branches]
  * Without --catalogue and --prices both files are downloaded from Cardmarket. They are only
- * read, never stored in the repository.
+ * read, never stored in the repository. Without --branches all branches except the default
+ * branch and "main" are loaded; --no-branches uses the shipped reference data alone.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,6 +43,8 @@ function option(name) {
 const localFile = option('--local');
 const catalogueFile = option('--catalogue');
 const pricesFile = option('--prices');
+const branchList = option('--branches');
+const noBranches = args.includes('--no-branches');
 
 // Reads a JSON file given on the command line, or downloads it.
 async function readJson(file, url) {
@@ -43,6 +52,43 @@ async function readJson(file, url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
     return response.json();
+}
+
+// Loads one URL as text.
+async function readText(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+    return response.text();
+}
+
+// Loads one branch of the card data set and transforms it like the app does.
+async function readBranch(transform, name) {
+    const base = transform.sourceBase(name);
+    const files = transform.FILES;
+    const [set, setPrinting, card, printing] = await Promise.all([files.set,
+        files.setPrinting, files.card, files.printing].map((file) => readText(base + file)));
+    const data = transform.transform({ set, setPrinting, card, printing });
+    let commit = '';
+    try {
+        const response = await fetch(`https://api.github.com/repos/${transform.SOURCE_REPO}` +
+            `/commits/${encodeURIComponent(name)}`);
+        if (response.ok) commit = (await response.json()).sha.slice(0, 7);
+    } catch (error) {
+        // The commit is only shown in the report.
+    }
+    return { name, commit, printings: data.printings, cards: data.cards };
+}
+
+// Branches of the card data set to load: the given ones, or all except the default branch
+// and "main".
+async function branchNames(transform) {
+    if (noBranches) return [];
+    if (branchList) return branchList.split(',').map((b) => b.trim()).filter(Boolean);
+    const response = await fetch(`https://api.github.com/repos/${transform.SOURCE_REPO}` +
+        '/branches?per_page=100');
+    if (!response.ok) throw new Error(`Branches: HTTP ${response.status}`);
+    return (await response.json()).map((b) => b.name)
+        .filter((b) => b !== transform.SOURCE_BRANCH && b !== 'main');
 }
 
 // Load the app with the reference data and the mapping shipped so far (if there is one).
@@ -59,7 +105,19 @@ if (!Array.isArray(catalogue.products) || !Array.isArray(guide.priceGuides)) {
     process.exit(1);
 }
 const prices = new Map(guide.priceGuides.map((entry) => [entry.idProduct, entry]));
-const cards = new Map(FCT.DATA.cards.map((card) => [card[0], { name: card[1],
+
+// Reference data: the shipped data plus the sets of the branches that have more printings.
+const branches = [];
+for (const name of await branchNames(FCT.referenceTransform)) {
+    try {
+        branches.push(await readBranch(FCT.referenceTransform, name));
+    } catch (error) {
+        console.error(`Branch ${name} not loaded: ${error.message}`);
+    }
+}
+const reference = cm.mergeReference({ printings: FCT.DATA.printings, cards: FCT.DATA.cards },
+    branches);
+const cards = new Map(reference.cards.map((card) => [card[0], { name: card[1],
     pitch: card[2] }]));
 let corrections = {};
 if (localFile) {
@@ -69,13 +127,17 @@ if (localFile) {
 console.log(`Catalogue: ${catalogue.createdAt}, ${catalogue.products.length} products`);
 console.log(`Price guide: ${guide.createdAt}, ${guide.priceGuides.length} prices`);
 if (localFile) console.log(`Local corrections: ${Object.keys(corrections).length}`);
+const fromBranch = Object.keys(reference.fromBranch).sort()
+    .map((code) => `${code} from ${reference.fromBranch[code]}`);
+console.log(`Branches: ${branches.map((b) => `${b.name} ${b.commit}`.trim()).join(', ') ||
+    '-'}; sets taken from them: ${fromBranch.join(', ') || '-'}`);
 
 // Build the mapping.
 const previous = FCT.DATA.cardmarketMap || cm.empty();
 const { map, report } = cm.build({
     products: catalogue.products,
     prices: prices,
-    printings: FCT.DATA.printings,
+    printings: reference.printings,
     cards: cards,
     previous: previous,
     corrections: corrections
@@ -97,6 +159,7 @@ const lines = [
     '   key: set number | edition | foiling | art treatment (as in reference/printings.js) */',
     '/* Generated by tools/build-cardmarket-map.mjs - do not edit by hand. */',
     `/* Catalogue: ${catalogue.createdAt}, price guide: ${guide.createdAt} */`,
+    `/* Sets from branches of the card data set: ${fromBranch.join(', ') || '-'} */`,
     'FCT.DATA.cardmarketMap = {',
     `    version: ${cm.VERSION},`,
     '    expansions: {',
@@ -115,7 +178,7 @@ fs.writeFileSync(TARGET, lines.join('\n'), 'utf8');
 // Coverage per set: printings (key per foiling) of the reference data that are sure,
 // estimated or open.
 const bySet = new Map();
-FCT.DATA.printings.forEach((p) => {
+reference.printings.forEach((p) => {
     String(p[5] || '').split('').forEach((letter) => {
         const k = cm.key(p[0], p[2], letter, p[3]);
         if (!bySet.has(p[1])) bySet.set(p[1], new Map());

@@ -1,4 +1,4 @@
-# FabCollectionTool 2.10.0
+# FabCollectionTool 2.10.1
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -206,7 +206,8 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
   (siehe `reference/README.md`).
 - `tools/build-cardmarket-map.mjs`: erzeugt `reference/cardmarket-map.js` (Printing →
   Cardmarket-Produkt-ID) aus dem öffentlichen Katalog und der Preisliste von Cardmarket und
-  übernimmt Korrekturen aus der App (siehe `reference/README.md`).
+  übernimmt Korrekturen aus der App; berücksichtigt auch die Set-Branches von the-fab-cube
+  (siehe `reference/README.md`).
 - `tools/selftest.mjs`: automatische Prüfungen (CSV, ODS-Import, Fabrary-Import/-Export,
   Round-Trip, Fabrary-Zeilen aus den Stammdaten, Fabrary-Zuordnung, Cardmarket-Zuordnung,
   Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,

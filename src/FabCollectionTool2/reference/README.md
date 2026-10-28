@@ -69,10 +69,19 @@ Korrekturen aus der App übernommen werden sollen.
 1. Im Ordner `src/FabCollectionTool2` ausführen: `node tools/build-cardmarket-map.mjs`.
    Das Skript lädt Katalog und Preisliste selbst von Cardmarket (nur gelesen, nie
    gespeichert). Eigene Dateien gehen mit `--catalogue <datei>` und `--prices <datei>`.
+   **Branches von the-fab-cube** (Issue #103): Neue Sets stehen dort lange in eigenen
+   Branches (z. B. `usurp-the-shadow-throne`), bevor sie nach `develop` kommen; in der App
+   kann man diese Branches bei den Stammdaten wählen. Das Skript lädt deshalb zusätzlich alle
+   Branches außer `develop` und `main` und nimmt ein Set aus dem Branch mit den meisten
+   Drucken davon, wenn das mehr sind als in den mitgelieferten Stammdaten. Die Schlüssel sind
+   in allen Branches gleich, die Preise erscheinen also, sobald der Branch gewählt ist.
+   `--branches <a,b>` lädt nur diese Branches, `--no-branches` keinen (nur `develop`).
+   Welche Sets aus welchem Branch kommen, steht im Bericht und im Kopf von
+   `cardmarket-map.js`.
 2. Korrekturen aus der App übernehmen: `--local <Arbeitsordner>/cardmarket-prices.json`. Das
    Skript liest daraus nur den Teil `corrections` und übernimmt nur die geprüften
    (`confirmed`); ungeprüft eingetragene IDs (`manual`) nennt es im Bericht.
-3. Den Bericht ansehen: Abdeckung je Set (sicher / geschätzt / offen), Expansions ohne Set,
+3. Den Bericht ansehen: Sets aus Branches, Abdeckung je Set (sicher / geschätzt / offen), Expansions ohne Set,
    Editionen über den Preis, offene Fälle, übernommene Korrekturen und Widersprüche.
 4. Selbsttest ausführen („Cardmarket mapping …“ muss grün sein).
 

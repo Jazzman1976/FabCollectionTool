@@ -6,6 +6,27 @@ die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>
 (z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
 GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.10.1 – 28.10.2026
+
+### Geändert
+- **Cardmarket-Preise für Sets aus Vorschau-Branches** (#103): Neue Sets stehen bei
+  the-fab-cube lange in eigenen Branches, bevor sie nach `develop` kommen. Die mitgelieferte
+  Cardmarket-Zuordnung berücksichtigt diese Branches jetzt. Wählst du bei den Stammdaten
+  z. B. `usurp-the-shadow-throne` oder `outbreak`, zeigen auch die neuen Sets Preise. Bisher
+  hatte etwa *Usurp the Shadow Throne* (IAR) keinen einzigen Preis.
+
+### Stammdaten
+- the-fab-cube `develop` unverändert auf `b121866` vom 16.10.2026.
+- Cardmarket-Zuordnung neu (Katalog vom 28.10.2026, Preisliste vom 28.10.2026), mit den Sets
+  aus den Branches `outbreak` (`f954ebc`) und `usurp-the-shadow-throne` (`74f8b5f`): AMA, AMG,
+  IAR, OBK, SAT, SBW, SFC und SLV. IAR ist zu 96 % zugeordnet.
+
+### Entwicklung
+- `tools/build-cardmarket-map.mjs` lädt zusätzlich alle Branches von the-fab-cube außer
+  `develop` und `main` und nimmt ein Set aus dem Branch mit den meisten Drucken davon
+  (`FCT.cardmarketMap.mergeReference`). Neue Optionen `--branches <a,b>` und `--no-branches`.
+- Selbsttest: Zusammensetzen der Stammdaten aus Branches.
+
 ## 2.10.0 – 28.10.2026
 
 ### Neu
