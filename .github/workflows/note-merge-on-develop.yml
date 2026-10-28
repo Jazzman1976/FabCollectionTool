@@ -1,10 +1,11 @@
-# Notes on the issues of a pull request that it was merged into develop.
-# The issues stay open: on the project board "Done" means merged into develop but not released
-# yet, and an issue is only closed (board status "Closed") when its release is finished or when
-# it is rejected. The board status "Done" is set by hand after the merge.
+# Closes the issues of a pull request merged into develop (definition of done, decided by
+# Elmar on 28.10.2026: tested, documented and merged into develop). GitHub's own closing
+# keywords only act on the default branch (main), so this action does it for develop: a note
+# on the issue, closed as completed, label "in development" removed. The project board moves
+# closed issues to "Closed" by itself.
 # Only description lines like "Closes #7" count (see the script), so that examples in running
 # text do not touch issues - that happened once with the description of pull request #10.
-name: Note merge into develop on issues
+name: Close issues merged into develop
 
 on:
   pull_request:
@@ -45,8 +46,19 @@ jobs:
               if (issue.pull_request || issue.state === 'closed') continue;
               await github.rest.issues.createComment({
                 ...context.repo, issue_number: number,
-                body: `Mit #${pr.number} nach \`develop\` gemergt. Das Issue bleibt bis zum ` +
-                  'Release offen (Board: Done).' });
-              core.info(`Issue #${number}: Merge vermerkt`);
+                body: `Mit #${pr.number} nach \`develop\` gemergt – erledigt nach der ` +
+                  'Definition of Done (getestet, dokumentiert, gemergt). Veröffentlicht wird ' +
+                  'mit dem nächsten Release.' });
+              await github.rest.issues.update({
+                ...context.repo, issue_number: number, state: 'closed',
+                state_reason: 'completed' });
+              // The label only belongs to issues in development (see CLAUDE.md).
+              try {
+                await github.rest.issues.removeLabel({
+                  ...context.repo, issue_number: number, name: 'in development' });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              core.info(`Issue #${number}: geschlossen`);
             }
             if (!numbers.size) core.info('Keine "Closes #n"-Angabe im Pull Request');
