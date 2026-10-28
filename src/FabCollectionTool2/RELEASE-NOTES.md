@@ -6,6 +6,67 @@ die nie genutzt wurde). Eine neue Version entsteht als Branch `release/<Version>
 (z. B. 2.4.0 → 2.4.1). Nach dem Test wird der Branch nach `main` gemergt (Veröffentlichung als
 GitHub Page, Tag) und danach zurück nach `develop`.
 
+## 2.10.0 – 28.10.2026
+
+### Neu
+- **Wert der Sammlung mit Cardmarket-Preisen** (#95, #93, #94):
+  - Neue Spalte **Wert**: je Zeile Menge × Cardmarket-Preis (30-Tage-Durchschnitt,
+    ersatzweise Trend), zusammengezählt über ST, RF, CF und GF. Unten in der Statuszeile
+    stehen der Wert des ganzen Bestands, bei Filtern zusätzlich der angezeigten Zeilen, und das
+    Datum der Preise.
+  - Daneben **↓ Preis** und **↑ Preis**: der niedrigste und der höchste Preis je Karte unter
+    den Foilings der Variante, unabhängig von der Menge.
+  - `≈` heißt geschätzte Zuordnung, `?` eine Menge ohne Preis. Die Beträge sind blau wie alles
+    Anklickbare. Überfahren zeigt eine Vorschau mit Tabelle je Foiling (Menge, Preis je Karte,
+    Summe, Zuordnung); ein Klick oder die Leertaste öffnet die Cardmarket-Zuordnung.
+  - **Preise holen:** Gruppe *Preise* → *Aktualisieren …* → Link `price_guide_16.json`
+    anklicken (der Browser lädt Cardmarkets Preisliste herunter) → *Datei auswählen …*. Die
+    App speichert die Preise in `cardmarket-prices.json` im Arbeitsordner (für alle Bestände
+    darin). `collection.csv` ändert sich dadurch nie, und die Preise bleiben auf deinem
+    Rechner. Es gibt keine Erinnerungen, nur das Datum der Preise wird angezeigt.
+  - **Zuordnung prüfen und korrigieren:** Das Cardmarket-Fenster zeigt je Foiling das Produkt
+    mit Link zur Produktseite. *geprüft* heißt „Produkt und Preis auf Cardmarket
+    nachgesehen“. Unter *andere ID* trägst du eine andere Produkt-ID ein; sie gilt als
+    ungeprüft, bis du sie anhakst. Der Knopf mit der ursprünglichen ID und ↺ (z. B.
+    „600570 ↺“) setzt zurück. Korrekturen stehen in `cardmarket-prices.json`.
+  - Die mitgelieferte **Cardmarket-Zuordnung** (`reference/cardmarket-map.js`) ordnet 92 % der
+    Drucke zu. Grundlage sind nur Cardmarkets öffentliche Dateien und the-fab-cube:
+    - Eindeutige Fälle sind *sicher*.
+    - Foilings einer Karte werden über den Preis unterschieden (Standard < Rainbow < Cold <
+      Gold) und sind *geschätzt*.
+    - Alpha bzw. First und Unlimited werden ebenfalls über den Preis getrennt: Unlimited ist
+      billiger.
+
+### Geändert
+- **Kartenbild:** Die Vorschau sagt „Klicken für große Detailansicht“, das Symbol wird beim
+  Überfahren unterstrichen und sitzt jetzt auf der Höhe der Nachbartexte (vorher etwas zu
+  tief).
+
+### Stammdaten
+- the-fab-cube `develop` auf `b121866` vom 16.10.2026 (vorher `18b2d9d` vom 30.09.2026):
+  geänderte Kartentexte bei *Line Crossers*, *Extinguish the Flames* und *Celebrant Broadsword*
+  (#99).
+- Cardmarket-Zuordnung neu (Katalog vom 27.10.2026, Preisliste vom 28.10.2026).
+- Fabrary-Zuordnung: diesmal nicht gegen einen aktuellen Sammlungsexport geprüft (auf Elmars
+  Wunsch ausgelassen); unverändert.
+
+### Entwicklung
+- `tools/build-cardmarket-map.mjs` erzeugt `reference/cardmarket-map.js`. Mit `--local`
+  übernimmt es geprüfte Korrekturen aus der App.
+- Neue Dateien: `app/cardmarket-map.js` (Schlüssel und Regeln der Zuordnung) und
+  `app/cardmarket-prices.js` (Preisdatei, Wert einer Zeile).
+- Raster (`app/grid.js`), neue Spaltenoptionen:
+  - `decimal`: Sortieren und Filtern mit Nachkommastellen;
+  - `open`: Klick oder Leertaste öffnet Details;
+  - `hover`: eigenes Vorschaufenster statt Tooltip.
+- `card-image.js`: `show()` für andere Inhalte im Vorschaufenster.
+- Selbsttest: Cardmarket-Zuordnung (Datei und Regeln) und Preise (Preisdatei, Wert, Spanne,
+  Aufräumen von Korrekturen).
+- **Definition of Done** (#100): Ein Issue wird geschlossen, sobald das Feature getestet,
+  dokumentiert und nach `develop` gemergt ist. Die Action für Merges nach `develop` schließt
+  die Issues aus den `Closes`-Zeilen selbst. `CLAUDE.md` ist entsprechend angepasst, und es
+  gibt dort eine Regel, dass Cardmarket-Preise nur lokal liegen.
+
 ## 2.9.1 – 04.10.2026
 
 Ergänzung auf dem Release-Branch; 2.9.0 wurde nicht veröffentlicht.

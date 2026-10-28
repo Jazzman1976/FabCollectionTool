@@ -7,7 +7,7 @@ var FCT = window.FCT || {};
 window.FCT = FCT;
 
 // Version of this tool; must match the VERSION file in the tool folder.
-FCT.VERSION = '2.9.1';
+FCT.VERSION = '2.10.0';
 
 // Reference data files (reference/*.js) fill this object before the app scripts run.
 FCT.DATA = FCT.DATA || {};
@@ -19,6 +19,13 @@ FCT.util = (function () {
         var text = String(value == null ? '' : value).trim();
         if (text === '') return 0;
         return /^-?\d+$/.test(text) ? parseInt(text, 10) : NaN;
+    }
+
+    // Parses a decimal number with a point or a comma ("12.48", "12,48"). Empty or anything
+    // else is NaN.
+    function toNumber(value) {
+        var text = String(value == null ? '' : value).trim().replace(',', '.');
+        return /^-?\d+(\.\d+)?$/.test(text) ? parseFloat(text) : NaN;
     }
 
     // Case-insensitive, accent-insensitive form of a text for searching and comparing names.
@@ -74,7 +81,8 @@ FCT.util = (function () {
         return node;
     }
 
-    return { toInt: toInt, fold: fold, wildcard: wildcard, timestamp: timestamp, el: el };
+    return { toInt: toInt, toNumber: toNumber, fold: fold, wildcard: wildcard,
+        timestamp: timestamp, el: el };
 })();
 
 /*

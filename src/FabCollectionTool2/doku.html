@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FabCollectionTool – Dokumentation</title>
-    <link rel="stylesheet" href="app/style.css?v=2.9.1">
+    <link rel="stylesheet" href="app/style.css?v=2.10.0">
     <!-- Design (Auto, Hell, Dunkel) before the first paint, so that nothing flashes -->
     <script>
         try {
@@ -436,6 +436,8 @@
             <li><strong>Have / Need / Left (total):</strong> bezogen auf dieselbe Karte (Name,
                 Pitch, Peculiarity) über alle Sets.</li>
         </ul>
+        <p>Dahinter steht die Spalte <strong>Wert</strong>: was die Karten einer Zeile laut
+            Cardmarket wert sind (siehe <a href="#preise">Cardmarket-Preise und Wert</a>).</p>
         <h3>Zeilenaktionen</h3>
         <p>Am Ende jeder Zeile (auch beim seitlichen Scrollen sichtbar): ✎ alle Felder
             bearbeiten, ＋ neue Zeile darunter, Kopieren, Kopie darunter einfügen (ohne Mengen –
@@ -482,7 +484,9 @@
             <em>Spalten</em> lässt sie sich ausblenden.</p>
         <ul>
             <li><strong>Überfahren</strong> des Symbols zeigt nach einem kurzen Moment eine
-                Vorschau neben der Zelle, groß genug, um den Kartentitel zu lesen.</li>
+                Vorschau neben der Zelle, groß genug, um den Kartentitel zu lesen; darunter steht
+                „Klicken für große Detailansicht“. Das blaue Symbol wird dabei unterstrichen
+                wie alles Anklickbare.</li>
             <li><strong>Klicken</strong> öffnet das Bild groß – so groß, dass auch der
                 Kartentext lesbar ist. Darunter stehen Kartennummer, Name und Variante sowie
                 ein Link, um das Bild in einem neuen Tab zu öffnen. <kbd>Esc</kbd>, ein Klick
@@ -546,6 +550,9 @@
             <tr><td>auf einer Set-Zeile: <kbd>Shift</kbd>+<kbd>→</kbd> /
                 <kbd>Shift</kbd>+<kbd>←</kbd></td><td>alle Talent/Klasse-Gruppen dieses Sets
                 öffnen / schließen (wie ⊞ / ⊟)</td></tr>
+            <tr><td>auf einem blauen Betrag (<em>Wert</em>, <em>↓ Preis</em>,
+                <em>↑ Preis</em>): <kbd>Leertaste</kbd></td><td>Cardmarket-Zuordnung zeigen
+                (wie ein Klick)</td></tr>
             <tr><td><kbd>Strg</kbd>+<kbd>S</kbd></td><td>Speichern</td></tr>
         </table>
         <p>In der aktiven Mengenzelle erscheinen die Knöpfe <strong>−</strong> und
@@ -928,6 +935,92 @@
             schreibt der Export nur bei Karten, die es in mehreren Pitches gibt. Namen, die
             Cardmarket anders schreibt (z. B. „Twelve Petal Kasaya“), werden angepasst und im
             Bericht genannt. Die Auswahl außer den Sets merkt sich die Anwendung.</p>
+
+        <h3 id="preise">Cardmarket-Preise und Wert</h3>
+        <p>Die Spalte <strong>Wert</strong> schätzt, was deine Karten wert sind: je Foiling
+            Menge × Cardmarket-Preis, zusammengezählt. Als Preis gilt der
+            <strong>30-Tage-Durchschnitt</strong>, ersatzweise der Trend. Unten in der
+            Statuszeile steht der Wert des ganzen Bestands (bei gesetzten Filtern zusätzlich der
+            angezeigten Zeilen) und das Datum der Preise. Die Preise holst du dir selbst bei
+            Cardmarket – so oft du möchtest, z. B. einmal im Monat. Die Anwendung erinnert
+            nicht daran; sie zeigt nur das Datum.</p>
+        <p><strong>Preise aktualisieren – Schritt für Schritt:</strong></p>
+        <ol>
+            <li>Oben in der Gruppe <em>Preise</em> auf <strong>Aktualisieren …</strong>
+                klicken. Ein Fenster öffnet sich.</li>
+            <li>Im Fenster auf den Link <strong>price_guide_16.json</strong> klicken. Der
+                Browser lädt die Preisliste von Cardmarket herunter (gut 3 MB). Sie landet dort,
+                wo der Browser Downloads ablegt – meist im Ordner <em>Downloads</em>. In Chrome
+                zeigt das Download-Symbol oben rechts die Datei; „Im Ordner anzeigen“ öffnet
+                den Ordner.</li>
+            <li>Zurück im Fenster auf <strong>Datei auswählen …</strong> klicken, im
+                Dateidialog den Ordner <em>Downloads</em> öffnen und
+                <code>price_guide_16.json</code> auswählen. Liegen dort mehrere (z. B.
+                <code>price_guide_16 (1).json</code>), nimm die neueste.</li>
+            <li>Fertig: Das Fenster meldet „… Preise vom … übernommen“, die Spalte
+                <em>Wert</em> ist gefüllt. Die heruntergeladene Datei kannst du danach
+                löschen.</li>
+        </ol>
+        <p>Die Anwendung speichert die Preise in einer eigenen Datei
+            <code>cardmarket-prices.json</code> im <a href="#ordner">Arbeitsordner</a> (sie
+            gilt für alle Bestände darin). Ohne Arbeitsordner fragt sie beim ersten Mal, wo diese
+            Datei liegen soll – hast du schon eine, wähle sie aus. <code>collection.csv</code>
+            ändert sich durch Preise nie. Die Preise bleiben auf deinem Rechner.</p>
+        <p><strong>Was die Zelle zeigt:</strong> Die Beträge sind <strong>blau</strong> wie
+            alles, was sich in der Anwendung anklicken lässt: Ein Klick (oder die Leertaste auf
+            der Zelle) zeigt, welche Cardmarket-Produkte dahinterstehen (siehe unten).</p>
+        <ul>
+            <li><code>12,48 €</code> – Wert der Zeile. Bei Menge 0 bleibt die Zelle leer; die
+                Vorschau beim Überfahren nennt trotzdem die Preise je Karte.</li>
+            <li><code>≈ 12,48 €</code> – mindestens ein Teil beruht auf einer
+                <strong>geschätzten</strong> Zuordnung (siehe unten).</li>
+            <li><code>?</code> – für eine vorhandene Menge gibt es keinen Preis: Cardmarket
+                führt die Variante nicht, sie ist noch nicht zugeordnet, oder es gibt dort keinen
+                Preis.</li>
+            <li><strong>Überfahren</strong> eines Betrags zeigt nach einem kurzen Moment eine
+                Vorschau wie beim Kartenbild: eine Tabelle mit Menge, Preis je Karte, Summe und
+                Zuordnung (sicher oder geschätzt) je Foiling, das Datum der Preise und darunter
+                „Klicken für Detailansicht der Cardmarket-Zuordnung“.</li>
+        </ul>
+        <p>Daneben stehen <strong>↓ Preis</strong> und <strong>↑ Preis</strong>: der
+            niedrigste und der höchste Preis je Karte unter den Foilings, die es von der
+            Variante gibt – z. B. Standard 0,14 € und Rainbow Foil 0,37 €. Sie gelten
+            unabhängig davon, wie viele du hast, auch bei Menge 0. Gibt es nur ein Foiling,
+            zeigen beide denselben Preis; in der Vorschau ist das Foiling fett. Auch hier heißt
+            <code>≈</code> geschätzte Zuordnung, und ein Klick zeigt die Produkte.</p>
+        <p><strong>Sicher oder geschätzt?</strong> Cardmarket führt Karten nur mit Name und
+            Set, ohne Kartennummer und Foiling. Die Anwendung bringt deshalb eine eigene
+            Zuordnung mit: welche Cardmarket-Karte zu welcher Variante gehört. Gibt es zu einer
+            Variante nur ein passendes Produkt, ist sie <strong>sicher</strong>. Gibt es eine
+            Karte in einem Set in mehreren Foilings, ordnet die Anwendung die Produkte nach dem
+            Preis zu – Standard ist das billigste, dann Rainbow Foil, Cold Foil, Gold Cold Foil.
+            Das stimmt fast immer, ist aber <strong>geschätzt</strong>. Ebenso gilt bei Sets mit
+            Alpha bzw. First und Unlimited die Expansion mit den billigeren Karten als
+            Unlimited.</p>
+        <p><strong>Zuordnung prüfen und korrigieren:</strong> Ein Klick auf einen blauen Betrag
+            in <em>Wert</em>, <em>↓ Preis</em> oder <em>↑ Preis</em> (oder die Leertaste auf
+            der Zelle, oder <em>Cardmarket …</em> im Zeilendialog) zeigt je Foiling
+            das Cardmarket-Produkt mit Link. Der Link öffnet die Produktseite bei Cardmarket; ihr
+            Titel nennt Edition und Foiling, z. B. „Alpha Rampage (Rainbow Foil) (WTR-U)“.
+            Passt es, hake <em>geprüft</em> an. Passt es nicht, trage unter <em>andere ID</em>
+            die richtige Produkt-ID ein (die Zahl hinter <code>idProduct=</code> in der
+            Adresse; zum Vergleich stehen die anderen Foilings der Karte darunter).
+            <strong>Geprüft</strong> heißt immer nur: Produkt und Preis auf Cardmarket
+            nachgesehen. Eine eingetragene ID allein ist ungeprüft („eigene ID, ungeprüft“) und
+            zählt wie eine Schätzung (≈); hake <em>geprüft</em> erst an, wenn du die neue ID
+            angesehen hast. Ein Haken wieder weg nimmt nur die Prüfung zurück; eine eigene ID
+            bleibt dann als ungeprüft stehen. Der Knopf mit der ursprünglichen ID und ↺ neben
+            dem Feld (z. B. <strong>600570 ↺</strong>, nur bei einer eigenen Korrektur) setzt
+            auf diese mitgelieferte Zuordnung zurück;
+            die Zeile zeigt sie sofort, gespeichert wird mit <em>Übernehmen</em>. Korrekturen
+            stehen in
+            <code>cardmarket-prices.json</code> und gelten für diese Variante in allen
+            Beständen des Ordners. Schick uns die geprüften gern (als Issue auf GitHub, mit dem
+            Teil <code>corrections</code> der Datei): Dann kommen sie in die mitgelieferte
+            Zuordnung und helfen allen.</p>
+        <p>Die Preise sind eine Schätzung: Cardmarket-Durchschnitte über alle Zustände und
+            Sprachen, ohne Gewähr. Deck-Karten, die Cardmarket nur unter dem ursprünglichen Set
+            führt, haben oft keinen eigenen Preis.</p>
 
         <!-- 13 -->
         <h2 id="kopie">14. Backup und Kopie im Browser</h2>

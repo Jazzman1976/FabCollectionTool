@@ -30,7 +30,10 @@ FCT.app = (function () {
         fromCopy: false,       // shown from the browser copy, not yet connected to the file
         autosave: { timer: null, running: false, saved: null, error: '' },
         clipboard: null,       // copied row, see onAction('copy')
-        reference: { info: null, online: false, loading: false, error: '' }
+        reference: { info: null, online: false, loading: false, error: '' },
+        // Cardmarket prices (issue #94): the read cardmarket-prices.json, and without
+        // working folder the handle of the file chosen for it.
+        prices: { file: null, handle: null }
     };
     var grid = null;
 
@@ -44,7 +47,7 @@ FCT.app = (function () {
     var DEFAULT_COLUMNS = ['Set', 'Id', '_image', 'Rarity', 'Metatype', '_talent', '_class',
         '_type', '_subtype', '_name', 'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
-        '_leftTotal', 'Edition', 'Language', '_exclusive'];
+        '_leftTotal', '_value', '_priceLow', '_priceHigh', 'Edition', 'Language', '_exclusive'];
     var WIDTHS = {
         Set: 12, Edition: 5.5, Language: 6, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5,
         Talent1: 6.5,
@@ -160,6 +163,38 @@ FCT.app = (function () {
         var types = { key: '_types', label: 'Typen (Stammdaten)', width: 16, kind: 'calc',
             value: function (row) { return FCT.reference.types(row.Id); } };
 
+        // Value of a row from the Cardmarket prices (issue #94): only shown, never saved.
+        // A click shows the Cardmarket products of the row and lets the user check them.
+        var worth = { key: '_value', label: 'Wert', width: 7, kind: 'calc', numeric: true,
+            decimal: true, sparse: true,
+            hint: 'Menge × Cardmarket-Preis (30-Tage-Durchschnitt), Summe über die Foilings. ' +
+                '≈ = teils geschätzte Zuordnung, ? = Preis fehlt. Klick oder Leertaste: ' +
+                'Zuordnung prüfen',
+            value: valueText, display: valueDisplay, tip: valueTip,
+            valueClass: function () { return 'value-cell'; },
+            hover: function (action, row, td) { priceHover(action, row, td, 'value'); },
+            open: function (row) {
+                FCT.cardImage.leave();
+                guarded(function () { return showCardmarket(row); })();
+            } };
+
+        // Lowest and highest price per card among the foilings of the variant, regardless
+        // of the quantities (feedback on #96); a click shows the products as for "Wert".
+        var priceRange = ['low', 'high'].map(function (end) {
+            return { key: end === 'low' ? '_priceLow' : '_priceHigh',
+                label: end === 'low' ? '↓ Preis' : '↑ Preis', width: 6.5, kind: 'calc',
+                numeric: true, decimal: true, sparse: true,
+                hint: (end === 'low' ? 'Niedrigster' : 'Höchster') + ' Cardmarket-Preis je ' +
+                    'Karte unter den Foilings der Variante (30-Tage-Durchschnitt), unabhängig ' +
+                    'von der Menge. ≈ = geschätzte Zuordnung. Klick oder Leertaste: ' +
+                    'Zuordnung prüfen',
+                value: function (row) { return rangeText(row, end); },
+                display: function (text, row) { return rangeDisplay(text, row, end); },
+                tip: function (text, row) { return rangeTip(row, end); },
+                hover: function (action, row, td) { priceHover(action, row, td, end); },
+                valueClass: worth.valueClass, open: worth.open };
+        });
+
         // Further reference data, only shown (never saved in collection.csv, since 2.0.5.0).
         var shown = [
             { key: '_cost', label: 'Cost', width: 4.5, numeric: true, value: cardValue('cost') },
@@ -228,14 +263,16 @@ FCT.app = (function () {
             columns.splice(first, 0, column);
         });
 
-        // The picture follows the card number, the calculated columns the quantities, and
-        // "Exklusiv" the first set (behind the calculated columns since issue #62).
+        // The picture follows the card number, the calculated columns the quantities, the
+        // value the calculated columns, and "Exklusiv" the first set (behind the calculated
+        // columns since issue #62).
         var keys = columns.map(function (c) { return c.key; });
         var id = keys.indexOf('Id') + 1;
         var at = keys.indexOf('GF') + 1;
         var firstIn = keys.indexOf('First In') + 1;
         var all = columns.slice(0, id).concat([picture], columns.slice(id, at), calculated,
-            columns.slice(at, firstIn), [exclusive], columns.slice(firstIn), [types], shown);
+            [worth], priceRange, columns.slice(at, firstIn), [exclusive], columns.slice(firstIn),
+            [types], shown);
 
         // Visibility: as last chosen by the user, otherwise the default view. Art Treatment
         // belongs to the default view since 2.0.4.0, Metatype, Talent1 and Talent2 replace
@@ -266,6 +303,20 @@ FCT.app = (function () {
         if (!settings.get('columnsExclusive', false)) {
             if (visible.indexOf('_exclusive') < 0) visible = visible.concat(['_exclusive']);
             settings.set('columnsExclusive', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
+        // "Wert" belongs to the default view (issue #94); a remembered choice gets it once.
+        if (!settings.get('columnsValue', false)) {
+            if (visible.indexOf('_value') < 0) visible = visible.concat(['_value']);
+            settings.set('columnsValue', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
+        // So do "↓ Preis" and "↑ Preis" (feedback on #96).
+        if (!settings.get('columnsPriceRange', false)) {
+            ['_priceLow', '_priceHigh'].forEach(function (k) {
+                if (visible.indexOf(k) < 0) visible = visible.concat([k]);
+            });
+            settings.set('columnsPriceRange', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
         // Combined columns replace their parts (issue #69); a remembered choice is converted
@@ -333,6 +384,7 @@ FCT.app = (function () {
         $('status-rows').title = hiddenSets.size ? 'Ausgeblendet (Zeilen bleiben im Bestand ' +
             'und zählen mit): ' + Array.from(hiddenSets).sort().join(', ') +
             ' – ändern unter „Sets anzeigen …“' : '';
+        valueStatus();
         updateSaveStatus();
         $('status-clipboard').textContent = state.clipboard
             ? 'Kopiert: ' + state.clipboard.Id + ' ' + state.clipboard.Name : '';
@@ -933,7 +985,10 @@ FCT.app = (function () {
         state.folder = handle || null;
         state.folderAccess = !!(handle && access);
         updateFolderStatus();
-        if (state.folderAccess) FCT.diagnosis.schedule();
+        if (state.folderAccess) {
+            FCT.diagnosis.schedule();
+            loadPrices();
+        }
     }
 
     function updateFolderStatus() {
@@ -2629,6 +2684,555 @@ FCT.app = (function () {
     }
 
     /*
+     * Cardmarket prices (issue #94). The prices lie in cardmarket-prices.json: in the working
+     * folder, otherwise in a file the user chose once (its handle is remembered in the
+     * browser). They never go into collection.csv; the column "Wert" and the total in the
+     * status line are calculated from them. No reminders: the toolbar and the status line
+     * only show the date of the prices.
+     */
+    var PRICES_HANDLE = 'cardmarketPricesFile';
+    var prices = FCT.cardmarketPrices;
+
+    // Value of a row ({ total, estimated, missing, parts }), or null without prices.
+    function rowValue(row) {
+        return state.prices.file
+            ? prices.value(state.prices.file, FCT.cardmarketMap.shipped(), row) : null;
+    }
+
+    // State of the mapping of a product (entry of cardmarketPrices), as shown everywhere.
+    function mappingText(product) {
+        if (!product) return 'nicht zugeordnet';
+        if (product.status === 'confirmed') {
+            return 'sicher (geprüft' + (product.corrected ? ', eigene Korrektur' : '') + ')';
+        }
+        if (product.status === 'manual') return 'eigene ID, ungeprüft';
+        return FCT.cardmarketMap.isSure(product.status) ? 'sicher' : 'geschätzt';
+    }
+
+    // Value of a row as sortable text ("12.48"); empty without a priced quantity.
+    function valueText(row) {
+        var v = rowValue(row);
+        if (!v || !v.parts.some(function (p) { return p.quantity && p.price; })) return '';
+        return v.total.toFixed(2);
+    }
+
+    // Cell text: "12,48 €", "≈" for an estimated mapping, "?" for a quantity without price.
+    function valueDisplay(text, row) {
+        var v = rowValue(row);
+        if (!v) return '';
+        var missing = v.missing ? '?' : '';
+        if (!text) return missing;
+        return (v.estimated ? '≈ ' : '') + prices.money(v.total) + (missing ? ' ?' : '');
+    }
+
+    // Tooltip: quantity × price per foiling, with the state of the mapping.
+    function valueTip(text, row) {
+        var v = rowValue(row);
+        if (!v) return 'Keine Cardmarket-Preise – laden über „Aktualisieren …“ (Gruppe Preise)';
+        var lines = v.parts.map(function (p) {
+            if (!p.product) return p.label + ': kein Cardmarket-Produkt zugeordnet';
+            if (!p.price) return p.label + ': kein Preis bei Cardmarket';
+            var how = mappingText(p.product) +
+                (p.price.basis === 'trend' ? ', Trend' : '');
+            return p.label + ': ' + (p.quantity ? p.quantity + ' × ' + prices.money(p.price.value) +
+                ' = ' + prices.money(p.amount) : prices.money(p.price.value) + ' je Karte') +
+                ' (' + how + ')';
+        });
+        if (!lines.length) lines.push('Keine Variante mit Cardmarket-Produkt');
+        lines.push('30-Tage-Durchschnitt (ersatzweise Trend) · Cardmarket, Stand ' +
+            (prices.guideDate(state.prices.file) || 'unbekannt'));
+        lines.push('Klicken für Detailansicht der Cardmarket-Zuordnung (auch Leertaste)');
+        return lines.join('\n');
+    }
+
+    // Lowest or highest price per card among the foilings of a row ({ low, high }), or null.
+    function rowRange(row) {
+        return state.prices.file
+            ? prices.range(state.prices.file, FCT.cardmarketMap.shipped(), row) : null;
+    }
+
+    // "↓ Preis" / "↑ Preis" (end 'low' or 'high') as sortable text, cell text and tooltip.
+    function rangeText(row, end) {
+        var r = rowRange(row);
+        return r ? r[end].price.value.toFixed(2) : '';
+    }
+
+    function rangeDisplay(text, row, end) {
+        var r = text ? rowRange(row) : null;
+        return r ? (r[end].sure ? '' : '≈ ') + prices.money(r[end].price.value) : '';
+    }
+
+    function rangeTip(row, end) {
+        var r = rowRange(row);
+        if (!r) return state.prices.file ? 'Kein Cardmarket-Preis zu dieser Variante'
+            : 'Keine Cardmarket-Preise – laden über „Aktualisieren …“ (Gruppe Preise)';
+        var p = r[end];
+        return (end === 'low' ? 'Niedrigster' : 'Höchster') + ' Preis je Karte: ' + p.label +
+            ', ' + prices.money(p.price.value) + ' (' + mappingText(p.product) +
+            (p.price.basis === 'trend' ? ', Trend' : '') + ')\nCardmarket, Stand ' +
+            (prices.guideDate(state.prices.file) || 'unbekannt') +
+            '\nKlicken für Detailansicht der Cardmarket-Zuordnung (auch Leertaste)';
+    }
+
+    /*
+     * Preview window of a price cell (feedback on #96), like the card picture preview: a
+     * heading with the amount of the column (what 'value', 'low' or 'high'), per foiling
+     * quantity, price per card, amount and state of the mapping (the foiling the column
+     * shows in bold), the date of the prices, and in the colour of the clickable things what
+     * a click does.
+     */
+    function priceHover(action, row, td, what) {
+        if (action !== 'hover') { FCT.cardImage.leave(); return; }
+        FCT.cardImage.show(td, td, 'price-preview', function (box) {
+            box.appendChild(el('div', { className: 'price-title',
+                text: [row.Id, row.Name].filter(Boolean).join(' · ') }));
+            var v = rowValue(row);
+            if (!v) {
+                box.appendChild(el('p', { text: 'Keine Cardmarket-Preise – laden über ' +
+                    '„Aktualisieren …“ in der Gruppe Preise.' }));
+                return;
+            }
+            var r = rowRange(row);
+            var marked = what === 'value' || !r ? null : r[what];
+            var heads = { value: 'Wert ' + (v.estimated ? '≈ ' : '') + prices.money(v.total) +
+                (v.missing ? ' (ohne Preis für einen Teil)' : '') };
+            if (r) {
+                heads.low = 'Niedrigster Preis je Karte: ' + prices.money(r.low.price.value) +
+                    ' (' + r.low.label + ')';
+                heads.high = 'Höchster Preis je Karte: ' + prices.money(r.high.price.value) +
+                    ' (' + r.high.label + ')';
+            }
+            box.appendChild(el('div', { className: 'price-head',
+                text: heads[what] || 'Kein Cardmarket-Preis zu dieser Variante' }));
+            if (v.parts.length) {
+                box.appendChild(el('table', { className: 'price-table' }, [
+                    el('thead', {}, [el('tr', {}, ['Foiling', 'Menge', 'je Karte', 'Summe',
+                        'Zuordnung'].map(function (t) { return el('th', { text: t }); }))]),
+                    el('tbody', {}, v.parts.map(function (p) {
+                        var mapping = !p.product ? 'nicht zugeordnet' : !p.price ? 'kein Preis'
+                            : mappingText(p.product) +
+                                (p.price.basis === 'trend' ? ', Trend' : '');
+                        return el('tr', { className: p === marked ? 'marked' : null }, [
+                            el('td', { text: p.label }),
+                            el('td', { className: 'num', text: String(p.quantity) }),
+                            el('td', { className: 'num',
+                                text: p.price ? prices.money(p.price.value) : '–' }),
+                            el('td', { className: 'num',
+                                text: p.price && p.quantity ? prices.money(p.amount) : '–' }),
+                            el('td', { text: mapping })
+                        ]);
+                    }))
+                ]));
+            }
+            box.appendChild(el('div', { className: 'card-caption', text: 'Cardmarket, ' +
+                '30-Tage-Durchschnitt (ersatzweise Trend), Stand ' +
+                (prices.guideDate(state.prices.file) || 'unbekannt') }));
+            box.appendChild(el('div', { className: 'card-hint',
+                text: 'Klicken für Detailansicht der Cardmarket-Zuordnung (auch Leertaste)' }));
+        });
+    }
+
+    // Total value in the status line: the collection, and the shown rows if filtered.
+    function valueStatus() {
+        var box = $('status-value');
+        if (!box) return;
+        if (!state.prices.file) {
+            box.textContent = 'Keine Cardmarket-Preise';
+            box.title = 'Preise laden über „Aktualisieren …“ in der Gruppe Preise';
+            return;
+        }
+        function sum(rows) {
+            var result = { total: 0, estimated: 0, missing: 0 };
+            rows.forEach(function (row) {
+                var v = rowValue(row);
+                result.total += v.total;
+                if (v.estimated) result.estimated++;
+                if (v.missing) result.missing++;
+            });
+            return result;
+        }
+        var all = sum(state.collection.rows);
+        var text = 'Wert ' + (all.estimated ? '≈ ' : '') + prices.money(all.total);
+        if (grid.viewCount() < state.shownRows.length) {
+            text += ' (angezeigt ' + prices.money(sum(grid.visibleRows()).total) + ')';
+        }
+        box.textContent = text + ' · Preise vom ' + prices.guideDate(state.prices.file);
+        box.title = 'Cardmarket, 30-Tage-Durchschnitt (ersatzweise Trend). Zeilen mit ' +
+            'geschätzter Zuordnung: ' + all.estimated + ', mit Menge ohne Preis: ' +
+            all.missing + '. Geladen am ' + germanDate(state.prices.file.imported) + '.';
+    }
+
+    // yyyy-mm-dd as dd.mm.yyyy.
+    function germanDate(date) {
+        return String(date || '').split('-').reverse().join('.');
+    }
+
+    // Toolbar: date of the prices and where they are kept.
+    function pricesStatus() {
+        var date = prices.guideDate(state.prices.file);
+        $('prices-status').textContent = date ? 'Cardmarket ' + date : 'keine';
+        $('prices-status').title = date ? 'Cardmarket-Preise vom ' + date + ', ' +
+            pricesPlace() : 'Noch keine Cardmarket-Preise geladen';
+    }
+
+    // Where the price file lies, as text.
+    function pricesPlace() {
+        if (hasFolder()) return 'gespeichert im Arbeitsordner „' + state.folder.name + '“';
+        if (state.prices.handle) return 'gespeichert in „' + state.prices.handle.name + '“';
+        return 'Speicherort noch nicht festgelegt';
+    }
+
+    // Shows read prices; corrections the shipped mapping already holds are dropped.
+    function usePrices(file) {
+        var removed = prices.tidy(file, FCT.cardmarketMap.shipped());
+        if (removed.length) {
+            FCT.log.info('prices', 'Korrekturen stehen schon in der Zuordnung',
+                { count: removed.length });
+        }
+        state.prices.file = file;
+        pricesStatus();
+        // The active row stays in view through the rebuild (feedback on #96).
+        var active = grid ? grid.selected() : null;
+        rebuild();
+        if (active) selectRow(active);
+    }
+
+    /*
+     * Reads the price file: from the working folder, otherwise from the remembered file if
+     * the browser still allows reading it (if not, the next "Aktualisieren …" asks).
+     */
+    function loadPrices() {
+        function read(text) {
+            if (!text.trim()) return;
+            try {
+                usePrices(prices.parse(text));
+            } catch (error) {
+                FCT.log.warn('prices', 'Preisdatei nicht lesbar', error);
+                showMessage('Cardmarket-Preise', prices.FILE_NAME + ' ließ sich nicht lesen (' +
+                    error.message + '). Neu laden über „Aktualisieren …“ (Gruppe Preise).');
+            }
+        }
+        if (hasFolder()) {
+            return FCT.storage.readFolderFile(state.folder, prices.FILE_NAME).then(function (f) {
+                read(f.text);
+            });
+        }
+        return FCT.storage.recallValue(PRICES_HANDLE).then(function (handle) {
+            if (!handle || hasFolder()) return null;
+            state.prices.handle = handle;
+            pricesStatus();
+            return FCT.storage.queryAccess(handle, 'read').then(function (access) {
+                if (access !== 'granted') return null;
+                return FCT.storage.readHandle(handle).then(function (r) { read(r.text); });
+            });
+        }).catch(function (error) {
+            FCT.log.warn('prices', 'Preisdatei nicht gelesen', error);
+        });
+    }
+
+    /*
+     * Makes sure there is a place for the price file: the working folder, or a file chosen
+     * once. Without either the user chooses the file: an existing cardmarket-prices.json
+     * (its corrections are kept) or a new one. Resolves with the content found there (or
+     * null), or false if cancelled.
+     */
+    function ensurePricesPlace() {
+        if (hasFolder()) return Promise.resolve(null);
+        if (state.folder && !state.folderAccess) {
+            return requestFolderAccess().then(function () {
+                return hasFolder() ? null : ensurePricesPlace();
+            });
+        }
+        if (state.prices.handle) {
+            return FCT.storage.requestAccess(state.prices.handle, 'readwrite').then(function (ok) {
+                if (ok) return null;
+                state.prices.handle = null;
+                return ensurePricesPlace();
+            });
+        }
+        if (!FCT.storage.canWriteBack) {
+            showMessage('Cardmarket-Preise', 'Die Preise lassen sich nur in Chrome oder Edge ' +
+                'speichern.');
+            return Promise.resolve(false);
+        }
+        return FCT.storage.chooseJson('save', prices.FILE_NAME).then(function (handle) {
+            if (!handle) return false;
+            state.prices.handle = handle;
+            FCT.storage.rememberValue(PRICES_HANDLE, handle);
+            return handle.getFile().then(function (file) { return file.text(); })
+                .then(function (text) {
+                    return text.trim() ? prices.parse(text) : null;
+                }, function () { return null; });
+        });
+    }
+
+    // Writes the price file into its place (see ensurePricesPlace).
+    function writePrices() {
+        var text = prices.stringify(state.prices.file);
+        if (hasFolder()) return FCT.storage.writeFolderFile(state.folder, prices.FILE_NAME, text);
+        return FCT.storage.writeFile(state.prices.handle, text);
+    }
+
+    // Keeps a file in its place: asks for the place if needed, takes over the corrections of
+    // a file found there, writes and shows it. Resolves false if cancelled. Used for
+    // corrections; a file found there also brings its prices if there are none yet.
+    function storePrices(file) {
+        return ensurePricesPlace().then(function (found) {
+            if (found === false) return false;
+            if (found) {
+                file.corrections = Object.assign({}, found.corrections, file.corrections);
+                if (!Object.keys(file.prices).length) {
+                    file.prices = found.prices;
+                    file.priceGuide = found.priceGuide;
+                    file.imported = found.imported;
+                }
+            }
+            state.prices.file = file;
+            return writePrices().then(function () {
+                usePrices(file);
+                return true;
+            });
+        });
+    }
+
+    /*
+     * "Aktualisieren …" (group Preise): Cardmarket's price guide is downloaded in the browser
+     * (link) and then chosen here; the app does not look into the download folder itself.
+     */
+    function updatePrices() {
+        var result = el('p', { className: 'prices-result' });
+        var stand = el('p');
+        function showStand() {
+            var date = prices.guideDate(state.prices.file);
+            stand.textContent = (date ? 'Stand: Cardmarket-Preise vom ' + date + ' (geladen am ' +
+                germanDate(state.prices.file.imported) + ')'
+                : 'Stand: noch keine Preise geladen') + ' · ' + pricesPlace() + '.';
+        }
+        showStand();
+
+        // Reads the chosen price guide and keeps it as price file. The place of the price
+        // file is settled first, while the click still allows the browser to ask.
+        function choose() {
+            result.textContent = '';
+            result.className = 'prices-result';
+            return ensurePricesPlace().then(function (found) {
+                if (found === false) return null;
+                return FCT.storage.openJson('fct-price-guide').then(function (picked) {
+                    if (!picked) return null;
+                    var file;
+                    try {
+                        file = prices.fromPriceGuide(JSON.parse(picked.text.replace(/^﻿/,
+                            '')), state.prices.file || found);
+                    } catch (error) {
+                        result.textContent = error instanceof SyntaxError
+                            ? picked.name + ' ist keine JSON-Datei. Gebraucht wird ' +
+                                'price_guide_16.json von Cardmarket.' : error.message;
+                        result.className = 'prices-result error';
+                        return null;
+                    }
+                    state.prices.file = file;
+                    return writePrices().then(function () {
+                        usePrices(file);
+                        var count = Object.keys(file.prices).length;
+                        FCT.log.info('prices', 'Cardmarket-Preise geladen', { prices: count,
+                            guide: file.priceGuide });
+                        result.textContent = count.toLocaleString('de-DE') + ' Preise vom ' +
+                            prices.guideDate(file) + ' übernommen.';
+                        showStand();
+                    });
+                });
+            }).catch(function (error) {
+                FCT.log.error('prices', 'Preise nicht übernommen', error);
+                var again = error && (error.name === 'SecurityError' ||
+                    error.name === 'NotAllowedError');
+                result.textContent = again ? 'Der Browser hat nicht gefragt. Bitte noch ' +
+                    'einmal auf „Datei auswählen …“ klicken.'
+                    : 'Die Preise ließen sich nicht speichern: ' + (error && error.message);
+                result.className = 'prices-result error';
+            });
+        }
+
+        var body = el('div', { className: 'prices-dialog' }, [
+            stand,
+            el('ol', {}, [
+                el('li', {}, [
+                    'Preisliste bei Cardmarket herunterladen: ',
+                    el('a', { href: prices.DOWNLOAD_URL, target: '_blank', rel: 'noopener',
+                        text: 'price_guide_16.json' }),
+                    '. Der Browser speichert die Datei, meist im Ordner „Downloads“ ' +
+                    '(in Chrome: Download-Liste, „Im Ordner anzeigen“).'
+                ]),
+                el('li', {}, [
+                    'Die heruntergeladene Datei hier auswählen: ',
+                    el('button', { type: 'button', className: 'primary', text: 'Datei auswählen …',
+                        onclick: function () { choose(); } })
+                ])
+            ]),
+            result
+        ]);
+        return openDialog({
+            title: 'Cardmarket-Preise aktualisieren',
+            body: body,
+            hint: 'Die Preise bleiben auf deinem Rechner (' + prices.FILE_NAME + '); ' +
+                'collection.csv ändert sich nicht. Wiederholen, so oft du möchtest.',
+            buttons: [{ label: 'Schließen', value: 'close', primary: true }]
+        });
+    }
+
+    /*
+     * Cardmarket products of a row: per foiling the product with a link to Cardmarket, its
+     * state and price. "geprüft" confirms the product, another product id replaces it; both
+     * are kept as corrections in the price file (not in collection.csv). For comparison the
+     * products of the other foilings of the card number and edition are listed.
+     */
+    function showCardmarket(row) {
+        var map = FCT.cardmarketMap.shipped();
+        var file = state.prices.file || prices.empty();
+        var v = prices.value(file, map, row);
+        function link(id) {
+            return el('a', { href: FCT.cardmarketMap.productUrl(id), target: '_blank',
+                rel: 'noopener', text: String(id) });
+        }
+        // "geprüft" only ever means "product and price checked on Cardmarket"; entering
+        // another id is no check (feedback on #96). The tick refers to the product shown, or
+        // to the id just entered.
+        var controls = [];
+        var lines = v.parts.map(function (p) {
+            var checked = !!p.product && p.product.status === 'confirmed';
+            // A check of the shipped mapping is not undone here, only replaced by another id.
+            var locked = checked && !p.product.corrected;
+            var check = el('input', { type: 'checkbox', checked: checked,
+                disabled: !p.product || locked,
+                title: 'Produkt und Preis auf Cardmarket nachgesehen: das Produkt passt' });
+            var other = el('input', { type: 'text', className: 'cm-id', inputmode: 'numeric',
+                placeholder: 'ID', title: 'Andere Produkt-ID von Cardmarket (aus der Adresse ' +
+                    'der Produktseite: …?idProduct=…). Erst nach dem Nachsehen „geprüft“ ' +
+                    'anhaken.' });
+            // A new id starts unchecked; without one the tick is as before.
+            other.addEventListener('input', function () {
+                var typed = other.value.trim() !== '';
+                check.checked = typed ? false : checked;
+                check.disabled = typed ? false : !p.product || locked;
+            });
+            var control = { part: p, check: check, other: other, reset: false };
+            controls.push(control);
+            var productCell = el('td', {}, [p.product ? link(p.product.id) : '–']);
+            var stateCell = el('td', { text: mappingText(p.product) });
+            var priceCell = el('td', { className: 'num',
+                text: p.price ? prices.money(p.price.value) : '–' });
+
+            // ↺ as in the row dialog (feedback on #96): drops the own correction, so that the
+            // shipped mapping applies again; the line shows it, "Übernehmen" saves it. Here
+            // the button names the id it goes back to ("<id> ↺"), as the step is unusual.
+            var shipped = map.printings[p.key];
+            var reset = p.product && p.product.corrected ? el('button', {
+                type: 'button', className: 'reset', text: (shipped ? shipped[0] + ' ' : '') + '↺',
+                title: shipped ? 'Eigene Korrektur zurücksetzen auf die mitgelieferte ID ' +
+                    shipped[0] + ' (wirkt mit „Übernehmen“)' : 'Eigene Korrektur ' +
+                    'zurücksetzen: wieder ohne Cardmarket-Produkt (wirkt mit „Übernehmen“)',
+                onclick: function () {
+                    var shippedPrice = shipped ? prices.price(file, shipped[0]) : null;
+                    control.reset = true;
+                    other.value = '';
+                    other.disabled = true;
+                    check.checked = !!shipped && shipped[1] === 'confirmed';
+                    check.disabled = true;
+                    reset.disabled = true;
+                    productCell.textContent = '';
+                    productCell.appendChild(shipped ? link(shipped[0])
+                        : document.createTextNode('–'));
+                    stateCell.textContent = (shipped ? mappingText({ status: shipped[1] })
+                        : 'nicht zugeordnet') + ' – zurückgesetzt';
+                    priceCell.textContent = shippedPrice ? prices.money(shippedPrice.value)
+                        : '–';
+                }
+            }) : null;
+            return el('tr', {}, [
+                el('th', { text: p.label }),
+                el('td', { className: 'num', text: String(p.quantity) }),
+                productCell,
+                stateCell,
+                priceCell,
+                el('td', {}, [el('label', {}, [check, ' geprüft'])]),
+                el('td', { className: 'cm-other' }, [other, reset])
+            ]);
+        });
+        var keys = v.parts.map(function (p) { return p.key; });
+        var related = v.parts.length ? prices.relatives(file, map, v.parts[0].key)
+            .filter(function (r) { return keys.indexOf(r.key) < 0; }) : [];
+        var body = el('div', { className: 'cardmarket-row' }, [
+            lines.length ? el('table', { className: 'row-form' }, [
+                el('thead', {}, [el('tr', {}, ['Foiling', 'Menge', 'Produkt', 'Zuordnung',
+                    'Preis', '', 'andere ID'].map(function (t) {
+                    return el('th', { text: t });
+                }))]),
+                el('tbody', {}, lines)
+            ]) : el('p', { text: 'Zu dieser Zeile kennen die Stammdaten keine Variante.' }),
+            related.length ? el('p', {}, ['Zum Vergleich, gleiche Kartennummer und Edition: ']
+                .concat(related.map(function (r, i) {
+                    var parts = r.key.split('|');
+                    var what = [parts[2] || 'Standard', parts[3]].filter(Boolean).join(', ');
+                    return el('span', {}, [i ? ' · ' : '', what + ' ', link(r.id)]);
+                }))) : null,
+            state.prices.file ? null : el('p', { text: 'Noch keine Cardmarket-Preise geladen ' +
+                '(„Aktualisieren …“ in der Gruppe Preise); die Zuordnung lässt sich trotzdem ' +
+                'prüfen.' })
+        ]);
+        return openDialog({
+            title: [row.Id, row.Name, 'Cardmarket'].filter(Boolean).join(' – '),
+            body: body,
+            hint: 'Die Links öffnen die Produktseite bei Cardmarket; ihr Titel nennt Edition ' +
+                'und Foiling. Korrekturen gelten für diese Variante in allen Beständen des ' +
+                'Ordners und stehen in ' + prices.FILE_NAME + ', nicht in collection.csv.',
+            wide: true,
+            buttons: [
+                { label: 'Abbrechen', value: 'cancel' },
+                { label: 'Übernehmen', value: 'accept', primary: true,
+                    disabled: !controls.length }
+            ]
+        }).then(function (value) {
+            if (value !== 'accept') return null;
+            var next = prices.parse(prices.stringify(file));
+            var changed = [];
+            controls.forEach(function (c) {
+                var p = c.part;
+                if (c.reset) {
+                    prices.setCorrection(next, p.key, null);
+                    changed.push(p.key);
+                    return;
+                }
+                var typed = c.other.value.trim();
+                var id = /^\d+$/.test(typed) ? parseInt(typed, 10) : null;
+                var current = p.product;
+                if (!id && current) id = current.id;
+                if (!id) return;
+                var status = c.check.checked ? 'confirmed' : 'manual';
+                if (current && id === current.id && status === current.status) return;
+                // Back to the shipped mapping: no correction is needed any more.
+                var shipped = map.printings[p.key];
+                if (shipped && shipped[0] === id && (status === 'manual' ||
+                    shipped[1] === status)) {
+                    if (!current || !current.corrected) return;
+                    prices.setCorrection(next, p.key, null);
+                } else if (!c.check.checked && current && !current.corrected && id === current.id) {
+                    return;
+                } else {
+                    prices.setCorrection(next, p.key, id, status);
+                }
+                changed.push(p.key);
+            });
+            if (!changed.length) return null;
+            return storePrices(next).then(function (stored) {
+                if (!stored) return;
+                FCT.log.info('prices', 'Cardmarket-Zuordnung korrigiert', { keys: changed });
+                // The table was rebuilt; like after the row dialog the row stays in view,
+                // also a ○ row that a filter would hide (feedback on #96).
+                selectRow(row);
+            });
+        });
+    }
+
+    /*
      * Changing cells. Every change goes through changeCell, so that overrides and the
      * change log are always kept up to date.
      */
@@ -3339,10 +3943,13 @@ FCT.app = (function () {
                     onClick: function () { takeReference(false); } },
                 { label: 'Alles zurücksetzen', disabled: !expected, left: true,
                     onClick: function () { takeReference(true); } },
+                // The Cardmarket products of the row (issue #94); changes here are dropped.
+                { label: 'Cardmarket …', value: 'cardmarket', left: true, disabled: !!column },
                 { label: 'Abbrechen', value: 'cancel' },
                 { label: 'Übernehmen', value: 'accept', primary: true }
             ]
         }).then(function (value) {
+            if (value === 'cardmarket') return showCardmarket(row);
             if (value !== 'accept') return;
             var changed = false;
             Object.keys(inputs).forEach(function (key) {
@@ -4178,6 +4785,7 @@ FCT.app = (function () {
             'btn-import-fabrary': importFabrary, 'btn-export-fabrary': exportFabrary,
             'btn-fabrary-map': fabraryMap,
             'btn-export-cardmarket': exportCardmarket,
+            'btn-prices': updatePrices,
             'btn-reference-update': function () { return updateReference(true); },
             'btn-reference-apply': applyReference, 'btn-reference-info': showReferenceInfo,
             'btn-log-file': chooseLogFile, 'btn-autosave': toggleAutosave,
@@ -4291,6 +4899,11 @@ FCT.app = (function () {
                     access: access });
                 setFolder(folder, access === 'granted');
             });
+        }).then(function () {
+            // Cardmarket prices (issue #94): with working folder setFolder reads them.
+            pricesStatus();
+            if (!hasFolder()) return loadPrices();
+            return null;
         }).then(restoreLast).then(function () {
             restoreView();
             showBrowserNotice();

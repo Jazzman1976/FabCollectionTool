@@ -1,4 +1,4 @@
-# FabCollectionTool 2.9.1
+# FabCollectionTool 2.10.0
 
 Verwaltung einer Flesh-and-Blood-Kartensammlung im Browser. Keine Installation, kein Server,
 keine Abhängigkeiten.
@@ -34,6 +34,7 @@ Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.m
 |---|---|
 | **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets anzeigen …* |
 | **Import / Export** | Import: ODS (die FabCollectionTool-1.0-Tabelle), Fabrary · Export: Fabrary, Cardmarket (Wants-Liste) |
+| **Preise** | Stand der Cardmarket-Preise, *Aktualisieren …* (Preisliste herunterladen und auswählen); Spalten *Wert*, *↓ Preis*, *↑ Preis*, Gesamtwert in der Statuszeile |
 | **Stammdaten** | Branch des Datensatzes, Stand, *Aktualisieren*, *Übernehmen …* (je Karte), *Info* |
 | **Ansicht** | Design (Auto, Hell, Dunkel), Schriftgröße, Lage der Meldungen, *Editiermodus* |
 | **Hilfe** | *Einrichtung* (Assistent), *Tutorial*, *Dokumentation*, *Diagnose* (Log herunterladen) |
@@ -56,7 +57,8 @@ ohne Internet gelten die mitgelieferten in `reference/`.
 - **Arbeitsordner** (Chrome/Edge, einmal gewählt): Bestand `<name>.csv`, Protokoll
   `<name>-log.csv` (die letzten 1.000 Änderungen), Backups `<name>-backup-<zeit>.csv`,
   Diagnose-Log `fct-diagnose.log` (bei 512 KB wird es zu `fct-diagnose.1.log`, höchstens etwa
-  1 MB). Eine Browser-Erlaubnis für den Ordner deckt alle Dateien ab.
+  1 MB), Cardmarket-Preise `cardmarket-prices.json` (für alle Bestände im Ordner). Eine
+  Browser-Erlaubnis für den Ordner deckt alle Dateien ab.
 - **Browser** (IndexedDB): eine Kopie des letzten Bestands mit Protokoll, die Verweise auf Datei
   und Ordner, die Autosave-Entscheidung und die letzten 2.000 Diagnose-Einträge. Die Datei
   bleibt das Original.
@@ -142,13 +144,43 @@ Spalten `Time, Action, Id, Name, Variant, Column, Old, New`; die letzten 1.000 E
   vor. Der Dialog *Zuordnung …* zeigt beides, nimmt eigene Werte auf und gleicht mit einem
   Fabrary-Export ab (eindeutige Funde vorausgewählt, unklare zur Wahl).
 
+### `cardmarket-prices.json` (Cardmarket-Preise, Issue #94)
+
+Liegt im Arbeitsordner (ohne Arbeitsordner an einem selbst gewählten Ort) und nie im
+Repository. Die App erzeugt sie aus Cardmarkets öffentlicher Preisliste `price_guide_16.json`,
+die der Nutzer im Browser herunterlädt und in *Preise → Aktualisieren …* auswählt (die App
+greift nicht selbst auf Download-Ordner zu; Cardmarket erlaubt keinen Abruf aus der Seite):
+
+```json
+{
+  "version": 1,
+  "priceGuide": "2026-10-28T02:45:41+0100",
+  "imported": "2026-10-28",
+  "prices": { "600569": [0.14, 0.32] },
+  "corrections": { "WTR005|Unlimited|Rainbow|": [600570, "confirmed"] }
+}
+```
+
+`prices` hält je Cardmarket-Produkt-ID `[avg30, trend]` aller FaB-Einzelkarten (Kategorie 1601),
+je Produkt statt je Variante, damit eine bessere Zuordnung ohne neuen Import greift.
+`corrections` sind eigene Angaben zur Zuordnung (`confirmed` = Produkt und Preis auf Cardmarket
+geprüft, `manual` = andere ID eingetragen, ungeprüft und deshalb wie geschätzt); sie bleiben beim
+Aktualisieren erhalten und gehen vor `reference/cardmarket-map.js`. Die geprüften lassen sich mit
+`tools/build-cardmarket-map.mjs --local` in die mitgelieferte Zuordnung übernehmen. Die
+Spalte *Wert* (berechnet, nicht in `collection.csv`) ist je Zeile die Summe aus Menge × Preis
+über ST, RF, CF, GF; Preis = avg30, sonst trend. *↓ Preis* und *↑ Preis* (ebenfalls berechnet)
+sind der niedrigste und höchste Preis je Karte unter den Foilings der Variante, unabhängig von
+der Menge. Schlüssel je Foiling:
+`Id|Edition|Foiling|Art Treatment` (Foiling leer = Standard, sonst `Rainbow`, `Cold`, `Gold`).
+
 ## Grenzen dieser Fassung
 
 - Imports ersetzen den geöffneten Bestand (kein Zusammenführen).
 - Cost, Power, Defense, Keywords, Artist, Legalität und Kartentext werden nur angezeigt,
   nicht in `collection.csv` gespeichert (Grundlage:
   `docs/konzept/Recherche-Spalten-2.0.4.0.md`).
-- Cardmarket, Dragon Shield und TCGplayer folgen später.
+- Dragon Shield und TCGplayer folgen später. Cardmarket-Preise sind eine Schätzung; geschätzte
+  Zuordnungen und Deck-Karten ohne eigene Cardmarket-Expansion siehe `reference/README.md`.
 
 ## Aufbau
 
@@ -159,7 +191,9 @@ in `index.html`: `core.js` (Namensraum, Hilfen), `log.js` (Diagnose-Log), `notic
 Stammdatenabgleich, Berechnung),
 `changelog.js`, `storage.js` (Dateien, Arbeitsordner, IndexedDB), `diagnosis.js` (Log-Datei
 mit Rotation), `grid-filter.js`, `card-image.js` (Kartenbilder) und `grid.js` (Tabelle),
-Importe/Exporte, `fabrary-map.js` (Fabrary-Zuordnung und Abgleich),
+Importe/Exporte, `fabrary-map.js` (Fabrary-Zuordnung und Abgleich), `cardmarket-map.js`
+(Cardmarket-Zuordnung: Schlüssel, Regeln des Build-Werkzeugs), `cardmarket-prices.js`
+(Preisdatei, Wert einer Zeile),
 `reference-update.js`, `tour.js` (Tutorial), `onboarding.js` (Einrichtungs-Assistent),
 `app.js` (Oberfläche).
 
@@ -170,8 +204,12 @@ Für Entwickler; Node.js 18 oder neuer. Die Anwendung selbst braucht kein Node.j
 - `tools/build-reference.mjs`: erzeugt `reference/*.js` neu (siehe `reference/README.md`).
 - `tools/build-fabrary-map.mjs`: erzeugt `reference/fabrary-map.js` aus einem Fabrary-Export
   (siehe `reference/README.md`).
+- `tools/build-cardmarket-map.mjs`: erzeugt `reference/cardmarket-map.js` (Printing →
+  Cardmarket-Produkt-ID) aus dem öffentlichen Katalog und der Preisliste von Cardmarket und
+  übernimmt Korrekturen aus der App (siehe `reference/README.md`).
 - `tools/selftest.mjs`: automatische Prüfungen (CSV, ODS-Import, Fabrary-Import/-Export,
-  Round-Trip, Fabrary-Zeilen aus den Stammdaten, Fabrary-Zuordnung, Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
+  Round-Trip, Fabrary-Zeilen aus den Stammdaten, Fabrary-Zuordnung, Cardmarket-Zuordnung,
+  Typzeilen-Zerlegung, `Overrides`, Stammdatenabgleich,
   Gruppen, Änderungsprotokoll, Erscheinungsdaten, Lückenfüllung, Übernehmen ohne Änderung
   des Bestands, Wertelisten, Platzhalter, Sets anzeigen und ausblenden, Playset, bearbeitbare Zellen,
   Grenzen von Protokoll und Diagnose-Log, Spaltenreihenfolge, Kartenbilder, Branch-URL,
