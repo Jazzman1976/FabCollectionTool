@@ -16,7 +16,7 @@ dürfen länger als 100 Zeichen sein; die Zeilenlängen-Regel gilt für handgesc
 | `vocab.js` | Wertelisten und Code-Tabellen | von Hand gepflegt |
 
 **Aktueller Stand:** the-fab-cube/flesh-and-blood-cards, Branch `develop`, Commit
-`18b2d9d74e2f57a025bb62820bf35a13477a895b` vom 30.09.2026; erzeugt am 30.09.2026.
+`b12186694cf58738f03c525fa3f1f814df61d21e` vom 16.10.2026; erzeugt am 28.10.2026.
 
 Die Anwendung lädt `set.csv`, `set-printing.csv`, `card.csv` und `card-printing.csv` beim Start
 zusätzlich online (aus dem in der App gewählten Branch, Standard `develop`) und verwendet sie, wenn das gelingt. Die mitgelieferten Dateien sind der Rückfall ohne Internet.
