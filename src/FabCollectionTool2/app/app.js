@@ -172,7 +172,11 @@ FCT.app = (function () {
                 'Zuordnung prüfen',
             value: valueText, display: valueDisplay, tip: valueTip,
             valueClass: function () { return 'value-cell'; },
-            open: function (row) { guarded(function () { return showCardmarket(row); })(); } };
+            hover: function (action, row, td) { priceHover(action, row, td, 'value'); },
+            open: function (row) {
+                FCT.cardImage.leave();
+                guarded(function () { return showCardmarket(row); })();
+            } };
 
         // Lowest and highest price per card among the foilings of the variant, regardless
         // of the quantities (feedback on #96); a click shows the products as for "Wert".
@@ -187,6 +191,7 @@ FCT.app = (function () {
                 value: function (row) { return rangeText(row, end); },
                 display: function (text, row) { return rangeDisplay(text, row, end); },
                 tip: function (text, row) { return rangeTip(row, end); },
+                hover: function (action, row, td) { priceHover(action, row, td, end); },
                 valueClass: worth.valueClass, open: worth.open };
         });
 
@@ -2757,6 +2762,64 @@ FCT.app = (function () {
             (p.price.basis === 'trend' ? ', Trend' : '') + ')\nCardmarket, Stand ' +
             (prices.guideDate(state.prices.file) || 'unbekannt') +
             '\nKlicken für Detailansicht der Cardmarket-Zuordnung (auch Leertaste)';
+    }
+
+    /*
+     * Preview window of a price cell (feedback on #96), like the card picture preview: a
+     * heading with the amount of the column (what 'value', 'low' or 'high'), per foiling
+     * quantity, price per card, amount and state of the mapping (the foiling the column
+     * shows in bold), the date of the prices, and in the colour of the clickable things what
+     * a click does.
+     */
+    function priceHover(action, row, td, what) {
+        if (action !== 'hover') { FCT.cardImage.leave(); return; }
+        FCT.cardImage.show(td, td, 'price-preview', function (box) {
+            box.appendChild(el('div', { className: 'price-title',
+                text: [row.Id, row.Name].filter(Boolean).join(' · ') }));
+            var v = rowValue(row);
+            if (!v) {
+                box.appendChild(el('p', { text: 'Keine Cardmarket-Preise – laden über ' +
+                    '„Aktualisieren …“ in der Gruppe Preise.' }));
+                return;
+            }
+            var r = rowRange(row);
+            var marked = what === 'value' || !r ? null : r[what];
+            var heads = { value: 'Wert ' + (v.estimated ? '≈ ' : '') + prices.money(v.total) +
+                (v.missing ? ' (ohne Preis für einen Teil)' : '') };
+            if (r) {
+                heads.low = 'Niedrigster Preis je Karte: ' + prices.money(r.low.price.value) +
+                    ' (' + r.low.label + ')';
+                heads.high = 'Höchster Preis je Karte: ' + prices.money(r.high.price.value) +
+                    ' (' + r.high.label + ')';
+            }
+            box.appendChild(el('div', { className: 'price-head',
+                text: heads[what] || 'Kein Cardmarket-Preis zu dieser Variante' }));
+            if (v.parts.length) {
+                box.appendChild(el('table', { className: 'price-table' }, [
+                    el('thead', {}, [el('tr', {}, ['Foiling', 'Menge', 'je Karte', 'Summe',
+                        'Zuordnung'].map(function (t) { return el('th', { text: t }); }))]),
+                    el('tbody', {}, v.parts.map(function (p) {
+                        var mapping = !p.product ? 'nicht zugeordnet' : !p.price ? 'kein Preis'
+                            : (p.sure ? 'sicher' : 'geschätzt') +
+                                (p.price.basis === 'trend' ? ', Trend' : '');
+                        return el('tr', { className: p === marked ? 'marked' : null }, [
+                            el('td', { text: p.label }),
+                            el('td', { className: 'num', text: String(p.quantity) }),
+                            el('td', { className: 'num',
+                                text: p.price ? prices.money(p.price.value) : '–' }),
+                            el('td', { className: 'num',
+                                text: p.price && p.quantity ? prices.money(p.amount) : '–' }),
+                            el('td', { text: mapping })
+                        ]);
+                    }))
+                ]));
+            }
+            box.appendChild(el('div', { className: 'card-caption', text: 'Cardmarket, ' +
+                '30-Tage-Durchschnitt (ersatzweise Trend), Stand ' +
+                (prices.guideDate(state.prices.file) || 'unbekannt') }));
+            box.appendChild(el('div', { className: 'card-hint',
+                text: 'Klicken für Detailansicht der Cardmarket-Zuordnung (auch Leertaste)' }));
+        });
     }
 
     // Total value in the status line: the collection, and the shown rows if filtered.

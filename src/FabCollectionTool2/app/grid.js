@@ -62,7 +62,9 @@ FCT.grid = (function () {
     //               the value) and tip(text, row) = its tooltip. Titles never wrap; a column
     //               is widened where its title would not fit. decimal = numbers with
     //               decimals (sorting and filters, e.g. ">10,5"); open(row) = a click on a
-    //               cell of the column, or Space in it, calls it (e.g. to show details).
+    //               cell of the column, or Space in it, calls it (e.g. to show details);
+    //               hover(action, row, td) = a preview window of its own instead of the
+    //               tooltip, action 'hover' or 'leave' (as onImage).
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
     //   searchKeys  keys searched by the free text search, or functions (row) -> text
@@ -1031,8 +1033,11 @@ FCT.grid = (function () {
             var picture = column.key === options.imageColumn && options.hasImage &&
                 options.hasImage(row);
             if (picture) classes.push('has-image');
+            // A column with a preview window of its own (column.hover) shows no tooltip; the
+            // text stays readable for screen readers.
             var td = el('td', { className: classes.join(' '),
-                title: picture ? null : title || null });
+                title: picture || column.hover ? null : title || null,
+                'aria-label': column.hover && title ? shown + '. ' + title : null });
             td._column = column;
             // A collapsed group names the column its value comes from.
             if (column.summaryLabel && text) td.title = column.summaryLabel + ': ' + text;
@@ -1218,14 +1223,27 @@ FCT.grid = (function () {
             }
         });
 
-        // Card pictures: preview while hovering over the picture column.
+        // Card pictures: preview while hovering over the picture column. Columns with a
+        // preview of their own (column.hover(action, row, td)) work the same way.
         tbody.addEventListener('mouseover', function (event) {
+            var cell = event.target.closest('td');
+            if (cell && cell._column && cell._column.hover) {
+                if (cell.parentNode._row && !editor) {
+                    cell._column.hover('hover', cell.parentNode._row, cell);
+                }
+                return;
+            }
             if (!options.onImage) return;
             var td = event.target.closest('td.has-image');
             var tr = td && td.parentNode;
             if (td && tr._row && !editor) options.onImage('hover', tr._row, td);
         });
         tbody.addEventListener('mouseout', function (event) {
+            var cell = event.target.closest('td');
+            if (cell && cell._column && cell._column.hover) {
+                if (!cell.contains(event.relatedTarget)) cell._column.hover('leave');
+                return;
+            }
             if (!options.onImage) return;
             var td = event.target.closest('td.has-image');
             if (td && !td.contains(event.relatedTarget)) options.onImage('leave');

@@ -1398,6 +1398,47 @@ table.row-form button.reset {
     color: var(--muted);
     text-align: center;
 }
+/* Preview of a price cell (feedback on #96): the window of the card preview, as wide as its
+   table. The foiling the column shows (↓ / ↑ Preis) is in bold. */
+.card-preview.price-preview {
+    width: auto;
+    min-width: 260px;
+    max-width: 440px;
+    padding: 8px 10px;
+}
+.price-preview .price-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.price-preview .price-head {
+    margin: 2px 0 6px;
+}
+.price-preview .price-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+.price-preview .price-table th, .price-preview .price-table td {
+    padding: 2px 6px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    white-space: nowrap;
+}
+.price-preview .price-table th {
+    color: var(--muted);
+    font-weight: 600;
+}
+.price-preview .price-table td.num {
+    text-align: right;
+}
+.price-preview .price-table tr.marked td {
+    font-weight: 700;
+}
+.price-preview p {
+    margin: 4px 0;
+}
 /* Preview: what a click does (feedback on #96). */
 .card-preview .card-hint {
     margin-top: 3px;

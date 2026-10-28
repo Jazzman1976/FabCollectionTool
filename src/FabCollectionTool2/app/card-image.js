@@ -30,21 +30,33 @@ FCT.cardImage = (function () {
      * room), kept inside the window.
      */
     function hover(url, cell, caption) {
-        clearTimeout(timer);
         if (!url) { leave(); return; }
-        current = url;
+        show(url, cell, '', function (box) {
+            box.appendChild(picture(url, caption, 'card-preview-image'));
+            box.appendChild(el('div', { className: 'card-caption', text: caption }));
+            // The colour alone does not tell that a click opens more (feedback on #96).
+            box.appendChild(el('div', { className: 'card-hint',
+                text: 'Klicken für große Detailansicht' }));
+        });
+    }
+
+    /*
+     * The same preview window with other content (prices, feedback on #96): key tells
+     * previews apart (the cell, for instance), build(box) fills the window, className is
+     * added to its class.
+     */
+    function show(key, cell, className, build) {
+        clearTimeout(timer);
+        current = key;
         timer = setTimeout(function () {
-            if (current !== url) return;
+            if (current !== key) return;
             if (!preview) {
-                preview = el('div', { className: 'card-preview', role: 'tooltip' });
+                preview = el('div', { role: 'tooltip' });
                 document.body.appendChild(preview);
             }
+            preview.className = 'card-preview' + (className ? ' ' + className : '');
             preview.textContent = '';
-            preview.appendChild(picture(url, caption, 'card-preview-image'));
-            preview.appendChild(el('div', { className: 'card-caption', text: caption }));
-            // The colour alone does not tell that a click opens more (feedback on #96).
-            preview.appendChild(el('div', { className: 'card-hint',
-                text: 'Klicken für große Detailansicht' }));
+            build(preview);
             preview.hidden = false;
             place(cell.getBoundingClientRect());
         }, HOVER_DELAY);
@@ -111,5 +123,5 @@ FCT.cardImage = (function () {
         viewer = null;
     }
 
-    return { hover: hover, leave: leave, open: open, close: close };
+    return { hover: hover, show: show, leave: leave, open: open, close: close };
 })();
