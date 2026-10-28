@@ -168,7 +168,8 @@ FCT.app = (function () {
         var worth = { key: '_value', label: 'Wert', width: 7, kind: 'calc', numeric: true,
             decimal: true, sparse: true,
             hint: 'Menge × Cardmarket-Preis (30-Tage-Durchschnitt), Summe über die Foilings. ' +
-                '≈ = teils geschätzte Zuordnung, ? = Preis fehlt. Klick: Zuordnung prüfen',
+                '≈ = teils geschätzte Zuordnung, ? = Preis fehlt. Klick oder Leertaste: ' +
+                'Zuordnung prüfen',
             value: valueText, display: valueDisplay, tip: valueTip,
             valueClass: function () { return 'value-cell'; },
             open: function (row) { guarded(function () { return showCardmarket(row); })(); } };
@@ -181,7 +182,8 @@ FCT.app = (function () {
                 numeric: true, decimal: true, sparse: true,
                 hint: (end === 'low' ? 'Niedrigster' : 'Höchster') + ' Cardmarket-Preis je ' +
                     'Karte unter den Foilings der Variante (30-Tage-Durchschnitt), unabhängig ' +
-                    'von der Menge. ≈ = geschätzte Zuordnung. Klick: Zuordnung prüfen',
+                    'von der Menge. ≈ = geschätzte Zuordnung. Klick oder Leertaste: ' +
+                    'Zuordnung prüfen',
                 value: function (row) { return rangeText(row, end); },
                 display: function (text, row) { return rangeDisplay(text, row, end); },
                 tip: function (text, row) { return rangeTip(row, end); },
@@ -2724,7 +2726,7 @@ FCT.app = (function () {
         if (!lines.length) lines.push('Keine Variante mit Cardmarket-Produkt');
         lines.push('30-Tage-Durchschnitt (ersatzweise Trend) · Cardmarket, Stand ' +
             (prices.guideDate(state.prices.file) || 'unbekannt'));
-        lines.push('Klick: Cardmarket-Zuordnung ansehen und prüfen');
+        lines.push('Klick oder Leertaste: Cardmarket-Zuordnung ansehen und prüfen');
         return lines.join('\n');
     }
 
@@ -2754,7 +2756,7 @@ FCT.app = (function () {
             ', ' + prices.money(p.price.value) + ' (' + (p.sure ? 'sicher' : 'geschätzt') +
             (p.price.basis === 'trend' ? ', Trend' : '') + ')\nCardmarket, Stand ' +
             (prices.guideDate(state.prices.file) || 'unbekannt') +
-            '\nKlick: Cardmarket-Zuordnung ansehen und prüfen';
+            '\nKlick oder Leertaste: Cardmarket-Zuordnung ansehen und prüfen';
     }
 
     // Total value in the status line: the collection, and the shown rows if filtered.

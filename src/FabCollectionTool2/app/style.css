@@ -1565,6 +1565,12 @@ table.row-form select:disabled {
 .cardmarket-row table.row-form td.num {
     text-align: right;
 }
+/* Cells with details behind them (Wert, ↓ Preis, ↑ Preis) look like the other clickable
+   things of the app: accent colour, underlined under the mouse. */
 .grid td.value-cell {
+    color: var(--accent);
     cursor: pointer;
+}
+.grid td.value-cell:hover {
+    text-decoration: underline;
 }

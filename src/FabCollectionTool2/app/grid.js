@@ -62,7 +62,7 @@ FCT.grid = (function () {
     //               the value) and tip(text, row) = its tooltip. Titles never wrap; a column
     //               is widened where its title would not fit. decimal = numbers with
     //               decimals (sorting and filters, e.g. ">10,5"); open(row) = a click on a
-    //               cell of the column calls it (e.g. to show details).
+    //               cell of the column, or Space in it, calls it (e.g. to show details).
     //   collapsed                 { group: true } groups collapsed at the start
     //   onCollapse(group, collapsed)   a group was collapsed or expanded (to remember it)
     //   searchKeys  keys searched by the free text search, or functions (row) -> text
@@ -1315,8 +1315,13 @@ FCT.grid = (function () {
             var key = e.key;
             var handled = true;
 
+            var details = item && !item._group ? columnByKey(cursor.key) : null;
             if (item && item._group && (key === 'Enter' || key === ' ')) {
                 setGroupOpen(item, !item.open);
+            } else if (key === ' ' && details && details.open) {
+                // Space opens the details behind a cell, as a click does (and as it opens
+                // a group).
+                details.open(item);
             } else if (item && item._group && item.level === 1 && e.shiftKey &&
                 (key === 'ArrowRight' || key === 'ArrowLeft')) {
                 // Shift+Right / Shift+Left on a set: all its talent/class groups (#27).
