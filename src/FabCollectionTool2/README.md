@@ -34,7 +34,7 @@ Was sich je Version geändert hat, steht in [`RELEASE-NOTES.md`](RELEASE-NOTES.m
 |---|---|
 | **Bestand** | *Neu*, *Öffnen*, *Speichern* (Strg+S), *Backup*, *Ordner …* (Arbeitsordner), *Sets anzeigen …* |
 | **Import / Export** | Import: ODS (die FabCollectionTool-1.0-Tabelle), Fabrary · Export: Fabrary, Cardmarket (Wants-Liste) |
-| **Preise** | Stand der Cardmarket-Preise, *Aktualisieren …* (Preisliste herunterladen und auswählen); Spalte *Wert*, Gesamtwert in der Statuszeile |
+| **Preise** | Stand der Cardmarket-Preise, *Aktualisieren …* (Preisliste herunterladen und auswählen); Spalten *Wert*, *↓ Preis*, *↑ Preis*, Gesamtwert in der Statuszeile |
 | **Stammdaten** | Branch des Datensatzes, Stand, *Aktualisieren*, *Übernehmen …* (je Karte), *Info* |
 | **Ansicht** | Design (Auto, Hell, Dunkel), Schriftgröße, Lage der Meldungen, *Editiermodus* |
 | **Hilfe** | *Einrichtung* (Assistent), *Tutorial*, *Dokumentation*, *Diagnose* (Log herunterladen) |
@@ -167,7 +167,9 @@ je Produkt statt je Variante, damit eine bessere Zuordnung ohne neuen Import gre
 sie bleiben beim Aktualisieren erhalten, gehen vor `reference/cardmarket-map.js` und lassen sich
 mit `tools/build-cardmarket-map.mjs --local` in die mitgelieferte Zuordnung übernehmen. Die
 Spalte *Wert* (berechnet, nicht in `collection.csv`) ist je Zeile die Summe aus Menge × Preis
-über ST, RF, CF, GF; Preis = avg30, sonst trend. Schlüssel je Foiling:
+über ST, RF, CF, GF; Preis = avg30, sonst trend. *↓ Preis* und *↑ Preis* (ebenfalls berechnet)
+sind der niedrigste und höchste Preis je Karte unter den Foilings der Variante, unabhängig von
+der Menge. Schlüssel je Foiling:
 `Id|Edition|Foiling|Art Treatment` (Foiling leer = Standard, sonst `Rainbow`, `Cold`, `Gold`).
 
 ## Grenzen dieser Fassung

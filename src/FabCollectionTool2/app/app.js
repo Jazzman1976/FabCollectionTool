@@ -47,7 +47,7 @@ FCT.app = (function () {
     var DEFAULT_COLUMNS = ['Set', 'Id', '_image', 'Rarity', 'Metatype', '_talent', '_class',
         '_type', '_subtype', '_name', 'Art Treatment', 'Pitch', 'Playset',
         'ST', 'RF', 'CF', 'GF', '_haveSet', '_needSet', '_leftSet', '_haveTotal', '_needTotal',
-        '_leftTotal', '_value', 'Edition', 'Language', '_exclusive'];
+        '_leftTotal', '_value', '_priceLow', '_priceHigh', 'Edition', 'Language', '_exclusive'];
     var WIDTHS = {
         Set: 12, Edition: 5.5, Language: 6, Id: 5.5, 'First In': 5, Rarity: 6.5, Metatype: 5,
         Talent1: 6.5,
@@ -173,6 +173,21 @@ FCT.app = (function () {
             valueClass: function () { return 'value-cell'; },
             open: function (row) { guarded(function () { return showCardmarket(row); })(); } };
 
+        // Lowest and highest price per card among the foilings of the variant, regardless
+        // of the quantities (feedback on #96); a click shows the products as for "Wert".
+        var priceRange = ['low', 'high'].map(function (end) {
+            return { key: end === 'low' ? '_priceLow' : '_priceHigh',
+                label: end === 'low' ? '↓ Preis' : '↑ Preis', width: 6.5, kind: 'calc',
+                numeric: true, decimal: true, sparse: true,
+                hint: (end === 'low' ? 'Niedrigster' : 'Höchster') + ' Cardmarket-Preis je ' +
+                    'Karte unter den Foilings der Variante (30-Tage-Durchschnitt), unabhängig ' +
+                    'von der Menge. ≈ = geschätzte Zuordnung. Klick: Zuordnung prüfen',
+                value: function (row) { return rangeText(row, end); },
+                display: function (text, row) { return rangeDisplay(text, row, end); },
+                tip: function (text, row) { return rangeTip(row, end); },
+                valueClass: worth.valueClass, open: worth.open };
+        });
+
         // Further reference data, only shown (never saved in collection.csv, since 2.0.5.0).
         var shown = [
             { key: '_cost', label: 'Cost', width: 4.5, numeric: true, value: cardValue('cost') },
@@ -249,8 +264,8 @@ FCT.app = (function () {
         var at = keys.indexOf('GF') + 1;
         var firstIn = keys.indexOf('First In') + 1;
         var all = columns.slice(0, id).concat([picture], columns.slice(id, at), calculated,
-            [worth], columns.slice(at, firstIn), [exclusive], columns.slice(firstIn), [types],
-            shown);
+            [worth], priceRange, columns.slice(at, firstIn), [exclusive], columns.slice(firstIn),
+            [types], shown);
 
         // Visibility: as last chosen by the user, otherwise the default view. Art Treatment
         // belongs to the default view since 2.0.4.0, Metatype, Talent1 and Talent2 replace
@@ -287,6 +302,14 @@ FCT.app = (function () {
         if (!settings.get('columnsValue', false)) {
             if (visible.indexOf('_value') < 0) visible = visible.concat(['_value']);
             settings.set('columnsValue', true);
+            if (settings.get('columns', null)) settings.set('columns', visible);
+        }
+        // So do "↓ Preis" and "↑ Preis" (feedback on #96).
+        if (!settings.get('columnsPriceRange', false)) {
+            ['_priceLow', '_priceHigh'].forEach(function (k) {
+                if (visible.indexOf(k) < 0) visible = visible.concat([k]);
+            });
+            settings.set('columnsPriceRange', true);
             if (settings.get('columns', null)) settings.set('columns', visible);
         }
         // Combined columns replace their parts (issue #69); a remembered choice is converted
@@ -2703,6 +2726,35 @@ FCT.app = (function () {
             (prices.guideDate(state.prices.file) || 'unbekannt'));
         lines.push('Klick: Cardmarket-Zuordnung ansehen und prüfen');
         return lines.join('\n');
+    }
+
+    // Lowest or highest price per card among the foilings of a row ({ low, high }), or null.
+    function rowRange(row) {
+        return state.prices.file
+            ? prices.range(state.prices.file, FCT.cardmarketMap.shipped(), row) : null;
+    }
+
+    // "↓ Preis" / "↑ Preis" (end 'low' or 'high') as sortable text, cell text and tooltip.
+    function rangeText(row, end) {
+        var r = rowRange(row);
+        return r ? r[end].price.value.toFixed(2) : '';
+    }
+
+    function rangeDisplay(text, row, end) {
+        var r = text ? rowRange(row) : null;
+        return r ? (r[end].sure ? '' : '≈ ') + prices.money(r[end].price.value) : '';
+    }
+
+    function rangeTip(row, end) {
+        var r = rowRange(row);
+        if (!r) return state.prices.file ? 'Kein Cardmarket-Preis zu dieser Variante'
+            : 'Keine Cardmarket-Preise – laden über „Aktualisieren …“ (Gruppe Preise)';
+        var p = r[end];
+        return (end === 'low' ? 'Niedrigster' : 'Höchster') + ' Preis je Karte: ' + p.label +
+            ', ' + prices.money(p.price.value) + ' (' + (p.sure ? 'sicher' : 'geschätzt') +
+            (p.price.basis === 'trend' ? ', Trend' : '') + ')\nCardmarket, Stand ' +
+            (prices.guideDate(state.prices.file) || 'unbekannt') +
+            '\nKlick: Cardmarket-Zuordnung ansehen und prüfen';
     }
 
     // Total value in the status line: the collection, and the shown rows if filtered.

@@ -178,6 +178,23 @@ FCT.cardmarketPrices = (function () {
         return result;
     }
 
+    /*
+     * Lowest and highest price per card among the foilings of a row (columns "↓ Preis" and
+     * "↑ Preis"), regardless of the quantities: { low, high } with the part of the cheapest
+     * and of the dearest foiling, or null if no foiling has a price.
+     */
+    function range(file, map, row) {
+        var priced = value(file, map, row).parts.filter(function (p) { return p.price; });
+        if (!priced.length) return null;
+        var low = priced[0];
+        var high = priced[0];
+        priced.forEach(function (p) {
+            if (p.price.value < low.price.value) low = p;
+            if (p.price.value > high.price.value) high = p;
+        });
+        return { low: low, high: high };
+    }
+
     // Sets (or with id null removes) the correction of a key.
     function setCorrection(file, key, id, status) {
         if (id == null) delete file.corrections[key];
@@ -244,6 +261,7 @@ FCT.cardmarketPrices = (function () {
         entry: entry,
         price: price,
         value: value,
+        range: range,
         setCorrection: setCorrection,
         tidy: tidy,
         relatives: relatives,

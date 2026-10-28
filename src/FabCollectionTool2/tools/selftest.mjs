@@ -1337,6 +1337,11 @@ if (!currentFile) {
         rf.product.corrected && rf.sure && rf.price.basis === 'trend' &&
         !pr.value(file, map, { Id: 'TST001', Edition: 'Unlimited', 'Art Treatment': '',
             ST: '0' }).parts.length, JSON.stringify(v));
+    const range = pr.range(file, map, row);
+    check('Cardmarket prices: lowest and highest price among the foilings of a row',
+        range.low.column === 'ST' && range.low.price.value === 0.1 &&
+        range.high.column === 'RF' && range.high.price.value === 3 &&
+        pr.range(file, map, { Id: 'TST009', ST: '1' }) === null);
     const tidied = pr.parse(pr.stringify(file));
     pr.setCorrection(tidied, 'TST002|||', 11, 'confirmed');
     pr.setCorrection(tidied, 'TST001|Unlimited||', 12, 'manual');
