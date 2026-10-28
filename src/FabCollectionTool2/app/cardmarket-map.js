@@ -403,6 +403,46 @@ FCT.cardmarketMap = (function () {
     }
 
     /*
+     * Reference data for the build from the shipped data and branches of the card data set
+     * (issue #103): new sets appear in branches of their own long before they reach the
+     * default branch. A set is taken from the branch with the most printings of it, if that
+     * branch has more than the shipped data. base: { printings, cards }, branches: list of
+     * { name, printings, cards } (rows as in reference/*.js). Returns { printings, cards,
+     * fromBranch: { <set code>: branch name } }.
+     */
+    function mergeReference(base, branches) {
+        function countBySet(printings) {
+            var counts = new Map();
+            printings.forEach(function (p) { counts.set(p[1], (counts.get(p[1]) || 0) + 1); });
+            return counts;
+        }
+
+        // Per set the branch with the most printings, if more than in the shipped data.
+        var baseCounts = countBySet(base.printings);
+        var best = new Map();
+        branches.forEach(function (branch) {
+            countBySet(branch.printings).forEach(function (count, code) {
+                var current = best.has(code) ? best.get(code).count : baseCounts.get(code) || 0;
+                if (count > current) best.set(code, { branch: branch, count: count });
+            });
+        });
+
+        // Printings of the shipped data except those sets, then the sets from their branches.
+        var printings = base.printings.filter(function (p) { return !best.has(p[1]); });
+        var cards = new Map(base.cards.map(function (card) { return [card[0], card]; }));
+        var fromBranch = {};
+        best.forEach(function (chosen, code) {
+            fromBranch[code] = chosen.branch.name;
+            chosen.branch.printings.forEach(function (p) {
+                if (p[1] === code) printings.push(p);
+            });
+            chosen.branch.cards.forEach(function (card) { cards.set(card[0], card); });
+        });
+        return { printings: printings, cards: Array.from(cards.values()),
+            fromBranch: fromBranch };
+    }
+
+    /*
      * Builds the mapping. input: products (catalogue entries { idProduct, name, idExpansion }),
      * prices (Map product id -> price guide entry), printings (rows of reference/printings.js),
      * cards (Map card id -> { name, pitch }), previous (mapping so far), corrections (local).
@@ -489,6 +529,7 @@ FCT.cardmarketMap = (function () {
         priceOf: priceOf,
         parseName: parseName,
         build: build,
+        mergeReference: mergeReference,
         normalize: normalize,
         problems: problems
     };
