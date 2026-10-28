@@ -58,10 +58,12 @@ Board: <https://github.com/users/Jazzman1976/projects/1>, Spalten Backlog, Appro
 Ready for dev, Changes requested, In progress, In review, Done, Closed. Remote heißt lokal
 `github`, in der Cloud `origin`.
 
-- **Done** = Entwicklung fertig und nach `develop` gemergt, aber noch nicht veröffentlicht.
-  Das Issue bleibt **offen**.
-- **Closed** = wirklich zu Ende: veröffentlicht, abgelehnt oder nicht reproduzierbar. Spalte
-  „Closed“ und geschlossenes Issue gehören zusammen (abgelehnt: „Close as not planned“).
+- **Definition of Done** (Elmar, 28.10.2026): Das Feature ist **getestet, dokumentiert und
+  nach `develop` gemergt**. Dann wird das Issue **geschlossen**, nicht erst beim Release.
+- **Closed** = erledigt nach der Definition of Done, abgelehnt („Close as not planned“) oder
+  nicht reproduzierbar. Spalte „Closed“ und geschlossenes Issue gehören zusammen; die
+  Board-Automatik schiebt geschlossene Issues selbst dorthin. Die Spalte **Done** wird nicht
+  mehr genutzt.
 - **Changes requested** = Elmar hat beim Test in *In review* etwas gefunden; was zu ändern
   ist, steht als Kommentar im PR oder Issue.
 
@@ -82,15 +84,17 @@ Ready for dev, Changes requested, In progress, In review, Done, Closed. Remote h
 6. **Elmar testet.** Fällt etwas auf, setzt er **Changes requested** und kommentiert; dann
    auf demselben Branch nachbessern (Board **In progress**), pushen, PR-Beschreibung
    ergänzen, Board wieder **In review**.
-7. **Elmar merged** und setzt das Issue auf **Done** (oder meldet den Merge, dann setzt Claude
-   es). Die Action `note-merge-on-develop.yml` vermerkt den Merge im Issue; das Issue bleibt
-   offen bis zum Release.
+7. **Elmar merged.** Die Action `note-merge-on-develop.yml` schließt dann jedes Issue aus
+   einer `Closes #<n>`-Zeile des PRs (Kommentar, Grund „completed“, Label „in development“
+   weg); GitHubs eigenes Schließen greift nur beim Default-Branch `main`. Bei einem
+   Parent-Issue stehen Parent und alle Unter-Issues als eigene `Closes`-Zeilen im PR. Nach dem
+   Merge prüft Claude, ob alles geschlossen ist, und holt Übersehenes von Hand nach.
 8. Nach jedem Merge `develop` per Merge (kein Rebase, kein Force-Push) in offene
    Feature-Branches holen.
 
-- Label **„in development“** wird erst gesetzt, wenn ein Issue auf **In progress** geht, und
-  bleibt bis zum Release: Es gehört an In progress, Changes requested, In review und Done
-  (das Release steht noch aus), nicht an Backlog, Approved, Ready, Ready for dev und Closed.
+- Label **„in development“** wird gesetzt, wenn ein Issue auf **In progress** geht, und beim
+  Schließen entfernt: Es gehört an In progress, Changes requested und In review, nicht an
+  Backlog, Approved, Ready, Ready for dev und Closed.
 - **`develop` und `main` werden nie gelöscht**, nie direkt beschrieben (nur per PR), nie
   force-gepusht. Aufräumen: nur `feature/`-Branches, die nachweislich gemergt sind.
 - Merges nach `develop` oder `main` macht nur Elmar. Einzige Ausnahme: der Release-Abschluss
@@ -117,8 +121,8 @@ Ready for dev, Changes requested, In progress, In review, Done, Closed. Remote h
   5. Aufräumen: alle weiteren Branches außer `develop` und `main` löschen, die sicher gelöscht
      werden können (nachweislich gemergt), auf GitHub und lokal. Was nicht gemergt ist, bleibt
      und wird genannt.
-  6. Alle Issues mit Board-Status *Done* sind damit veröffentlicht: Issue schließen, Board
-     **Closed**, Label „in development“ entfernen.
+  6. Prüfen, dass alle Issues des Releases geschlossen sind (Definition of Done); ein
+     übersehenes noch schließen, Label „in development“ entfernen.
 - Gemergt wird über die PRs (Merge-Commit, kein Force-Push, kein direkter Push). SourceTrees
   „Finish Release“ passt nicht dazu: Es merged lokal und scheitert am Push auf die geschützten
   Branches.
